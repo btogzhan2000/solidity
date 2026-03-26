@@ -3,4 +3,3 @@ contract test {
         return 2 << 80;
     }
 }
-// ----

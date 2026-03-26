@@ -23,45 +23,31 @@
 
 #pragma once
 
-#include <liblangutil/Exceptions.h>
-
 #include <cstddef>
 #include <string>
 
 namespace solidity::frontend
 {
 
-enum class OptimisationPreset
-{
-	None,
-	Minimal,
-	Standard,
-	Full,
-};
-
 struct OptimiserSettings
 {
 	static char constexpr DefaultYulOptimiserSteps[] =
-		"dfDvulfnTUtnIf"               // None of these can make stack problems worse
+		"dhfoDgvulfnTUtnIf"            // None of these can make stack problems worse
+		"["
+			"xarrscLM"                 // Turn into SSA and simplify
+			"cCTUtTOntnfDIul"          // Perform structural simplification
+			"Lcul"                     // Simplify again
+			"Vcul jj"                  // Reverse SSA
 
-		"xa[r]EscLM"                   // Turn into SSA and simplify
-		"Vcul [j]"                     // Reverse SSA
+			// should have good "compilability" property here.
 
-		// should have good "compilability" property here.
-
-		"Trpeul"                       // Run functional expression inliner
-		"xa[r]cL"                      // Turn into SSA again and simplify
-		"vifM"                         // Run full inliner
-		"CTUca[r]LSsTFOtfDnca[r]Iulc"  // SSA plus simplify
-
-		"scCTUt"
-		"vifM"                         // Run full inliner
-		"x[scCTUt] TOntnfDIul"         // Perform structural simplification
-		"vifM"                         // Run full inliner
-
-		"jmul[jul] VcTOcul jmul";      // Make source short and pretty
-
-	static char constexpr DefaultYulOptimiserCleanupSteps[] = "fDnTOcmuO";
+			"Tpeul"                    // Run functional expression inliner
+			"xarulrul"                 // Prune a bit more in SSA
+			"xarrcL"                   // Turn into SSA again and simplify
+			"gvif"                     // Run full inliner
+			"CTUcarrLsTOtfDncarrIulc"  // SSA plus simplify
+		"]"
+		"jmuljuljul VcTOcul jmul";     // Make source short and pretty
 
 	/// No optimisations at all - not recommended.
 	static OptimiserSettings none()
@@ -74,7 +60,6 @@ struct OptimiserSettings
 		OptimiserSettings s = none();
 		s.runJumpdestRemover = true;
 		s.runPeephole = true;
-		s.simpleCounterForLoopUncheckedIncrement = true;
 		return s;
 	}
 	/// Standard optimisations.
@@ -82,15 +67,14 @@ struct OptimiserSettings
 	{
 		OptimiserSettings s;
 		s.runOrderLiterals = true;
-		s.runInliner = true;
 		s.runJumpdestRemover = true;
 		s.runPeephole = true;
 		s.runDeduplicate = true;
 		s.runCSE = true;
 		s.runConstantOptimiser = true;
-		s.simpleCounterForLoopUncheckedIncrement = true;
 		s.runYulOptimiser = true;
 		s.optimizeStackAllocation = true;
+		s.expectedExecutionsPerDeployment = 200;
 		return s;
 	}
 	/// Full optimisations. Currently an alias for standard optimisations.
@@ -99,26 +83,24 @@ struct OptimiserSettings
 		return standard();
 	}
 
-	static OptimiserSettings preset(OptimisationPreset _preset)
+	bool operator==(OptimiserSettings const& _other) const
 	{
-		switch (_preset)
-		{
-			case OptimisationPreset::None: return none();
-			case OptimisationPreset::Minimal: return minimal();
-			case OptimisationPreset::Standard: return standard();
-			case OptimisationPreset::Full: return full();
-		}
-		util::unreachable();
+		return
+			runOrderLiterals == _other.runOrderLiterals &&
+			runJumpdestRemover == _other.runJumpdestRemover &&
+			runPeephole == _other.runPeephole &&
+			runDeduplicate == _other.runDeduplicate &&
+			runCSE == _other.runCSE &&
+			runConstantOptimiser == _other.runConstantOptimiser &&
+			optimizeStackAllocation == _other.optimizeStackAllocation &&
+			runYulOptimiser == _other.runYulOptimiser &&
+			yulOptimiserSteps == _other.yulOptimiserSteps &&
+			expectedExecutionsPerDeployment == _other.expectedExecutionsPerDeployment;
 	}
-
-	bool operator==(OptimiserSettings const& _other) const = default;
-	bool operator!=(OptimiserSettings const& _other) const = default;
 
 	/// Move literals to the right of commutative binary operators during code generation.
 	/// This helps exploiting associativity.
 	bool runOrderLiterals = false;
-	/// Inliner
-	bool runInliner = false;
 	/// Non-referenced jump destination remover.
 	bool runJumpdestRemover = false;
 	/// Peephole optimizer
@@ -130,8 +112,6 @@ struct OptimiserSettings
 	/// Constant optimizer, which tries to find better representations that satisfy the given
 	/// size/cost-trade-off.
 	bool runConstantOptimiser = false;
-	/// Allow unchecked arithmetic when incrementing the counter of certain kinds of 'for' loop
-	bool simpleCounterForLoopUncheckedIncrement = false;
 	/// Perform more efficient stack allocation for variables during code generation from Yul to bytecode.
 	bool optimizeStackAllocation = false;
 	/// Yul optimiser with default settings. Will only run on certain parts of the code for now.
@@ -141,10 +121,6 @@ struct OptimiserSettings
 	/// them just by setting this to an empty string. Set @a runYulOptimiser to false if you want
 	/// no optimisations.
 	std::string yulOptimiserSteps = DefaultYulOptimiserSteps;
-	/// Sequence of clean-up optimisation steps after yulOptimiserSteps is run. Note that if the string
-	/// is left empty, there will still be hard-coded optimisation steps that will run regardless.
-	/// Set @a runYulOptimiser to false if you want no optimisations.
-	std::string yulOptimiserCleanupSteps = DefaultYulOptimiserCleanupSteps;
 	/// This specifies an estimate on how often each opcode in this assembly will be executed,
 	/// i.e. use a small value to optimise for size and a large value to optimise for runtime gas usage.
 	size_t expectedExecutionsPerDeployment = 200;

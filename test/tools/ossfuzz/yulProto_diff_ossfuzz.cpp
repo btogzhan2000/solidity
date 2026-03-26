@@ -26,17 +26,16 @@
 
 #include <src/libfuzzer/libfuzzer_macro.h>
 
-#include <libyul/AST.h>
-#include <libyul/YulStack.h>
+#include <libyul/AssemblyStack.h>
 #include <libyul/backends/evm/EVMDialect.h>
 #include <libyul/Exceptions.h>
 
-#include <liblangutil/DebugInfoSelection.h>
 #include <liblangutil/EVMVersion.h>
 #include <liblangutil/SourceReferenceFormatter.h>
 
 #include <test/tools/ossfuzz/yulFuzzerCommon.h>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::util;
 using namespace solidity::langutil;
@@ -44,78 +43,90 @@ using namespace solidity::yul;
 using namespace solidity::yul::test;
 using namespace solidity::yul::test::yul_fuzzer;
 
+namespace
+{
+void printErrors(ostream& _stream, ErrorList const& _errors)
+{
+	SourceReferenceFormatter formatter(_stream, false, false);
+
+	for (auto const& error: _errors)
+		formatter.printExceptionInformation(
+			*error,
+			(error->type() == Error::Type::Warning) ? "Warning" : "Error"
+		);
+}
+}
+
 DEFINE_PROTO_FUZZER(Program const& _input)
 {
 	ProtoConverter converter;
-	std::string yul_source = converter.programToString(_input);
+	string yul_source = converter.programToString(_input);
 	EVMVersion version = converter.version();
 
 	if (const char* dump_path = getenv("PROTO_FUZZER_DUMP_PATH"))
 	{
 		// With libFuzzer binary run this to generate a YUL source file x.yul:
 		// PROTO_FUZZER_DUMP_PATH=x.yul ./a.out proto-input
-		std::ofstream of(dump_path);
-		of.write(yul_source.data(), static_cast<std::streamsize>(yul_source.size()));
+		ofstream of(dump_path);
+		of.write(yul_source.data(), static_cast<streamsize>(yul_source.size()));
 	}
 
 	YulStringRepository::reset();
 
-	// YulStack entry point
-	YulStack stack(
+	// AssemblyStack entry point
+	AssemblyStack stack(
 		version,
-		std::nullopt,
-		solidity::frontend::OptimiserSettings::full(),
-		DebugInfoSelection::All()
+		AssemblyStack::Language::StrictAssembly,
+		solidity::frontend::OptimiserSettings::full()
 	);
 
 	// Parse protobuf mutated YUL code
 	if (
 		!stack.parseAndAnalyze("source", yul_source) ||
-		!stack.parserResult()->code() ||
+		!stack.parserResult()->code ||
 		!stack.parserResult()->analysisInfo ||
-		Error::containsErrors(stack.errors())
+		!Error::containsOnlyWarnings(stack.errors())
 	)
 	{
-		SourceReferenceFormatter{std::cout, stack, false, false}.printErrorInformation(stack.errors());
+		printErrors(std::cout, stack.errors());
 		yulAssert(false, "Proto fuzzer generated malformed program");
 	}
 
-	std::ostringstream os1;
-	std::ostringstream os2;
-	// Disable memory tracing to avoid false positive reports
-	// such as unused write to memory e.g.,
-	// { mstore(0, 1) }
-	// that would be removed by the redundant store eliminator.
-	// TODO: Add EOF support
+	ostringstream os1;
+	ostringstream os2;
 	yulFuzzerUtil::TerminationReason termReason = yulFuzzerUtil::interpret(
 		os1,
-		*stack.parserResult()->code(),
-		/*disableMemoryTracing=*/true
+		stack.parserResult()->code,
+		EVMDialect::strictAssemblyForEVMObjects(version)
 	);
 
-	if (yulFuzzerUtil::resourceLimitsExceeded(termReason))
+	if (
+		termReason == yulFuzzerUtil::TerminationReason::StepLimitReached ||
+		termReason == yulFuzzerUtil::TerminationReason::TraceLimitReached ||
+		termReason == yulFuzzerUtil::TerminationReason::ExpresionNestingLimitReached
+	)
 		return;
 
-	// TODO: Add EOF support
-	YulOptimizerTestCommon optimizerTest(stack.parserResult());
+	YulOptimizerTestCommon optimizerTest(
+		stack.parserResult(),
+		EVMDialect::strictAssemblyForEVMObjects(version)
+	);
 	optimizerTest.setStep(optimizerTest.randomOptimiserStep(_input.step()));
-	auto const* astRoot = optimizerTest.run();
-	yulAssert(astRoot != nullptr, "Optimiser error.");
-	// TODO: Add EOF support
+	shared_ptr<solidity::yul::Block> astBlock = optimizerTest.run();
+	yulAssert(astBlock != nullptr, "Optimiser error.");
 	termReason = yulFuzzerUtil::interpret(
 		os2,
-		*optimizerTest.optimizedObject()->code(),
-		true
+		astBlock,
+		EVMDialect::strictAssemblyForEVMObjects(version)
 	);
-	if (yulFuzzerUtil::resourceLimitsExceeded(termReason))
+	if (
+		termReason == yulFuzzerUtil::TerminationReason::StepLimitReached ||
+		termReason == yulFuzzerUtil::TerminationReason::TraceLimitReached ||
+		termReason == yulFuzzerUtil::TerminationReason::ExpresionNestingLimitReached
+	)
 		return;
 
 	bool isTraceEq = (os1.str() == os2.str());
-	if (!isTraceEq)
-	{
-		std::cout << os1.str() << std::endl;
-		std::cout << os2.str() << std::endl;
-		yulAssert(false, "Interpreted traces for optimized and unoptimized code differ.");
-	}
+	yulAssert(isTraceEq, "Interpreted traces for optimized and unoptimized code differ.");
 	return;
 }

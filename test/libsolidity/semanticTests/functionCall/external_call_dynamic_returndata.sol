@@ -16,7 +16,9 @@ contract C {
         return sum;
     }
 }
+
 // ====
+// compileViaYul: also
 // EVMVersion: >=byzantium
 // ----
 // dt(uint256): 4 -> 6

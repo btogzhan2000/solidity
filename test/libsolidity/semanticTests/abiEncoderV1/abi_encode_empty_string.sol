@@ -1,4 +1,3 @@
-pragma abicoder v1;
 contract C {
     function f1() public returns (bytes memory) {
         return abi.encode("");
@@ -19,6 +18,7 @@ contract C {
         return abi.encodeWithSelector(0x00000001, msg);
     }
 }
+
 // ====
 // ABIEncoderV1Only: true
 // compileViaYul: false

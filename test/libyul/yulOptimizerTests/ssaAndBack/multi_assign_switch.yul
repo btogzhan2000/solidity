@@ -17,11 +17,9 @@
 // step: ssaAndBack
 //
 // {
-//     {
-//         let a := mload(0)
-//         switch mload(1)
-//         case 0 { a := mload(3) }
-//         default { a := mload(6) }
-//         mstore(a, 0)
-//     }
+//     let a := mload(0)
+//     switch mload(1)
+//     case 0 { a := mload(3) }
+//     default { a := mload(6) }
+//     mstore(a, 0)
 // }

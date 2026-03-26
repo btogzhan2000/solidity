@@ -4,4 +4,3 @@ contract C {
         b = a + c;
     }
 }
-// ----

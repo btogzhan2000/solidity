@@ -6,6 +6,4 @@
     let s := ""
     datacopy(x, "11", s)
 }
-// ====
-// bytecodeFormat: legacy
 // ----

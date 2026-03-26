@@ -4,4 +4,3 @@ contract test {
     mapping (address => function() external[]) c;
     function() external[] d;
 }
-// ----

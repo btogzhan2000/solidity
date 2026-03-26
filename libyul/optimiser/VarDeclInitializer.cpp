@@ -23,6 +23,7 @@
 #include <libsolutil/Visitor.h>
 #include <libyul/Dialect.h>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::yul;
 
@@ -30,7 +31,7 @@ void VarDeclInitializer::operator()(Block& _block)
 {
 	ASTModifier::operator()(_block);
 
-	using OptionalStatements = std::optional<std::vector<Statement>>;
+	using OptionalStatements = std::optional<vector<Statement>>;
 	util::GenericVisitor visitor{
 		util::VisitorFallback<OptionalStatements>{},
 		[this](VariableDeclaration& _varDecl) -> OptionalStatements
@@ -40,16 +41,17 @@ void VarDeclInitializer::operator()(Block& _block)
 
 			if (_varDecl.variables.size() == 1)
 			{
-				_varDecl.value = std::make_unique<Expression>(m_dialect.zeroLiteral());
+				_varDecl.value = make_unique<Expression>(m_dialect.zeroLiteralForType(_varDecl.variables.front().type));
 				return {};
 			}
 			else
 			{
-				OptionalStatements ret{std::vector<Statement>{}};
+				OptionalStatements ret{vector<Statement>{}};
+				langutil::SourceLocation loc{std::move(_varDecl.location)};
 				for (auto& var: _varDecl.variables)
 				{
-					std::unique_ptr<Expression> expr = std::make_unique<Expression>(m_dialect.zeroLiteral());
-					ret->emplace_back(VariableDeclaration{std::move(_varDecl.debugData), {std::move(var)}, std::move(expr)});
+					unique_ptr<Expression> expr = make_unique<Expression >(m_dialect.zeroLiteralForType(var.type));
+					ret->emplace_back(VariableDeclaration{loc, {std::move(var)}, std::move(expr)});
 				}
 				return ret;
 			}

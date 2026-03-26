@@ -23,18 +23,11 @@
 
 #pragma once
 
-#include <libyul/ASTForward.h>
-
-#include <libevmasm/SubAssemblyID.h>
-
 #include <libsolutil/Common.h>
 #include <libsolutil/CommonData.h>
-#include <libsolutil/Numeric.h>
-#include <liblangutil/EVMVersion.h>
 
 #include <functional>
 #include <memory>
-#include <optional>
 
 namespace solidity::langutil
 {
@@ -57,9 +50,7 @@ class AbstractAssembly
 {
 public:
 	using LabelID = size_t;
-	using SubID = evmasm::SubAssemblyID;
-	using ContainerID = uint8_t;
-	using FunctionID = uint16_t;
+	using SubID = size_t;
 	enum class JumpType { Ordinary, IntoFunction, OutOfFunction };
 
 	virtual ~AbstractAssembly() = default;
@@ -81,13 +72,10 @@ public:
 	/// Generate a new unique label.
 	virtual LabelID newLabelId() = 0;
 	/// Returns a label identified by the given name. Creates it if it does not yet exist.
-	virtual LabelID namedLabel(std::string const& _name, size_t _params, size_t _returns, std::optional<size_t> _sourceID) = 0;
+	virtual LabelID namedLabel(std::string const& _name) = 0;
 	/// Append a reference to a to-be-linked symbol.
 	/// Currently, we assume that the value is always a 20 byte number.
 	virtual void appendLinkerSymbol(std::string const& _name) = 0;
-
-	/// Append raw bytes that stay untouched by the optimizer.
-	virtual void appendVerbatim(bytes _data, size_t _arguments, size_t _returnVariables) = 0;
 
 	/// Append a jump instruction.
 	/// @param _stackDiffAfter the stack adjustment after this instruction.
@@ -99,32 +87,20 @@ public:
 	virtual void appendJumpTo(LabelID _labelId, int _stackDiffAfter = 0, JumpType _jumpType = JumpType::Ordinary) = 0;
 	/// Append a jump-to-if-immediate operation.
 	virtual void appendJumpToIf(LabelID _labelId, JumpType _jumpType = JumpType::Ordinary) = 0;
+	/// Start a subroutine identified by @a _labelId that takes @a _arguments
+	/// stack slots as arguments.
+	virtual void appendBeginsub(LabelID _labelId, int _arguments) = 0;
+	/// Call a subroutine identified by @a _labelId, taking @a _arguments from the
+	/// stack upon call and putting @a _returns arguments onto the stack upon return.
+	virtual void appendJumpsub(LabelID _labelId, int _arguments, int _returns) = 0;
+	/// Return from a subroutine.
+	/// @param _stackDiffAfter the stack adjustment after this instruction.
+	virtual void appendReturnsub(int _returns, int _stackDiffAfter = 0) = 0;
 
 	/// Append the assembled size as a constant.
 	virtual void appendAssemblySize() = 0;
 	/// Creates a new sub-assembly, which can be referenced using dataSize and dataOffset.
-	virtual std::pair<std::shared_ptr<AbstractAssembly>, SubID> createSubAssembly(bool _creation, std::string _name = "") = 0;
-
-	/// Registers a new function with given signature and returns its ID.
-	/// The function is initially empty and its body must be filled with instructions.
-	/// `_rets` even for non-returning function matters in case of stack height calculation.
-	virtual FunctionID registerFunction(uint8_t _args, uint8_t _rets, bool _nonReturning) = 0;
-	/// Selects a function as a target for newly appended instructions.
-	/// May only be called after the main code section is already filled and
-	/// must not be called when another function is already selected.
-	/// Filling the same function more than once is not allowed.
-	/// @a endFunction() must be called at the end to finalize the function.
-	virtual void beginFunction(FunctionID _functionID) = 0;
-	/// Finalizes the process of filling a function body and switches back to the main code section.
-	/// Must not be called if no function is selected.
-	/// Must be called after filling the main yul section
-	virtual void endFunction() = 0;
-	/// Appends function call to a function under given ID
-	virtual void appendFunctionCall(FunctionID _functionID) = 0;
-	/// Appends an instruction that returns values from the current function.
-	/// Only allowed inside a function body.
-	virtual void appendFunctionReturn() = 0;
-
+	virtual std::pair<std::shared_ptr<AbstractAssembly>, SubID> createSubAssembly() = 0;
 	/// Appends the offset of the given sub-assembly or data.
 	virtual void appendDataOffset(std::vector<SubID> const& _subPath) = 0;
 	/// Appends the size of the given sub-assembly or data.
@@ -137,35 +113,11 @@ public:
 	/// Appends an assignment to an immutable variable.
 	virtual void appendImmutableAssignment(std::string const& _identifier) = 0;
 
-	/// Appends an operation that loads 32 bytes of data from a known offset relative to the start of the static_aux_data area of the EOF data section.
-	/// Note that static_aux_data is only a part or the data section.
-	/// It is preceded by the pre_deploy_data, whose size is not determined before the bytecode is assembled, and which cannot be accessed using this function.
-	/// The function is meant to allow indexing into static_aux_data in a way that's independent of the size of pre_deploy_data.
-	virtual void appendAuxDataLoadN(uint16_t _offset) = 0;
-
-	/// Appends EOF contract creation instruction which takes creation code from subcontainer with _containerID.
-	virtual void appendEOFCreate(ContainerID _containerID) = 0;
-	/// Appends EOF contract return instruction which returns a subcontainer ID (_containerID) with auxiliary data filled in.
-	virtual void appendReturnContract(ContainerID _containerID) = 0;
-	/// Appends data to the very end of the bytecode. Repeated calls concatenate.
-	/// EOF auxiliary data in data section and the auxiliary data are different things.
-	virtual void appendToAuxiliaryData(bytes const& _data) = 0;
-
-	/// Appends a SWAPN with 1-based indexing for @arg _depth. I.e. a depth of 1 would be equivalent to emitting SWAP1.
-	/// @arg _depth ranges from 1 to 256.
-	virtual void appendSwapN(size_t _depth) = 0;
-	/// Appends a DUPN with 1-based indexing for @arg _depth. I.e. a depth of 1 would be equivalent to emitting DUP1.
-	/// @arg _depth ranges from 1 to 256.
-	virtual void appendDupN(size_t _depth) = 0;
-
 	/// Mark this assembly as invalid. Any attempt to request bytecode from it should throw.
 	virtual void markAsInvalid() = 0;
-
-	/// @returns the EVM version the assembly targets.
-	virtual langutil::EVMVersion evmVersion() const = 0;
 };
 
-enum class IdentifierContext { LValue, RValue, VariableDeclaration, NonExternal };
+enum class IdentifierContext { LValue, RValue, VariableDeclaration };
 
 /// Object that is used to resolve references and generate code for access to identifiers external
 /// to inline assembly (not used in standalone assembly mode).

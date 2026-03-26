@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract B {
 	int x;
 	constructor(int b) {
@@ -25,8 +27,7 @@ contract C is B {
 // ====
 // SMTEngine: bmc
 // ----
-// Warning 5740: (119-124): Unreachable code.
-// Warning 4661: (277-291): BMC: Assertion violation happens here.
+// Warning 5740: (152-157): Unreachable code.
 // Warning 4661: (310-324): BMC: Assertion violation happens here.
 // Warning 4661: (343-357): BMC: Assertion violation happens here.
-// Info 6002: BMC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 4661: (376-390): BMC: Assertion violation happens here.

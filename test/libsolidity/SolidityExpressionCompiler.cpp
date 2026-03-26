@@ -40,9 +40,9 @@
 
 #include <boost/test/unit_test.hpp>
 
+using namespace std;
 using namespace solidity::evmasm;
 using namespace solidity::langutil;
-using namespace solidity::test;
 
 namespace solidity::frontend::test
 {
@@ -78,13 +78,13 @@ private:
 
 Declaration const& resolveDeclaration(
 	SourceUnit const& _sourceUnit,
-	std::vector<std::string> const& _namespacedName,
+	vector<string> const& _namespacedName,
 	NameAndTypeResolver const& _resolver
 )
 {
 	ASTNode const* scope = &_sourceUnit;
 	// bracers are required, cause msvc couldn't handle this macro in for statement
-	for (std::string const& namePart: _namespacedName)
+	for (string const& namePart: _namespacedName)
 	{
 		auto declarations = _resolver.resolveName(namePart, scope);
 		BOOST_REQUIRE(!declarations.empty());
@@ -95,49 +95,42 @@ Declaration const& resolveDeclaration(
 }
 
 bytes compileFirstExpression(
-	std::string const& _sourceCode,
-	std::vector<std::vector<std::string>> _functions = {},
-	std::vector<std::vector<std::string>> _localVariables = {}
+	string const& _sourceCode,
+	vector<vector<string>> _functions = {},
+	vector<vector<string>> _localVariables = {}
 )
 {
-	std::string sourceCode = "pragma solidity >=0.0; // SPDX-License-Identifier: GPL-3\n" + _sourceCode;
-	CharStream stream(sourceCode, "");
+	string sourceCode = "pragma solidity >=0.0; // SPDX-License-Identifier: GPL-3\n" + _sourceCode;
 
 	ASTPointer<SourceUnit> sourceUnit;
 	try
 	{
 		ErrorList errors;
 		ErrorReporter errorReporter(errors);
-		sourceUnit = Parser(
-			errorReporter,
-			solidity::test::CommonOptions::get().evmVersion(),
-			solidity::test::CommonOptions::get().eofVersion()
-		).parse(stream);
+		sourceUnit = Parser(errorReporter, solidity::test::CommonOptions::get().evmVersion()).parse(
+			make_shared<Scanner>(CharStream(sourceCode, ""))
+		);
 		if (!sourceUnit)
 			return bytes();
 	}
-	catch (...)
+	catch(boost::exception const& _e)
 	{
-		std::string msg = "Parsing source code failed with:\n" + boost::current_exception_diagnostic_information();
+		auto msg = std::string("Parsing source code failed with: \n") + boost::diagnostic_information(_e);
 		BOOST_FAIL(msg);
 	}
 
 	ErrorList errors;
 	ErrorReporter errorReporter(errors);
-	GlobalContext globalContext(solidity::test::CommonOptions::get().evmVersion());
+	GlobalContext globalContext;
 	Scoper::assignScopes(*sourceUnit);
-	BOOST_REQUIRE(SyntaxChecker(errorReporter, false /* _useYulOptimizer */, false /* _experimental */).checkSyntax(*sourceUnit));
-	NameAndTypeResolver resolver(globalContext, solidity::test::CommonOptions::get().evmVersion(), errorReporter, false);
+	BOOST_REQUIRE(SyntaxChecker(errorReporter, false).checkSyntax(*sourceUnit));
+	NameAndTypeResolver resolver(globalContext, solidity::test::CommonOptions::get().evmVersion(), errorReporter);
 	resolver.registerDeclarations(*sourceUnit);
 	BOOST_REQUIRE_MESSAGE(resolver.resolveNamesAndTypes(*sourceUnit), "Resolving names failed");
 	DeclarationTypeChecker declarationTypeChecker(errorReporter, solidity::test::CommonOptions::get().evmVersion());
 	for (ASTPointer<ASTNode> const& node: sourceUnit->nodes())
 		BOOST_REQUIRE(declarationTypeChecker.check(*node));
-	TypeChecker typeChecker(
-		solidity::test::CommonOptions::get().evmVersion(),
-		solidity::test::CommonOptions::get().eofVersion(),
-		errorReporter
-	);
+	TypeChecker typeChecker(solidity::test::CommonOptions::get().evmVersion(), errorReporter);
 	BOOST_REQUIRE(typeChecker.checkTypeRequirements(*sourceUnit));
 	for (ASTPointer<ASTNode> const& node: sourceUnit->nodes())
 		if (ContractDefinition* contract = dynamic_cast<ContractDefinition*>(node.get()))
@@ -147,7 +140,6 @@ bytes compileFirstExpression(
 
 			CompilerContext context(
 				solidity::test::CommonOptions::get().evmVersion(),
-				solidity::test::CommonOptions::get().eofVersion(),
 				RevertStrings::Default
 			);
 			context.resetVisitedNodes(contract);
@@ -155,7 +147,7 @@ bytes compileFirstExpression(
 			context.setArithmetic(Arithmetic::Wrapping);
 			size_t parametersSize = _localVariables.size(); // assume they are all one slot on the stack
 			context.adjustStackOffset(static_cast<int>(parametersSize));
-			for (std::vector<std::string> const& variable: _localVariables)
+			for (vector<string> const& variable: _localVariables)
 				context.addVariable(
 					dynamic_cast<VariableDeclaration const&>(resolveDeclaration(*sourceUnit, variable, resolver)),
 					static_cast<unsigned>(parametersSize--)
@@ -166,16 +158,10 @@ bytes compileFirstExpression(
 				solidity::test::CommonOptions::get().optimize
 			).compile(*extractor.expression());
 
-			for (std::vector<std::string> const& function: _functions)
+			for (vector<string> const& function: _functions)
 				context << context.functionEntryLabel(dynamic_cast<FunctionDefinition const&>(
 					resolveDeclaration(*sourceUnit, function, resolver)
 				));
-
-			context.appendMissingLowLevelFunctions();
-			// NOTE: We intentionally disable optimisations for utility functions to simplify the tests
-			context.appendYulUtilityFunctions({});
-			BOOST_REQUIRE(context.appendYulUtilityFunctionsRan());
-
 			BOOST_REQUIRE(context.assemblyPtr());
 			LinkerObject const& object = context.assemblyPtr()->assemble();
 			BOOST_REQUIRE(object.immutableReferences.empty());
@@ -214,10 +200,7 @@ BOOST_AUTO_TEST_CASE(literal_false)
 	)";
 	bytes code = compileFirstExpression(sourceCode);
 
-	bytes expectation = solidity::test::CommonOptions::get().evmVersion().hasPush0() ?
-		bytes{uint8_t(Instruction::PUSH0)} :
-		bytes{uint8_t(Instruction::PUSH1), 0x0};
-
+	bytes expectation({uint8_t(Instruction::PUSH1), 0x0});
 	BOOST_CHECK_EQUAL_COLLECTIONS(code.begin(), code.end(), expectation.begin(), expectation.end());
 }
 
@@ -351,31 +334,19 @@ BOOST_AUTO_TEST_CASE(arithmetic)
 		}
 	)";
 	bytes code = compileFirstExpression(sourceCode, {}, {{"test", "f", "y"}});
-	bool hasPush0 = solidity::test::CommonOptions::get().evmVersion().hasPush0();
-	bytes push0Bytes = hasPush0 ?
-		bytes{uint8_t(Instruction::PUSH0)} :
-		bytes{uint8_t(Instruction::PUSH1), 0x0};
-	uint8_t size = hasPush0 ? 0x65: 0x67;
+
 	bytes panic =
+		bytes{uint8_t(Instruction::PUSH32)} +
+		fromHex("4E487B7100000000000000000000000000000000000000000000000000000000") +
 		bytes{
-			uint8_t(Instruction::JUMPDEST),
-			uint8_t(Instruction::PUSH32)
-		} +
-		util::fromHex("4E487B7100000000000000000000000000000000000000000000000000000000") +
-		  push0Bytes +
-		bytes{
+			uint8_t(Instruction::PUSH1), 0x0,
 			uint8_t(Instruction::MSTORE),
 			uint8_t(Instruction::PUSH1), 0x12,
 			uint8_t(Instruction::PUSH1), 0x4,
 			uint8_t(Instruction::MSTORE),
-			uint8_t(Instruction::PUSH1), 0x24
-		} +
-		push0Bytes +
-		bytes{
-			uint8_t(Instruction::REVERT),
-			uint8_t(Instruction::JUMPDEST),
-			uint8_t(Instruction::JUMP),
-			uint8_t(Instruction::JUMPDEST)
+			uint8_t(Instruction::PUSH1), 0x24,
+			uint8_t(Instruction::PUSH1), 0x0,
+			uint8_t(Instruction::REVERT)
 		};
 
 	bytes expectation;
@@ -397,30 +368,22 @@ BOOST_AUTO_TEST_CASE(arithmetic)
 			uint8_t(Instruction::DUP2),
 			uint8_t(Instruction::ISZERO),
 			uint8_t(Instruction::ISZERO),
-			uint8_t(Instruction::PUSH1), 0x20,
-			uint8_t(Instruction::JUMPI),
-			uint8_t(Instruction::PUSH1), 0x1f,
-			uint8_t(Instruction::PUSH1), 0x36,
-			uint8_t(Instruction::JUMP),
-			uint8_t(Instruction::JUMPDEST),
+			uint8_t(Instruction::PUSH1), 0x48,
+			uint8_t(Instruction::JUMPI)
+		} + panic + bytes{
 			uint8_t(Instruction::JUMPDEST),
 			uint8_t(Instruction::MOD),
 			uint8_t(Instruction::DUP2),
 			uint8_t(Instruction::ISZERO),
 			uint8_t(Instruction::ISZERO),
-			uint8_t(Instruction::PUSH1), 0x2e,
-			uint8_t(Instruction::JUMPI),
-			uint8_t(Instruction::PUSH1), 0x2d,
-			uint8_t(Instruction::PUSH1), 0x36,
-			uint8_t(Instruction::JUMP),
-			uint8_t(Instruction::JUMPDEST),
+			uint8_t(Instruction::PUSH1), 0x7e,
+			uint8_t(Instruction::JUMPI)
+		} + panic + bytes{
 			uint8_t(Instruction::JUMPDEST),
 			uint8_t(Instruction::DIV),
 			uint8_t(Instruction::PUSH1), 0x1,
-			uint8_t(Instruction::MUL),
-			uint8_t(Instruction::PUSH1), size,
-			uint8_t(Instruction::JUMP)
-		} + panic;
+			uint8_t(Instruction::MUL)
+		};
 	else
 		expectation = bytes{
 			uint8_t(Instruction::PUSH1), 0x1,
@@ -440,29 +403,21 @@ BOOST_AUTO_TEST_CASE(arithmetic)
 			uint8_t(Instruction::DUP2),
 			uint8_t(Instruction::ISZERO),
 			uint8_t(Instruction::ISZERO),
-			uint8_t(Instruction::PUSH1), 0x22,
-			uint8_t(Instruction::JUMPI),
-			uint8_t(Instruction::PUSH1), 0x21,
-			uint8_t(Instruction::PUSH1), 0x36,
-			uint8_t(Instruction::JUMP),
-			uint8_t(Instruction::JUMPDEST),
+			uint8_t(Instruction::PUSH1), 0x4a,
+			uint8_t(Instruction::JUMPI)
+		} + panic + bytes{
 			uint8_t(Instruction::JUMPDEST),
 			uint8_t(Instruction::MOD),
 			uint8_t(Instruction::DUP2),
 			uint8_t(Instruction::ISZERO),
 			uint8_t(Instruction::ISZERO),
-			uint8_t(Instruction::PUSH1), 0x30,
-			uint8_t(Instruction::JUMPI),
-			uint8_t(Instruction::PUSH1), 0x2f,
-			uint8_t(Instruction::PUSH1), 0x36,
-			uint8_t(Instruction::JUMP),
-			uint8_t(Instruction::JUMPDEST),
+			uint8_t(Instruction::PUSH1), 0x80,
+			uint8_t(Instruction::JUMPI)
+		} + panic + bytes{
 			uint8_t(Instruction::JUMPDEST),
 			uint8_t(Instruction::DIV),
-			uint8_t(Instruction::MUL),
-			uint8_t(Instruction::PUSH1), size,
-			uint8_t(Instruction::JUMP)
-		} + panic;
+			uint8_t(Instruction::MUL)
+		};
 
 	BOOST_CHECK_EQUAL_COLLECTIONS(code.begin(), code.end(), expectation.begin(), expectation.end());
 }
@@ -476,17 +431,11 @@ BOOST_AUTO_TEST_CASE(unary_operators)
 	)";
 	bytes code = compileFirstExpression(sourceCode, {}, {{"test", "f", "y"}});
 
-	bytes push0Bytes = solidity::test::CommonOptions::get().evmVersion().hasPush0() ?
-		bytes{uint8_t(Instruction::PUSH0)} :
-		bytes{uint8_t(Instruction::PUSH1), 0x0};
-
 	bytes expectation;
 	if (solidity::test::CommonOptions::get().optimize)
-		expectation = bytes{
+		expectation = {
 			uint8_t(Instruction::DUP1),
-		} +
-		push0Bytes +
-		bytes{
+			uint8_t(Instruction::PUSH1), 0x0,
 			uint8_t(Instruction::SUB),
 			uint8_t(Instruction::NOT),
 			uint8_t(Instruction::PUSH1), 0x2,
@@ -494,12 +443,10 @@ BOOST_AUTO_TEST_CASE(unary_operators)
 			uint8_t(Instruction::ISZERO)
 		};
 	else
-		expectation = bytes{
+		expectation = {
 			uint8_t(Instruction::PUSH1), 0x2,
 			uint8_t(Instruction::DUP2),
-		} +
-		push0Bytes +
-		bytes{
+			uint8_t(Instruction::PUSH1), 0x0,
 			uint8_t(Instruction::SUB),
 			uint8_t(Instruction::NOT),
 			uint8_t(Instruction::EQ),
@@ -661,28 +608,6 @@ BOOST_AUTO_TEST_CASE(blockhash)
 	BOOST_CHECK_EQUAL_COLLECTIONS(code.begin(), code.end(), expectation.begin(), expectation.end());
 }
 
-BOOST_AUTO_TEST_CASE(
-	blobhash,
-	*boost::unit_test::precondition(minEVMVersionCheck(EVMVersion::cancun()))
-)
-{
-	char const* sourceCode = R"(
-		contract test {
-			function f() public {
-				blobhash(3);
-			}
-		}
-	)";
-
-	bytes code = compileFirstExpression(sourceCode, {}, {});
-
-	bytes expectation({
-		uint8_t(Instruction::PUSH1), 0x03,
-		uint8_t(Instruction::BLOBHASH)
-	});
-	BOOST_CHECK_EQUAL_COLLECTIONS(code.begin(), code.end(), expectation.begin(), expectation.end());
-}
-
 BOOST_AUTO_TEST_CASE(gas_left)
 {
 	char const* sourceCode = R"(
@@ -710,7 +635,7 @@ BOOST_AUTO_TEST_CASE(selfbalance)
 
 	bytes code = compileFirstExpression(sourceCode, {}, {});
 
-	if (solidity::test::CommonOptions::get().evmVersion().hasSelfBalance())
+	if (solidity::test::CommonOptions::get().evmVersion() == EVMVersion::istanbul())
 	{
 		bytes expectation({uint8_t(Instruction::SELFBALANCE)});
 		BOOST_CHECK_EQUAL_COLLECTIONS(code.begin(), code.end(), expectation.begin(), expectation.end());

@@ -4,7 +4,10 @@ ERROR_LOG="$1"
 
 function report_error_to_github
 {
-    [[ $CIRCLE_PR_NUMBER != "" ]] || CIRCLE_PR_NUMBER="${CIRCLE_PULL_REQUEST//[^0-9]/}"
+    if [[ $CIRCLE_PR_NUMBER != "" ]]
+    then
+        CIRCLE_PR_NUMBER="${CIRCLE_PULL_REQUEST//[^0-9]/}"
+    fi
 
     if [[ $CI == "true" ]]
     then
@@ -26,7 +29,7 @@ function post_error_to_github
         --url "$GITHUB_API_URL" \
         --header 'accept: application/vnd.github.v3+json' \
         --header 'content-type: application/json' \
-        -u "stackenbotten3000:$GITHUB_ACCESS_TOKEN" \
+        -u "stackenbotten:$GITHUB_ACCESS_TOKEN" \
         --data "{\"body\": \"There was an error when running \`$CIRCLE_JOB\` for commit \`$CIRCLE_SHA1\`:\n\`\`\`\n$FORMATTED_ERROR_MSG\n\`\`\`\nPlease check that your changes are working as intended.\"}"
 }
 
@@ -47,7 +50,7 @@ function post_review_comment_to_github
             --url "$GITHUB_API_URL" \
             --header 'accept: application/vnd.github.v3+json, application/vnd.github.comfort-fade-preview+json' \
             --header 'content-type: application/json' \
-            -u "stackenbotten3000:$GITHUB_ACCESS_TOKEN" \
+            -u "stackenbotten:$GITHUB_ACCESS_TOKEN" \
             --data "{\"commit_id\": \"$CIRCLE_SHA1\", \"path\": \"$ERROR_PATH\", \"line\": $ERROR_LINE, \"side\": \"RIGHT\", \"body\": \"Coding style error\"}"
     done < "$ERROR_LOG"
 }

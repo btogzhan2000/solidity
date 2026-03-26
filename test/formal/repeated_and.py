@@ -1,6 +1,5 @@
-from opcodes import AND
 from rule import Rule
-from z3 import BitVec, BitVecVal
+from opcodes import *
 
 """
 Rule:

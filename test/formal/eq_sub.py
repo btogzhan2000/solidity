@@ -1,6 +1,5 @@
-from opcodes import EQ, ISZERO, SUB
 from rule import Rule
-from z3 import BitVec
+from opcodes import *
 
 """
 Rule:

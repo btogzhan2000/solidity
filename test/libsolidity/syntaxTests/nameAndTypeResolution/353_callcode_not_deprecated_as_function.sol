@@ -3,4 +3,3 @@ contract test {
         test.callcode();
     }
 }
-// ----

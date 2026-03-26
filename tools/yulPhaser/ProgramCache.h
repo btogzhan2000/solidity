@@ -22,7 +22,6 @@
 
 #include <libyul/optimiser/Metrics.h>
 
-#include <cstddef>
 #include <map>
 #include <string>
 

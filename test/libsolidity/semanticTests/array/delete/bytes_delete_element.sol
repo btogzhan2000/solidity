@@ -14,8 +14,7 @@ contract c {
             uint8(data[97]) == 97;
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // test1() -> true
-// gas irOptimized: 218420
-// gas legacy: 242263
-// gas legacyOptimized: 241187

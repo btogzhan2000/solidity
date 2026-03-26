@@ -13,7 +13,7 @@ contract C {
     function g() public returns (uint) { return address(new A()).code.length; }
 }
 // ====
-// bytecodeFormat: legacy
+// compileViaYul: also
 // ----
 // f() -> 0x20, 0x20, 0x48aa5566000000
 // g() -> 0x20

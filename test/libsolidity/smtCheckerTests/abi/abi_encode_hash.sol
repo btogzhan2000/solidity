@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract C {
 	function abiEncodeHash(uint a, uint b) public pure {
 		require(a == b);
@@ -6,7 +7,3 @@ contract C {
 		assert(keccak256(b1) == keccak256(b2));
 	}
 }
-// ====
-// SMTEngine: all
-// ----
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

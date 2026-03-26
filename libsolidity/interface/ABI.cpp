@@ -23,6 +23,7 @@
 
 #include <libsolidity/ast/AST.h>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::frontend;
 
@@ -30,7 +31,7 @@ namespace
 {
 bool anyDataStoredInStorage(TypePointers const& _pointers)
 {
-	for (Type const* pointer: _pointers)
+	for (TypePointer const& pointer: _pointers)
 		if (pointer->dataStoredIn(DataLocation::Storage))
 			return true;
 
@@ -38,14 +39,12 @@ bool anyDataStoredInStorage(TypePointers const& _pointers)
 }
 }
 
-Json ABI::generate(ContractDefinition const& _contractDef)
+Json::Value ABI::generate(ContractDefinition const& _contractDef)
 {
-	auto compare = [](Json const& _a, Json const& _b) -> bool
-	{
-		return std::make_tuple(_a.value("type", Json()), _a.value("name", Json())) <
-					std::make_tuple(_b.value("type", Json()), _b.value("name", Json()));
+	auto compare = [](Json::Value const& _a, Json::Value const& _b) -> bool {
+		return make_tuple(_a["type"], _a["name"]) < make_tuple(_b["type"], _b["name"]);
 	};
-	std::multiset<Json, decltype(compare)> abi(compare);
+	multiset<Json::Value, decltype(compare)> abi(compare);
 
 	for (auto it: _contractDef.interfaceFunctions())
 	{
@@ -57,7 +56,7 @@ Json ABI::generate(ContractDefinition const& _contractDef)
 
 		FunctionType const* externalFunctionType = it.second->interfaceFunctionType();
 		solAssert(!!externalFunctionType, "");
-		Json method;
+		Json::Value method;
 		method["type"] = "function";
 		method["name"] = it.second->declaration().name();
 		method["stateMutability"] = stateMutabilityToString(externalFunctionType->stateMutability());
@@ -81,7 +80,7 @@ Json ABI::generate(ContractDefinition const& _contractDef)
 		FunctionType constrType(*constructor);
 		FunctionType const* externalFunctionType = constrType.interfaceFunctionType();
 		solAssert(!!externalFunctionType, "");
-		Json method;
+		Json::Value method;
 		method["type"] = "constructor";
 		method["stateMutability"] = stateMutabilityToString(externalFunctionType->stateMutability());
 		method["inputs"] = formatTypeList(
@@ -97,121 +96,105 @@ Json ABI::generate(ContractDefinition const& _contractDef)
 		{
 			auto const* externalFunctionType = FunctionType(*fallbackOrReceive).interfaceFunctionType();
 			solAssert(!!externalFunctionType, "");
-			Json method;
+			Json::Value method;
 			method["type"] = TokenTraits::toString(fallbackOrReceive->kind());
 			method["stateMutability"] = stateMutabilityToString(externalFunctionType->stateMutability());
 			abi.emplace(std::move(method));
 		}
 	for (auto const& it: _contractDef.interfaceEvents())
 	{
-		Json event;
+		Json::Value event;
 		event["type"] = "event";
 		event["name"] = it->name();
 		event["anonymous"] = it->isAnonymous();
-		Json params = Json::array();
+		Json::Value params(Json::arrayValue);
 		for (auto const& p: it->parameters())
 		{
 			Type const* type = p->annotation().type->interfaceType(false);
 			solAssert(type, "");
+			Json::Value input;
 			auto param = formatType(p->name(), *type, *p->annotation().type, false);
 			param["indexed"] = p->isIndexed();
-			params.emplace_back(param);
+			params.append(std::move(param));
 		}
 		event["inputs"] = std::move(params);
 		abi.emplace(std::move(event));
 	}
 
-	for (ErrorDefinition const* error: _contractDef.interfaceErrors())
-	{
-		Json errorJson;
-		errorJson["type"] = "error";
-		errorJson["name"] = error->name();
-		errorJson["inputs"] = Json::array();
-		for (auto const& p: error->parameters())
-		{
-			Type const* type = p->annotation().type->interfaceType(false);
-			solAssert(type, "");
-			errorJson["inputs"].emplace_back(
-				formatType(p->name(), *type, *p->annotation().type, false)
-			);
-		}
-		abi.emplace(std::move(errorJson));
-	}
-
-	Json abiJson = Json::array();
+	Json::Value abiJson{Json::arrayValue};
 	for (auto& f: abi)
-		abiJson.emplace_back(std::move(f));
+		abiJson.append(std::move(f));
 	return abiJson;
 }
 
-Json ABI::formatTypeList(
-	std::vector<std::string> const& _names,
-	std::vector<Type const*> const& _encodingTypes,
-	std::vector<Type const*> const& _solidityTypes,
+Json::Value ABI::formatTypeList(
+	vector<string> const& _names,
+	vector<TypePointer> const& _encodingTypes,
+	vector<TypePointer> const& _solidityTypes,
 	bool _forLibrary
 )
 {
-	Json params = Json::array();
+	Json::Value params(Json::arrayValue);
 	solAssert(_names.size() == _encodingTypes.size(), "Names and types vector size does not match");
 	solAssert(_names.size() == _solidityTypes.size(), "");
 	for (unsigned i = 0; i < _names.size(); ++i)
 	{
 		solAssert(_encodingTypes[i], "");
-		params.emplace_back(formatType(_names[i], *_encodingTypes[i], *_solidityTypes[i], _forLibrary));
+		params.append(formatType(_names[i], *_encodingTypes[i], *_solidityTypes[i], _forLibrary));
 	}
 	return params;
 }
 
-Json ABI::formatType(
-	std::string const& _name,
+Json::Value ABI::formatType(
+	string const& _name,
 	Type const& _encodingType,
 	Type const& _solidityType,
 	bool _forLibrary
 )
 {
-	Json ret;
+	Json::Value ret;
 	ret["name"] = _name;
 	ret["internalType"] = _solidityType.toString(true);
-	std::string suffix = (_forLibrary && _encodingType.dataStoredIn(DataLocation::Storage)) ? " storage" : "";
+	string suffix = (_forLibrary && _encodingType.dataStoredIn(DataLocation::Storage)) ? " storage" : "";
 	if (_encodingType.isValueType() || (_forLibrary && _encodingType.dataStoredIn(DataLocation::Storage)))
 		ret["type"] = _encodingType.canonicalName() + suffix;
 	else if (ArrayType const* arrayType = dynamic_cast<ArrayType const*>(&_encodingType))
 	{
-		if (arrayType->isByteArrayOrString())
+		if (arrayType->isByteArray())
 			ret["type"] = _encodingType.canonicalName() + suffix;
 		else
 		{
-			std::string suffix;
+			string suffix;
 			if (arrayType->isDynamicallySized())
 				suffix = "[]";
 			else
-				suffix = std::string("[") + arrayType->length().str() + "]";
+				suffix = string("[") + arrayType->length().str() + "]";
 			solAssert(arrayType->baseType(), "");
-			Json subtype = formatType(
+			Json::Value subtype = formatType(
 				"",
 				*arrayType->baseType(),
 				*dynamic_cast<ArrayType const&>(_solidityType).baseType(),
 				_forLibrary
 			);
-			if (subtype.contains("components"))
+			if (subtype.isMember("components"))
 			{
-				ret["type"] = subtype["type"].get<std::string>() + suffix;
+				ret["type"] = subtype["type"].asString() + suffix;
 				ret["components"] = subtype["components"];
 			}
 			else
-				ret["type"] = subtype["type"].get<std::string>() + suffix;
+				ret["type"] = subtype["type"].asString() + suffix;
 		}
 	}
 	else if (StructType const* structType = dynamic_cast<StructType const*>(&_encodingType))
 	{
 		ret["type"] = "tuple";
-		ret["components"] = Json::array();
+		ret["components"] = Json::arrayValue;
 		for (auto const& member: structType->members(nullptr))
 		{
 			solAssert(member.type, "");
 			Type const* t = member.type->interfaceType(_forLibrary);
 			solAssert(t, "");
-			ret["components"].emplace_back(formatType(member.name, *t, *member.type, _forLibrary));
+			ret["components"].append(formatType(member.name, *t, *member.type, _forLibrary));
 		}
 	}
 	else

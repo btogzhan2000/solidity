@@ -21,5 +21,9 @@ contract test {
         return x()()()();
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> 2

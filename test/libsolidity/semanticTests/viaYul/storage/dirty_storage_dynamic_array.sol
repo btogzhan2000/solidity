@@ -14,5 +14,7 @@ contract C {
         correct = (s[0] == 0x01) && (r == 0x01);
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // f() -> true

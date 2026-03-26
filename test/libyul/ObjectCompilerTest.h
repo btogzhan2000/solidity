@@ -20,8 +20,6 @@
 
 #include <test/TestCase.h>
 
-#include <libsolidity/interface/OptimiserSettings.h>
-
 namespace solidity::langutil
 {
 class Scanner;
@@ -38,7 +36,7 @@ struct Block;
 namespace solidity::yul::test
 {
 
-class ObjectCompilerTest: public solidity::frontend::test::EVMVersionRestrictedTestCase
+class ObjectCompilerTest: public solidity::frontend::test::TestCase
 {
 public:
 	static std::unique_ptr<TestCase> create(Config const& _config)
@@ -51,10 +49,13 @@ public:
 	TestResult run(std::ostream& _stream, std::string const& _linePrefix = "", bool const _formatted = false) override;
 
 private:
+	bool parse(std::ostream& _stream, std::string const& _linePrefix, bool const _formatted);
 	void disambiguate();
 
-	frontend::OptimisationPreset m_optimisationPreset;
-	std::vector<std::string> m_outputSetting;
+	static void printErrors(std::ostream& _stream, langutil::ErrorList const& _errors);
+
+	bool m_optimize = false;
+	bool m_wasm = false;
 };
 
 }

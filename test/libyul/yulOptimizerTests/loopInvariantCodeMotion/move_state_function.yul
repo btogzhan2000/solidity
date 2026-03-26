@@ -4,7 +4,7 @@
 
   let b := 1
   for { let a := 1 } iszero(eq(a, 10)) { a := add(a, 1) } {
-    let t := balance(f())
+    let t := extcodesize(f())
     let q := g()
   }
 }
@@ -14,7 +14,7 @@
 // {
 //     let b := 1
 //     let a := 1
-//     let t := balance(f())
+//     let t := extcodesize(f())
 //     let q := g()
 //     for { } iszero(eq(a, 10)) { a := add(a, 1) }
 //     { }

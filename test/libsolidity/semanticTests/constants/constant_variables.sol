@@ -4,5 +4,9 @@ contract Foo {
     ActionChoices constant choices = ActionChoices.GoLeft;
     bytes32 constant st = "abc\x00\xff__";
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // constructor() ->

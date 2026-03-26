@@ -2,4 +2,3 @@
     { function g() {} }
     { function g() {} }
 }
-// ----

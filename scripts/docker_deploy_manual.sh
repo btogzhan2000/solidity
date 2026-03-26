@@ -1,63 +1,47 @@
-#!/usr/bin/env bash
+#!/usr/bin/env sh
 
 set -e
 
-REPO_ROOT="$(dirname "$0")/.."
-# shellcheck source=scripts/common.sh
-source "${REPO_ROOT}/scripts/common.sh"
-
-image="ghcr.io/argotorg/solc"
-
-if (( $# < 1 || $# > 3 )); then
-    fail "Usage: $0 <tag/branch> [repo URL] [--no-push]"
+if [ -z "$1" ]
+then
+    echo "Usage: $0 <tag/branch>"
+    exit 1
 fi
-
+image="ethereum/solc"
 branch="$1"
-repo_url="${2:-https://github.com/argotorg/solidity.git}"
 
-if (( $# >= 3 )); then
-    [[ $3 == --no-push ]] || fail "Invalid flag: $3. Expected --no-push."
-    publish=false
-else
-    publish=true
-fi
-
-# NOTE: Login to GHCR before running this script with a PAT:
-# echo $GHCR_TOKEN | docker login ghcr.io -u USERNAME --password-stdin
-#
-# Create a classic PAT with write:packages scope by visiting the following URL:
-# https://github.com/settings/tokens/new?scopes=write:packages
+#docker login
 
 DIR=$(mktemp -d)
 (
 cd "$DIR"
 
-git clone --recursive --depth 2 "$repo_url" -b "$branch" solidity
+git clone --depth 2 https://github.com/ethereum/solidity.git -b "$branch"
 cd solidity
 commithash=$(git rev-parse --short=8 HEAD)
 echo -n "$commithash" > commit_hash.txt
-version=$("$(dirname "$0")/get_version.sh")
-if [ "$branch" = v"$version" ]
+version=$($(dirname "$0")/get_version.sh)
+if [ "$branch" = "release" -o "$branch" = v"$version" ]
 then
     echo -n > prerelease.txt
 else
     date -u +"nightly.%Y.%-m.%-d" > prerelease.txt
 fi
 
-function tag_and_push
+tag_and_push()
 {
     docker tag "$image:$1" "$image:$2"
-    [[ $publish == false ]] || docker push "$image:$2"
+    docker push "$image:$2"
 }
 
 rm -rf .git
-docker buildx build -t "$image":build -f scripts/Dockerfile . --progress=plain
+docker build -t "$image":build -f scripts/Dockerfile .
 tmp_container=$(docker create "$image":build sh)
 
 # Alpine image
 mkdir -p upload
-docker cp "${tmp_container}":/usr/bin/solc upload/solc-static-linux
-docker buildx build -t "$image":build-alpine -f scripts/Dockerfile_alpine . --progress=plain
+docker cp ${tmp_container}:/usr/bin/solc upload/solc-static-linux
+docker build -t "$image":build-alpine -f scripts/Dockerfile_alpine .
 
 if [ "$branch" = "develop" ]
 then

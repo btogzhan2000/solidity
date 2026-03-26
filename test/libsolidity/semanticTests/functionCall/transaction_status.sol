@@ -3,6 +3,9 @@ contract test {
 	function g() public { revert(); }
 	function h() public { assert(false); }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() ->
 // g() -> FAILURE

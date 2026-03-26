@@ -1,7 +1,9 @@
 contract C {
     constructor() payable {}
 }
+
 // ====
-// bytecodeFormat: legacy,>=EOFv1
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // constructor(), 27 wei ->

@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint256 public z;
 
@@ -15,11 +17,8 @@ contract C {
 		assert(i == 32); // should hold, not changed by the assembly
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreCex: yes
 // ----
-// Warning 7737: (83-149): Inline assembly may cause SMTChecker to produce spurious warnings (false positives).
-// Warning 6328: (152-167): CHC: Assertion violation happens here.
-// Warning 6328: (186-200): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 7737: (116-182): Inline assembly may cause SMTChecker to produce spurious warnings (false positives).
+// Warning 6328: (185-200): CHC: Assertion violation happens here.\nCounterexample:\nz = 0\n\nTransaction trace:\nC.constructor()\nState: z = 0\nC.f()
+// Warning 6328: (219-233): CHC: Assertion violation happens here.\nCounterexample:\nz = 0\n\nTransaction trace:\nC.constructor()\nState: z = 0\nC.f()
+// Warning 7737: (116-182): Inline assembly may cause SMTChecker to produce spurious warnings (false positives).

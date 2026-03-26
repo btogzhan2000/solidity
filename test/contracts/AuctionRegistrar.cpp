@@ -32,6 +32,7 @@
 #include <string>
 #include <optional>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::util;
 using namespace solidity::test;
@@ -225,7 +226,7 @@ protected:
 			return compileContract(registrarCode, "GlobalRegistrar");
 		});
 
-		sendMessage(compiled, bytes(), true);
+		sendMessage(compiled, true);
 		BOOST_REQUIRE(m_transactionSuccessful);
 		BOOST_REQUIRE(!m_output.empty());
 	}
@@ -234,47 +235,47 @@ protected:
 	{
 	public:
 		RegistrarInterface(SolidityExecutionFramework& _framework): ContractInterface(_framework) {}
-		void reserve(std::string const& _name)
+		void reserve(string const& _name)
 		{
 			callString("reserve", _name);
 		}
-		h160 owner(std::string const& _name)
+		h160 owner(string const& _name)
 		{
 			return callStringReturnsAddress("owner", _name);
 		}
-		void setAddress(std::string const& _name, h160 const& _address, bool _primary)
+		void setAddress(string const& _name, h160 const& _address, bool _primary)
 		{
 			callStringAddressBool("setAddress", _name, _address, _primary);
 		}
-		h160 addr(std::string const& _name)
+		h160 addr(string const& _name)
 		{
 			return callStringReturnsAddress("addr", _name);
 		}
-		std::string name(h160 const& _addr)
+		string name(h160 const& _addr)
 		{
 			return callAddressReturnsString("name", _addr);
 		}
-		void setSubRegistrar(std::string const& _name, h160 const& _address)
+		void setSubRegistrar(string const& _name, h160 const& _address)
 		{
 			callStringAddress("setSubRegistrar", _name, _address);
 		}
-		h160 subRegistrar(std::string const& _name)
+		h160 subRegistrar(string const& _name)
 		{
 			return callStringReturnsAddress("subRegistrar", _name);
 		}
-		void setContent(std::string const& _name, h256 const& _content)
+		void setContent(string const& _name, h256 const& _content)
 		{
 			callStringBytes32("setContent", _name, _content);
 		}
-		h256 content(std::string const& _name)
+		h256 content(string const& _name)
 		{
 			return callStringReturnsBytes32("content", _name);
 		}
-		void transfer(std::string const& _name, h160 const& _target)
+		void transfer(string const& _name, h160 const& _target)
 		{
 			return callStringAddress("transfer", _name, _target);
 		}
-		void disown(std::string const& _name)
+		void disown(string const& _name)
 		{
 			return callString("disown", _name);
 		}
@@ -297,7 +298,7 @@ BOOST_AUTO_TEST_CASE(reserve)
 {
 	// Test that reserving works for long strings
 	deployRegistrar();
-	std::vector<std::string> names{"abcabcabcabcabc", "defdefdefdefdef", "ghighighighighighighighighighighighighighighi"};
+	vector<string> names{"abcabcabcabcabc", "defdefdefdefdef", "ghighighighighighighighighighighighighighighi"};
 
 	RegistrarInterface registrar(*this);
 
@@ -316,7 +317,7 @@ BOOST_AUTO_TEST_CASE(double_reserve_long)
 {
 	// Test that it is not possible to re-reserve from a different address.
 	deployRegistrar();
-	std::string name = "abcabcabcabcabcabcabcabcabcabca";
+	string name = "abcabcabcabcabcabcabcabcabcabca";
 	RegistrarInterface registrar(*this);
 	registrar.reserve(name);
 	BOOST_CHECK_EQUAL(registrar.owner(name), m_sender);
@@ -332,10 +333,10 @@ BOOST_AUTO_TEST_CASE(properties)
 	// Test setting and retrieving  the various properties works.
 	deployRegistrar();
 	RegistrarInterface registrar(*this);
-	std::string names[] = {"abcaeouoeuaoeuaoeu", "defncboagufra,fui", "ghagpyajfbcuajouhaeoi"};
+	string names[] = {"abcaeouoeuaoeuaoeu", "defncboagufra,fui", "ghagpyajfbcuajouhaeoi"};
 	size_t addr = 0x9872543;
 	size_t count = 1;
-	for (std::string const& name: names)
+	for (string const& name: names)
 	{
 		m_sender = account(0);
 		sendEther(account(count), u256(20) * ether);
@@ -368,7 +369,7 @@ BOOST_AUTO_TEST_CASE(properties)
 BOOST_AUTO_TEST_CASE(transfer)
 {
 	deployRegistrar();
-	std::string name = "abcaoeguaoucaeoduceo";
+	string name = "abcaoeguaoucaeoduceo";
 	RegistrarInterface registrar(*this);
 	registrar.reserve(name);
 	registrar.setContent(name, h256(u256(123)));
@@ -380,7 +381,7 @@ BOOST_AUTO_TEST_CASE(transfer)
 BOOST_AUTO_TEST_CASE(disown)
 {
 	deployRegistrar();
-	std::string name = "abcaoeguaoucaeoduceo";
+	string name = "abcaoeguaoucaeoduceo";
 
 	RegistrarInterface registrar(*this);
 	registrar.reserve(name);
@@ -407,7 +408,7 @@ BOOST_AUTO_TEST_CASE(disown)
 BOOST_AUTO_TEST_CASE(auction_simple)
 {
 	deployRegistrar();
-	std::string name = "x";
+	string name = "x";
 
 	RegistrarInterface registrar(*this);
 	// initiate auction
@@ -425,7 +426,7 @@ BOOST_AUTO_TEST_CASE(auction_simple)
 BOOST_AUTO_TEST_CASE(auction_bidding)
 {
 	deployRegistrar();
-	std::string name = "x";
+	string name = "x";
 
 	unsigned startTime = 0x776347e2;
 	m_evmcHost->tx_context.block_timestamp = startTime;

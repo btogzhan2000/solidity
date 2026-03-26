@@ -12,8 +12,8 @@ contract c {
         y = data1[30]; // should be cleared
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // test() -> 8, 0
-// gas irOptimized: 196370
-// gas legacy: 210073
-// gas legacyOptimized: 196759

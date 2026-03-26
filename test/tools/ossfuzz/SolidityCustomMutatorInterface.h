@@ -25,7 +25,7 @@
 
 #include <memory>
 
-namespace solidity::test::fuzzer::mutator
+namespace solidity::test::fuzzer
 {
 struct SolidityCustomMutatorInterface
 {

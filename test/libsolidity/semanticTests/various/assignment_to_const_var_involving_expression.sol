@@ -5,5 +5,9 @@ contract C {
         return x + 1;
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> 0x57a

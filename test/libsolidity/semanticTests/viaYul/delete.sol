@@ -18,6 +18,9 @@ contract C {
 		return func() == internal_func();
 	}
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // call_deleted_internal_func() -> FAILURE, hex"4e487b71", 0x51
 // call_internal_func() -> true

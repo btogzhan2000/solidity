@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint constant DEPOSIT_CONTRACT_TREE_DEPTH = 32;
 	uint constant MAX_DEPOSIT_COUNT = 2**DEPOSIT_CONTRACT_TREE_DEPTH - 1;
@@ -7,8 +9,5 @@ contract C {
 		assert(MAX_DEPOSIT_COUNT == 2); // should fail
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (251-281): CHC: Assertion violation happens here.
-// Info 1391: CHC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (284-314): CHC: Assertion violation happens here.\nCounterexample:\nDEPOSIT_CONTRACT_TREE_DEPTH = 32, MAX_DEPOSIT_COUNT = 4294967295\n\nTransaction trace:\nC.constructor()\nState: DEPOSIT_CONTRACT_TREE_DEPTH = 32, MAX_DEPOSIT_COUNT = 4294967295\nC.f()

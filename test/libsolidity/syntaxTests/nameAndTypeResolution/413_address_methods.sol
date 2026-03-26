@@ -10,5 +10,3 @@ contract C {
     }
 }
 // ----
-// Warning 9207: (227-236): 'send' is deprecated and scheduled for removal. Use 'call{value: <amount>}("")' instead.
-// Warning 9207: (249-262): 'transfer' is deprecated and scheduled for removal. Use 'call{value: <amount>}("")' instead.

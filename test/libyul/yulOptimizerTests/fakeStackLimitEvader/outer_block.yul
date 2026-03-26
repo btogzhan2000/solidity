@@ -3,8 +3,6 @@
     let $x := 42
     sstore(42, $x)
 }
-// ====
-// bytecodeFormat: legacy
 // ----
 // step: fakeStackLimitEvader
 //

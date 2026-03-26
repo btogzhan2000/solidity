@@ -9,6 +9,9 @@ contract C {
         return a;
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // f(uint256): 3 -> 10
 // a() -> 10

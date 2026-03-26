@@ -3,5 +3,8 @@ contract test {
         y1 = x2; y2 = x1;
     }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // run(bool,uint256): true, 0xcd -> 0xcd, true, 0

@@ -4,4 +4,3 @@ contract C {
         data = x;
     }
 }
-// ----

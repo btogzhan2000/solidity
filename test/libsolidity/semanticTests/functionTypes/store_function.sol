@@ -23,11 +23,8 @@ contract C {
         return ev(x);
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // t() -> 9
-// gas irOptimized: 77300
-// gas irOptimized code: 19000
-// gas legacy: 79492
-// gas legacy code: 69600
-// gas legacyOptimized: 77587
-// gas legacyOptimized code: 28600

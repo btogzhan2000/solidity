@@ -1,1 +1,1 @@
---optimize --asm
+--optimize --asm --metadata-hash none

@@ -10,9 +10,7 @@
 // step: expressionSimplifier
 //
 // {
-//     {
-//         let _1 := 0
-//         let a := calldataload(_1)
-//         if eq(a, calldataload(0x20)) { sstore(_1, 1) }
-//     }
+//     let _1 := 0
+//     let a := calldataload(_1)
+//     if eq(a, calldataload(0x20)) { sstore(_1, 1) }
 // }

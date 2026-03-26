@@ -24,11 +24,10 @@
 #include <libsolidity/analysis/DeclarationContainer.h>
 
 #include <libsolidity/ast/AST.h>
+#include <libsolidity/ast/Types.h>
 #include <libsolutil/StringUtils.h>
 
-#include <range/v3/view/filter.hpp>
-#include <range/v3/range/conversion.hpp>
-
+using namespace std;
 using namespace solidity;
 using namespace solidity::frontend;
 
@@ -40,7 +39,7 @@ Declaration const* DeclarationContainer::conflictingDeclaration(
 	if (!_name)
 		_name = &_declaration.name();
 	solAssert(!_name->empty(), "");
-	std::vector<Declaration const*> declarations;
+	vector<Declaration const*> declarations;
 	if (m_declarations.count(*_name))
 		declarations += m_declarations.at(*_name);
 	if (m_invisibleDeclarations.count(*_name))
@@ -122,11 +121,15 @@ bool DeclarationContainer::registerDeclaration(
 		if (conflictingDeclaration(_declaration, _name))
 			return false;
 
-		if (m_enclosingContainer && _declaration.isVisibleAsUnqualifiedName())
+		// Do not warn about shadowing for structs and enums because their members are
+		// not accessible without prefixes. Also do not warn about event parameters
+		// because they do not participate in any proper scope.
+		bool special = _declaration.scope() && (_declaration.isStructMember() || _declaration.isEnumValue() || _declaration.isEventParameter());
+		if (m_enclosingContainer && !special)
 			m_homonymCandidates.emplace_back(*_name, _location ? _location : &_declaration.location());
 	}
 
-	std::vector<Declaration const*>& decls = _invisible ? m_invisibleDeclarations[*_name] : m_declarations[*_name];
+	vector<Declaration const*>& decls = _invisible ? m_invisibleDeclarations[*_name] : m_declarations[*_name];
 	if (!util::contains(decls, &_declaration))
 		decls.push_back(&_declaration);
 	return true;
@@ -141,54 +144,37 @@ bool DeclarationContainer::registerDeclaration(
 	return registerDeclaration(_declaration, nullptr, nullptr, _invisible, _update);
 }
 
-std::vector<Declaration const*> DeclarationContainer::resolveName(
-	ASTString const& _name,
-	ResolvingSettings _settings
-) const
+vector<Declaration const*> DeclarationContainer::resolveName(ASTString const& _name, bool _recursive, bool _alsoInvisible) const
 {
 	solAssert(!_name.empty(), "Attempt to resolve empty name.");
-	std::vector<Declaration const*> result;
-
+	vector<Declaration const*> result;
 	if (m_declarations.count(_name))
-	{
-		if (_settings.onlyVisibleAsUnqualifiedNames)
-			result += m_declarations.at(_name) | ranges::views::filter(&Declaration::isVisibleAsUnqualifiedName) | ranges::to_vector;
-		else
-			result += m_declarations.at(_name);
-	}
-
-	if (_settings.alsoInvisible && m_invisibleDeclarations.count(_name))
-	{
-		if (_settings.onlyVisibleAsUnqualifiedNames)
-			result += m_invisibleDeclarations.at(_name) | ranges::views::filter(&Declaration::isVisibleAsUnqualifiedName) | ranges::to_vector;
-		else
-			result += m_invisibleDeclarations.at(_name);
-	}
-
-	if (result.empty() && _settings.recursive && m_enclosingContainer)
-		result = m_enclosingContainer->resolveName(_name, _settings);
-
+		result = m_declarations.at(_name);
+	if (_alsoInvisible && m_invisibleDeclarations.count(_name))
+		result += m_invisibleDeclarations.at(_name);
+	if (result.empty() && _recursive && m_enclosingContainer)
+		result = m_enclosingContainer->resolveName(_name, true, _alsoInvisible);
 	return result;
 }
 
-std::vector<ASTString> DeclarationContainer::similarNames(ASTString const& _name) const
+vector<ASTString> DeclarationContainer::similarNames(ASTString const& _name) const
 {
 
 	// because the function below has quadratic runtime - it will not magically improve once a better algorithm is discovered ;)
 	// since 80 is the suggested line length limit, we use 80^2 as length threshold
 	static size_t const MAXIMUM_LENGTH_THRESHOLD = 80 * 80;
 
-	std::vector<ASTString> similar;
+	vector<ASTString> similar;
 	size_t maximumEditDistance = _name.size() > 3 ? 2 : _name.size() / 2;
 	for (auto const& declaration: m_declarations)
 	{
-		std::string const& declarationName = declaration.first;
+		string const& declarationName = declaration.first;
 		if (util::stringWithinDistance(_name, declarationName, maximumEditDistance, MAXIMUM_LENGTH_THRESHOLD))
 			similar.push_back(declarationName);
 	}
 	for (auto const& declaration: m_invisibleDeclarations)
 	{
-		std::string const& declarationName = declaration.first;
+		string const& declarationName = declaration.first;
 		if (util::stringWithinDistance(_name, declarationName, maximumEditDistance, MAXIMUM_LENGTH_THRESHOLD))
 			similar.push_back(declarationName);
 	}
@@ -199,17 +185,14 @@ std::vector<ASTString> DeclarationContainer::similarNames(ASTString const& _name
 	return similar;
 }
 
-void DeclarationContainer::populateHomonyms(std::back_insert_iterator<Homonyms> _it) const
+void DeclarationContainer::populateHomonyms(back_insert_iterator<Homonyms> _it) const
 {
 	for (DeclarationContainer const* innerContainer: m_innerContainers)
 		innerContainer->populateHomonyms(_it);
 
 	for (auto [name, location]: m_homonymCandidates)
 	{
-		ResolvingSettings settings;
-		settings.recursive = true;
-		settings.alsoInvisible = true;
-		std::vector<Declaration const*> const& declarations = m_enclosingContainer->resolveName(name, std::move(settings));
+		vector<Declaration const*> const& declarations = m_enclosingContainer->resolveName(name, true, true);
 		if (!declarations.empty())
 			_it = make_pair(location, declarations);
 	}

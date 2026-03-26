@@ -32,8 +32,7 @@ enum class ExperimentalFeature
 	ABIEncoderV2, // new ABI encoder that makes use of Yul
 	SMTChecker,
 	Test,
-	TestOnlyAnalysis,
-	Solidity
+	TestOnlyAnalysis
 };
 
 static std::set<ExperimentalFeature> const ExperimentalFeatureWithoutWarning =
@@ -49,7 +48,6 @@ static std::map<std::string, ExperimentalFeature> const ExperimentalFeatureNames
 	{ "SMTChecker", ExperimentalFeature::SMTChecker },
 	{ "__test", ExperimentalFeature::Test },
 	{ "__testOnlyAnalysis", ExperimentalFeature::TestOnlyAnalysis },
-	{ "solidity", ExperimentalFeature::Solidity }
 };
 
 }

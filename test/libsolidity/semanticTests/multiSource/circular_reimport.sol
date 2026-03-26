@@ -12,5 +12,7 @@ contract C {
     return f() - g() - h();
   }
 }
+// ====
+// compileViaYul: also
 // ----
 // foo() -> 0x60

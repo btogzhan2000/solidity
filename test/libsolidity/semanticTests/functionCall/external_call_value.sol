@@ -9,6 +9,9 @@ contract C {
         return this.g{value: 10}(n);
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // g(uint256), 1 ether: 4 -> 1000000000000000000000, 4
 // f(uint256), 11 ether: 2 -> 10000, 2

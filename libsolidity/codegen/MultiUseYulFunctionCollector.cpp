@@ -23,58 +23,34 @@
 #include <libsolidity/codegen/MultiUseYulFunctionCollector.h>
 
 #include <liblangutil/Exceptions.h>
-#include <libsolutil/Whiskers.h>
-#include <libsolutil/StringUtils.h>
 
+
+using namespace std;
 using namespace solidity;
 using namespace solidity::frontend;
-using namespace solidity::util;
 
-std::string MultiUseYulFunctionCollector::requestedFunctions()
+string MultiUseYulFunctionCollector::requestedFunctions()
 {
-	std::string result = std::move(m_code);
-	m_code.clear();
+	string result;
+	for (auto const& f: m_requestedFunctions)
+	{
+		solAssert(f.second != "<<STUB<<", "");
+		// std::map guarantees ascending order when iterating through its keys.
+		result += f.second;
+	}
 	m_requestedFunctions.clear();
 	return result;
 }
 
-std::string MultiUseYulFunctionCollector::createFunction(std::string const& _name, std::function<std::string()> const& _creator)
+string MultiUseYulFunctionCollector::createFunction(string const& _name, function<string ()> const& _creator)
 {
 	if (!m_requestedFunctions.count(_name))
 	{
-		m_requestedFunctions.insert(_name);
-		std::string fun = _creator();
+		m_requestedFunctions[_name] = "<<STUB<<";
+		string fun = _creator();
 		solAssert(!fun.empty(), "");
-		solAssert(fun.find("function " + _name + "(") != std::string::npos, "Function not properly named.");
-		m_code += std::move(fun);
-	}
-	return _name;
-}
-
-std::string MultiUseYulFunctionCollector::createFunction(
-	std::string const& _name,
-	std::function<std::string(std::vector<std::string>&, std::vector<std::string>&)> const& _creator
-)
-{
-	solAssert(!_name.empty(), "");
-	if (!m_requestedFunctions.count(_name))
-	{
-		m_requestedFunctions.insert(_name);
-		std::vector<std::string> arguments;
-		std::vector<std::string> returnParameters;
-		std::string body = _creator(arguments, returnParameters);
-		solAssert(!body.empty(), "");
-
-		m_code += Whiskers(R"(
-			function <functionName>(<args>)<?+retParams> -> <retParams></+retParams> {
-				<body>
-			}
-		)")
-		("functionName", _name)
-		("args", joinHumanReadable(arguments))
-		("retParams", joinHumanReadable(returnParameters))
-		("body", body)
-		.render();
+		solAssert(fun.find("function " + _name + "(") != string::npos, "Function not properly named.");
+		m_requestedFunctions[_name] = std::move(fun);
 	}
 	return _name;
 }

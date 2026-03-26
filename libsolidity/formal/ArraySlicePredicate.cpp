@@ -18,21 +18,20 @@
 
 #include <libsolidity/formal/ArraySlicePredicate.h>
 
-#include <libsolidity/formal/SymbolicVariables.h>
-
 #include <liblangutil/Exceptions.h>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::smtutil;
 using namespace solidity::frontend;
 using namespace solidity::frontend::smt;
 
-std::map<std::string, ArraySlicePredicate::SliceData> ArraySlicePredicate::m_slicePredicates;
+map<string, ArraySlicePredicate::SliceData> ArraySlicePredicate::m_slicePredicates;
 
-std::pair<bool, ArraySlicePredicate::SliceData const&> ArraySlicePredicate::create(SortPointer _sort, EncodingContext& _context)
+pair<bool, ArraySlicePredicate::SliceData const&> ArraySlicePredicate::create(SortPointer _sort, EncodingContext& _context)
 {
 	solAssert(_sort->kind == Kind::Tuple, "");
-	auto tupleSort = std::dynamic_pointer_cast<TupleSort>(_sort);
+	auto tupleSort = dynamic_pointer_cast<TupleSort>(_sort);
 	solAssert(tupleSort, "");
 
 	auto tupleName = tupleSort->name;
@@ -48,12 +47,12 @@ std::pair<bool, ArraySlicePredicate::SliceData const&> ArraySlicePredicate::crea
 	smt::SymbolicIntVariable endVar{TypeProvider::uint256(), TypeProvider::uint256(), "end_" + tupleName, _context };
 	smt::SymbolicIntVariable iVar{TypeProvider::uint256(), TypeProvider::uint256(), "i_" + tupleName, _context};
 
-	std::vector<SortPointer> domain{sort, sort, startVar.sort(), endVar.sort()};
-	auto sliceSort = std::make_shared<FunctionSort>(domain, SortProvider::boolSort);
+	vector<SortPointer> domain{sort, sort, startVar.sort(), endVar.sort()};
+	auto sliceSort = make_shared<FunctionSort>(domain, SortProvider::boolSort);
 	Predicate const& slice = *Predicate::create(sliceSort, "array_slice_" + tupleName, PredicateType::Custom, _context);
 
 	domain.emplace_back(iVar.sort());
-	auto predSort = std::make_shared<FunctionSort>(domain, SortProvider::boolSort);
+	auto predSort = make_shared<FunctionSort>(domain, SortProvider::boolSort);
 	Predicate const& header = *Predicate::create(predSort, "array_slice_header_" + tupleName, PredicateType::Custom, _context);
 	Predicate const& loop = *Predicate::create(predSort, "array_slice_loop_" + tupleName, PredicateType::Custom, _context);
 
@@ -87,6 +86,6 @@ std::pair<bool, ArraySlicePredicate::SliceData const&> ArraySlicePredicate::crea
 
 	return {false, m_slicePredicates[tupleName] = {
 		{&slice, &header, &loop},
-		{std::move(rule1), std::move(rule2), std::move(rule3), std::move(rule4)}
+		{move(rule1), move(rule2), move(rule3), move(rule4)}
 	}};
 }

@@ -3,4 +3,3 @@ contract C {
         return x[1:2];
     }
 }
-// ----

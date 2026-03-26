@@ -4,4 +4,3 @@ contract A {
 contract B is A {
 	uint i;
 }
-// ----

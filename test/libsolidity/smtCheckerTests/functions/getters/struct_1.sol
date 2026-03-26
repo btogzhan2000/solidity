@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 pragma abicoder v2;
 
 contract C {
@@ -24,9 +25,5 @@ contract C {
 		assert(c == true); // this should fail
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreCex: no
 // ----
-// Warning 6328: (338-355): CHC: Assertion violation happens here.\nCounterexample:\ns = {x: 0, t: {t: 0}, b: false, a: []}\ny = 0\nc = false\nt = {t: 0}\n\nTransaction trace:\nC.constructor()\nState: s = {x: 0, t: {t: 0}, b: false, a: []}\nC.f()
-// Info 1391: CHC: 3 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (370-387): CHC: Assertion violation happens here.\nCounterexample:\ns = {x: 0, t: {t: 0}, b: false, a: []}\n\nTransaction trace:\nC.constructor()\nState: s = {x: 0, t: {t: 0}, b: false, a: []}\nC.f()

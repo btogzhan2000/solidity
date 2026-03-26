@@ -29,8 +29,8 @@
 #include <libyul/optimiser/OptimiserStep.h>
 
 #include <libyul/AST.h>
-#include <libyul/Utilities.h>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::yul;
 
@@ -50,19 +50,18 @@ void ExpressionInliner::operator()(FunctionDefinition& _fun)
 void ExpressionInliner::visit(Expression& _expression)
 {
 	ASTModifier::visit(_expression);
-	if (std::holds_alternative<FunctionCall>(_expression))
+	if (holds_alternative<FunctionCall>(_expression))
 	{
 		FunctionCall& funCall = std::get<FunctionCall>(_expression);
-		YulString const functionName{resolveFunctionName(funCall.functionName, m_dialect)};
-		if (!m_inlinableFunctions.count(functionName))
+		if (!m_inlinableFunctions.count(funCall.functionName.name))
 			return;
-		FunctionDefinition const& fun = *m_inlinableFunctions.at(functionName);
+		FunctionDefinition const& fun = *m_inlinableFunctions.at(funCall.functionName.name);
 
-		std::map<YulName, Expression const*> substitutions;
+		map<YulString, Expression const*> substitutions;
 		for (size_t i = 0; i < funCall.arguments.size(); i++)
 		{
 			Expression const& arg = funCall.arguments[i];
-			YulName paraName = fun.parameters[i].name;
+			YulString paraName = fun.parameters[i].name;
 
 			if (!SideEffectsCollector(m_dialect, arg).movable())
 				return;

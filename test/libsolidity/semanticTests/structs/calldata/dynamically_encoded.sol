@@ -6,5 +6,8 @@ contract C {
 	    return (s.a.length, s.a[0], s.a[1]);
 	}
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f((uint256[])): 32, 32, 2, 42, 23 -> 2, 42, 23

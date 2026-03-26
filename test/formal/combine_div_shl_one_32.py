@@ -1,6 +1,5 @@
-from opcodes import DIV, SHL, SHR
 from rule import Rule
-from z3 import BitVec
+from opcodes import *
 
 """
 Rule:

@@ -5,4 +5,4 @@
 	}
 }
 // ----
-// DeclarationError 8198: (36-37): Identifier "x" not found.
+// DeclarationError 8198: (36-37): Identifier not found.

@@ -1,19 +1,14 @@
+pragma experimental SMTChecker;
+
 contract C
 {
 	uint[][] c;
-	constructor() {
-		c.push().push();
-	}
 	function f(bool b) public {
-		// Disabled because of Spacer nondeterminism.
-		/*
 		c[0][0] = 0;
 		if (b)
 			c[0][0] = 1;
 		assert(c[0][0] > 0);
-		*/
 	}
 }
-// ====
-// SMTEngine: all
 // ----
+// Warning 6328: (130-149): CHC: Assertion violation happens here.\nCounterexample:\nc = []\nb = false\n\nTransaction trace:\nC.constructor()\nState: c = []\nC.f(false)

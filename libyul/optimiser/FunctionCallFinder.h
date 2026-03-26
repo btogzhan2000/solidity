@@ -20,7 +20,7 @@
 
 #pragma once
 
-#include <libyul/AST.h>
+#include <libyul/optimiser/ASTWalker.h>
 
 #include <vector>
 
@@ -28,17 +28,20 @@ namespace solidity::yul
 {
 
 /**
- * Finds all calls to a function of a given name using an ASTModifier.
+ * AST walker that finds all calls to a function of a given name.
  *
  * Prerequisite: Disambiguator
  */
-std::vector<FunctionCall*> findFunctionCalls(Block& _block, FunctionHandle const& _functionHandle);
-
-/**
- * Finds all calls to a function of a given name using an ASTWalker.
- *
- * Prerequisite: Disambiguator
- */
-std::vector<FunctionCall const*> findFunctionCalls(Block const& _block, FunctionHandle const& _functionHandle);
+class FunctionCallFinder: ASTModifier
+{
+public:
+	static std::vector<FunctionCall*> run(Block& _block, YulString _functionName);
+private:
+	FunctionCallFinder(YulString _functionName);
+	using ASTModifier::operator();
+	void operator()(FunctionCall& _functionCall) override;
+	YulString m_functionName;
+	std::vector<FunctionCall*> m_calls;
+};
 
 }

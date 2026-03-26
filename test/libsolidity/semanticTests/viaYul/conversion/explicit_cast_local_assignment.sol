@@ -4,5 +4,8 @@ contract C {
         x = b;
     }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f(uint256): 0x12345678 -> 0x78

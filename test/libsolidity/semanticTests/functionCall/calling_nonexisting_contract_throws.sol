@@ -21,8 +21,10 @@ contract C {
         return 7;
     }
 }
+
 // ====
-// bytecodeFormat: legacy
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> FAILURE
 // g() -> FAILURE

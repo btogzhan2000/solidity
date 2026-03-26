@@ -1,50 +1,25 @@
-{
-    "errors": [
-        {
-            "component": "general",
-            "errorCode": "2529",
-            "formattedMessage": "Warning: CHC: Empty array \"pop\" happens here.
+{"errors":[{"component":"general","errorCode":"2529","formattedMessage":"Warning: CHC: Empty array \"pop\" happens here.
 Counterexample:
 arr = []
-a = 0x0
+a = 0
 x = 0
-success = true
 
 Transaction trace:
 test.constructor()
 State: arr = []
-test.f(0x0, 1)
-    a.call{value: x}(\"\") -- untrusted external call
-  --> A:14:7:
+test.f(0, 1)
+  --> A:13:7:
    |
-14 | \t\t\t\t\t\tarr.pop();
+13 | \t\t\t\t\t\tarr.pop();
    | \t\t\t\t\t\t^^^^^^^^^
 
-",
-            "message": "CHC: Empty array \"pop\" happens here.
+","message":"CHC: Empty array \"pop\" happens here.
 Counterexample:
 arr = []
-a = 0x0
+a = 0
 x = 0
-success = true
 
 Transaction trace:
 test.constructor()
 State: arr = []
-test.f(0x0, 1)
-    a.call{value: x}(\"\") -- untrusted external call",
-            "severity": "warning",
-            "sourceLocation": {
-                "end": 325,
-                "file": "A",
-                "start": 316
-            },
-            "type": "Warning"
-        }
-    ],
-    "sources": {
-        "A": {
-            "id": 0
-        }
-    }
-}
+test.f(0, 1)","severity":"warning","sourceLocation":{"end":306,"file":"A","start":297},"type":"Warning"}],"sources":{"A":{"id":0}}}

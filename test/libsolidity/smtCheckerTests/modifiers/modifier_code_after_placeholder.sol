@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C
 {
 	uint x;
@@ -18,8 +20,5 @@ contract C
 		x = _x;
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (103-116): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (136-149): CHC: Assertion violation happens here.\nCounterexample:\nx = 0\n\nTransaction trace:\nC.constructor()\nState: x = 0\nC.g(115792089237316195423570985008687907853269984665640564039457584007913129639935)\nState: x = 115792089237316195423570985008687907853269984665640564039457584007913129639935\nC.f()

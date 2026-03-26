@@ -13,8 +13,9 @@ contract B {
         ++test;
     }
 }
+
 // ====
-// bytecodeFormat: legacy,>=EOFv1
+// compileViaYul: also
 // ----
 // testIt() ->
 // test() -> 2

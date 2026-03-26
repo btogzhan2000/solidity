@@ -12,5 +12,8 @@ contract C {
         correct = r == (0x64 << 248);
     }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> true

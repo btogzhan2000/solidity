@@ -22,12 +22,12 @@
 #pragma once
 
 #include <libyul/optimiser/ASTWalker.h>
-#include <libyul/YulName.h>
+#include <libyul/YulString.h>
 #include <libyul/Dialect.h>
 #include <libyul/backends/evm/EVMDialect.h>
 #include <libyul/ASTForward.h>
 
-#include <liblangutil/DebugData.h>
+#include <liblangutil/SourceLocation.h>
 
 #include <libsolutil/Common.h>
 
@@ -37,7 +37,7 @@
 
 namespace solidity::yul
 {
-class Dialect;
+struct Dialect;
 class GasMeter;
 
 /**
@@ -58,7 +58,7 @@ public:
 	struct Representation
 	{
 		std::unique_ptr<Expression> expression;
-		bigint cost;
+		size_t cost = size_t(-1);
 	};
 
 private:
@@ -74,12 +74,12 @@ public:
 	RepresentationFinder(
 		EVMDialect const& _dialect,
 		GasMeter const& _meter,
-		langutil::DebugData::ConstPtr _debugData,
+		langutil::SourceLocation _location,
 		std::map<u256, Representation>& _cache
 	):
 		m_dialect(_dialect),
 		m_meter(_meter),
-		m_debugData(std::move(_debugData)),
+		m_location(std::move(_location)),
 		m_cache(_cache)
 	{}
 
@@ -93,14 +93,14 @@ private:
 	Representation const& findRepresentation(u256 const& _value);
 
 	Representation represent(u256 const& _value) const;
-	Representation represent(BuiltinHandle const& _instruction, Representation const& _arg) const;
-	Representation represent(BuiltinHandle const& _instruction, Representation const& _arg1, Representation const& _arg2) const;
+	Representation represent(YulString _instruction, Representation const& _arg) const;
+	Representation represent(YulString _instruction, Representation const& _arg1, Representation const& _arg2) const;
 
 	Representation min(Representation _a, Representation _b);
 
 	EVMDialect const& m_dialect;
 	GasMeter const& m_meter;
-	langutil::DebugData::ConstPtr m_debugData;
+	langutil::SourceLocation m_location;
 	/// Counter for the complexity of optimization, will stop when it reaches zero.
 	size_t m_maxSteps = 10000;
 	std::map<u256, Representation>& m_cache;

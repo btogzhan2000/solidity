@@ -7,4 +7,3 @@ contract C {
         return x.f.selector;
     }
 }
-// ----

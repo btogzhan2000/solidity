@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 abstract contract D {
 	function d() external virtual returns (uint x, bool b);
 }
@@ -18,11 +20,8 @@ contract C {
 		}
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 2519: (164-170): This declaration shadows an existing declaration.
-// Warning 6328: (185-199): CHC: Assertion violation happens here.
-// Warning 6328: (273-283): CHC: Assertion violation happens here.
-// Warning 6328: (393-407): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 2519: (197-203): This declaration shadows an existing declaration.
+// Warning 6328: (218-232): CHC: Assertion violation happens here.\nCounterexample:\nx = 0, d = 0\n\nTransaction trace:\nC.constructor()\nState: x = 0, d = 0\nC.f()\n    d.d() -- untrusted external call
+// Warning 6328: (306-316): CHC: Assertion violation happens here.\nCounterexample:\nx = 0, d = 0\n\nTransaction trace:\nC.constructor()\nState: x = 0, d = 0\nC.f()\n    d.d() -- untrusted external call
+// Warning 6328: (426-440): CHC: Assertion violation happens here.\nCounterexample:\nx = 0, d = 0\n\nTransaction trace:\nC.constructor()\nState: x = 0, d = 0\nC.f()

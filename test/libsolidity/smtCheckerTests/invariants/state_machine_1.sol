@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint x;
 
@@ -29,8 +31,4 @@ contract C {
 	}
 }
 // ====
-// SMTEngine: all
-// SMTIgnoreOS: macos
 // SMTSolvers: z3
-// ----
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

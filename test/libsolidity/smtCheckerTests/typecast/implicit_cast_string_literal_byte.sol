@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	mapping (bytes1 => uint) map;
 	function f() public {
@@ -10,8 +12,5 @@ contract C {
 	}
 	function g(bytes1 b) internal pure {}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (153-174): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (186-207): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nC.constructor()\nC.f()\n    C.g(0) -- internal call

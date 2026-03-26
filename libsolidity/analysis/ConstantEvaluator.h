@@ -46,21 +46,16 @@ class TypeChecker;
 class ConstantEvaluator: private ASTConstVisitor
 {
 public:
-	struct TypedValue
+	struct TypedRational
 	{
-		// Type may be RationalType or IntegerType for value rational
-		Type const* type;
-		std::variant<std::monostate, rational, std::string> value;
+		TypePointer type;
+		rational value;
 	};
 
-	static TypedValue evaluate(
+	static std::optional<TypedRational> evaluate(
 		langutil::ErrorReporter& _errorReporter,
 		Expression const& _expr
 	);
-
-	/// Works the same as `evaluate` but swallows any errors that might occur in the evaluation and simply returns
-	/// `TypedValue` containing `std::monostate` instead.
-	static TypedValue tryEvaluate(Expression const& _expr);
 
 	/// Performs arbitrary-precision evaluation of a binary operator. Returns nullopt on cases like
 	/// division by zero or e.g. bit operators applied to fractional values.
@@ -73,20 +68,19 @@ public:
 private:
 	explicit ConstantEvaluator(langutil::ErrorReporter& _errorReporter): m_errorReporter(_errorReporter) {}
 
-	TypedValue evaluate(ASTNode const& _node);
+	std::optional<TypedRational> evaluate(ASTNode const& _node);
 
 	void endVisit(BinaryOperation const& _operation) override;
 	void endVisit(UnaryOperation const& _operation) override;
 	void endVisit(Literal const& _literal) override;
 	void endVisit(Identifier const& _identifier) override;
 	void endVisit(TupleExpression const& _tuple) override;
-	void endVisit(FunctionCall const& _functionCall) override;
 
 	langutil::ErrorReporter& m_errorReporter;
 	/// Current recursion depth.
 	size_t m_depth = 0;
 	/// Values of sub-expressions and variable declarations.
-	std::map<ASTNode const*, TypedValue> m_values;
+	std::map<ASTNode const*, std::optional<TypedRational>> m_values;
 };
 
 }

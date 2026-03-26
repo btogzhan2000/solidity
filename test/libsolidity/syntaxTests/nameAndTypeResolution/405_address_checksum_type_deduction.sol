@@ -4,4 +4,3 @@ contract C {
     }
 }
 // ----
-// Warning 9207: (47-107): 'transfer' is deprecated and scheduled for removal. Use 'call{value: <amount>}("")' instead.

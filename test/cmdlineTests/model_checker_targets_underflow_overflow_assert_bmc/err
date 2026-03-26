@@ -1,13 +1,7 @@
-Warning: 'transfer' is deprecated and scheduled for removal. Use 'call{value: <amount>}("")' instead.
-  --> input.sol:10:3:
-   |
-10 | 		a.transfer(x);
-   | 		^^^^^^^^^^
-
 Warning: BMC: Underflow (resulting value less than 0) happens here.
- --> input.sol:7:3:
+ --> model_checker_targets_underflow_overflow_assert_bmc/input.sol:8:3:
   |
-7 | 		--x;
+8 | 		--x;
   | 		^^^
 Note: Counterexample:
   <result> = (- 1)
@@ -18,9 +12,9 @@ Note: Callstack:
 Note:
 
 Warning: BMC: Overflow (resulting value larger than 2**256 - 1) happens here.
- --> input.sol:8:3:
+ --> model_checker_targets_underflow_overflow_assert_bmc/input.sol:9:3:
   |
-8 | 		x + type(uint).max;
+9 | 		x + type(uint).max;
   | 		^^^^^^^^^^^^^^^^^^
 Note: Counterexample:
   <result> = 2**256
@@ -31,9 +25,9 @@ Note: Callstack:
 Note:
 
 Warning: BMC: Assertion violation happens here.
-  --> input.sol:11:3:
+  --> model_checker_targets_underflow_overflow_assert_bmc/input.sol:12:3:
    |
-11 | 		assert(x > 0);
+12 | 		assert(x > 0);
    | 		^^^^^^^^^^^^^
 Note: Counterexample:
   a = 0

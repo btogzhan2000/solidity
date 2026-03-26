@@ -11,14 +11,12 @@
 // step: loadResolver
 //
 // {
+//     let _1 := 2
+//     let b := mload(_1)
+//     if calldataload(1)
 //     {
-//         let _1 := 2
-//         let b := mload(_1)
-//         if calldataload(1)
-//         {
-//             mstore(_1, 7)
-//             mstore(_1, b)
-//         }
-//         sstore(0, b)
+//         mstore(_1, 7)
+//         mstore(_1, b)
 //     }
+//     sstore(0, b)
 // }

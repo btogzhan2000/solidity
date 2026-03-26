@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
     function f(uint256 a, uint256 b) internal pure returns (uint256) {
         a <<= b;
@@ -10,7 +12,4 @@ contract C {
         assert(f(0x4266, 0x4266) == 0);
     }
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 4 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

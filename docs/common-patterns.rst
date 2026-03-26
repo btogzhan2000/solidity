@@ -18,27 +18,23 @@ introduces a potential security risk. You may read
 more about this on the :ref:`security_considerations` page.
 
 The following is an example of the withdrawal pattern in practice in
-a contract where the goal is to send the most of some compensation, e.g. Ether, to the
+a contract where the goal is to send the most money to the
 contract in order to become the "richest", inspired by
 `King of the Ether <https://www.kingoftheether.com/>`_.
 
 In the following contract, if you are no longer the richest,
 you receive the funds of the person who is now the richest.
 
-.. code-block:: solidity
+::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity ^0.8.4;
+    pragma solidity >=0.7.0 <0.9.0;
 
     contract WithdrawalContract {
         address public richest;
         uint public mostSent;
 
-        mapping(address => uint) pendingWithdrawals;
-
-        /// The amount of Ether sent was not higher than
-        /// the currently highest amount.
-        error NotEnoughEther();
+        mapping (address => uint) pendingWithdrawals;
 
         constructor() payable {
             richest = msg.sender;
@@ -46,7 +42,7 @@ you receive the funds of the person who is now the richest.
         }
 
         function becomeRichest() public payable {
-            if (msg.value <= mostSent) revert NotEnoughEther();
+            require(msg.value > mostSent, "Not enough money sent.");
             pendingWithdrawals[richest] += msg.value;
             richest = msg.sender;
             mostSent = msg.value;
@@ -55,27 +51,22 @@ you receive the funds of the person who is now the richest.
         function withdraw() public {
             uint amount = pendingWithdrawals[msg.sender];
             // Remember to zero the pending refund before
-            // sending to prevent reentrancy attacks
+            // sending to prevent re-entrancy attacks
             pendingWithdrawals[msg.sender] = 0;
-            (bool success, ) = payable(msg.sender).call{value: amount}("");
-            require(success);
+            payable(msg.sender).transfer(amount);
         }
     }
 
 This is as opposed to the more intuitive sending pattern:
 
-.. code-block:: solidity
+::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity ^0.8.4;
+    pragma solidity >=0.7.0 <0.9.0;
 
     contract SendContract {
         address payable public richest;
         uint public mostSent;
-
-        /// The amount of Ether sent was not higher than
-        /// the currently highest amount.
-        error NotEnoughEther();
 
         constructor() payable {
             richest = payable(msg.sender);
@@ -83,10 +74,9 @@ This is as opposed to the more intuitive sending pattern:
         }
 
         function becomeRichest() public payable {
-            if (msg.value <= mostSent) revert NotEnoughEther();
+            require(msg.value > mostSent, "Not enough money sent.");
             // This line can cause problems (explained below).
-            (bool success, ) = richest.call{value: msg.value}("");
-            require(success);
+            richest.transfer(msg.value);
             richest = payable(msg.sender);
             mostSent = msg.value;
         }
@@ -131,11 +121,10 @@ functions and this is what this section is about.
 The use of **function modifiers** makes these
 restrictions highly readable.
 
-.. code-block:: solidity
-    :force:
+::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity ^0.8.4;
+    pragma solidity >=0.6.0 <0.9.0;
 
     contract AccessRestriction {
         // These will be assigned at the construction
@@ -144,49 +133,38 @@ restrictions highly readable.
         address public owner = msg.sender;
         uint public creationTime = block.timestamp;
 
-        // Now follows a list of errors that
-        // this contract can generate together
-        // with a textual explanation in special
-        // comments.
-
-        /// Sender not authorized for this
-        /// operation.
-        error Unauthorized();
-
-        /// Function called too early.
-        error TooEarly();
-
-        /// Not enough Ether sent with function call.
-        error NotEnoughEther();
-
         // Modifiers can be used to change
         // the body of a function.
         // If this modifier is used, it will
         // prepend a check that only passes
         // if the function is called from
         // a certain address.
-        modifier onlyBy(address account)
+        modifier onlyBy(address _account)
         {
-            if (msg.sender != account)
-                revert Unauthorized();
+            require(
+                msg.sender == _account,
+                "Sender not authorized."
+            );
             // Do not forget the "_;"! It will
             // be replaced by the actual function
             // body when the modifier is used.
             _;
         }
 
-        /// Make `newOwner` the new owner of this
+        /// Make `_newOwner` the new owner of this
         /// contract.
-        function changeOwner(address newOwner)
+        function changeOwner(address _newOwner)
             public
             onlyBy(owner)
         {
-            owner = newOwner;
+            owner = _newOwner;
         }
 
-        modifier onlyAfter(uint time) {
-            if (block.timestamp < time)
-                revert TooEarly();
+        modifier onlyAfter(uint _time) {
+            require(
+                block.timestamp >= _time,
+                "Function called too early."
+            );
             _;
         }
 
@@ -207,23 +185,22 @@ restrictions highly readable.
         // refunded, but only after the function body.
         // This was dangerous before Solidity version 0.4.0,
         // where it was possible to skip the part after `_;`.
-        modifier costs(uint amount) {
-            if (msg.value < amount)
-                revert NotEnoughEther();
-
+        modifier costs(uint _amount) {
+            require(
+                msg.value >= _amount,
+                "Not enough Ether provided."
+            );
             _;
-            if (msg.value > amount) {
-                (bool success, ) = payable(msg.sender).call{value: msg.value - amount}("");
-                require(success);
-            }
+            if (msg.value > _amount)
+                payable(msg.sender).transfer(msg.value - _amount);
         }
 
-        function forceOwnerChange(address newOwner)
+        function forceOwnerChange(address _newOwner)
             public
             payable
             costs(200 ether)
         {
-            owner = newOwner;
+            owner = _newOwner;
             // just some example condition
             if (uint160(owner) & 0 == 1)
                 // This did not refund for Solidity
@@ -297,11 +274,10 @@ function finishes.
     Starting with version 0.4.0, modifier code
     will run even if the function explicitly returns.
 
-.. code-block:: solidity
-    :force:
+::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity ^0.8.4;
+    pragma solidity >=0.4.22 <0.9.0;
 
     contract StateMachine {
         enum Stages {
@@ -311,17 +287,17 @@ function finishes.
             AreWeDoneYet,
             Finished
         }
-        /// Function cannot be called at this time.
-        error FunctionInvalidAtThisStage();
 
         // This is the current stage.
         Stages public stage = Stages.AcceptingBlindedBids;
 
         uint public creationTime = block.timestamp;
 
-        modifier atStage(Stages stage_) {
-            if (stage != stage_)
-                revert FunctionInvalidAtThisStage();
+        modifier atStage(Stages _stage) {
+            require(
+                stage == _stage,
+                "Function cannot be called at this time."
+            );
             _;
         }
 

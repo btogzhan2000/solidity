@@ -27,8 +27,9 @@ contract C {
         return true;
     }
 }
+
 // ====
-// bytecodeFormat: legacy,>=EOFv1
+// compileViaYul: also
 // ----
 // f() -> true
 // g() -> FAILURE

@@ -3,4 +3,3 @@ contract Test {
         return type(Test).name;
     }
 }
-// ----

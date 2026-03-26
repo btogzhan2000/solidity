@@ -58,19 +58,13 @@ void PragmaDirective::accept(ASTConstVisitor& _visitor) const
 
 void ImportDirective::accept(ASTVisitor& _visitor)
 {
-	if (_visitor.visit(*this))
-		for (SymbolAlias const& symbolAlias: symbolAliases())
-			if (symbolAlias.symbol)
-				symbolAlias.symbol->accept(_visitor);
+	_visitor.visit(*this);
 	_visitor.endVisit(*this);
 }
 
 void ImportDirective::accept(ASTConstVisitor& _visitor) const
 {
-	if (_visitor.visit(*this))
-		for (SymbolAlias const& symbolAlias: symbolAliases())
-			if (symbolAlias.symbol)
-				symbolAlias.symbol->accept(_visitor);
+	_visitor.visit(*this);
 	_visitor.endVisit(*this);
 }
 
@@ -93,8 +87,6 @@ void ContractDefinition::accept(ASTVisitor& _visitor)
 		if (m_documentation)
 			m_documentation->accept(_visitor);
 		listAccept(m_baseContracts, _visitor);
-		if (m_storageLayoutSpecifier)
-			m_storageLayoutSpecifier->accept(_visitor);
 		listAccept(m_subNodes, _visitor);
 	}
 	_visitor.endVisit(*this);
@@ -107,8 +99,6 @@ void ContractDefinition::accept(ASTConstVisitor& _visitor) const
 		if (m_documentation)
 			m_documentation->accept(_visitor);
 		listAccept(m_baseContracts, _visitor);
-		if (m_storageLayoutSpecifier)
-			m_storageLayoutSpecifier->accept(_visitor);
 		listAccept(m_subNodes, _visitor);
 	}
 	_visitor.endVisit(*this);
@@ -174,31 +164,11 @@ void EnumValue::accept(ASTConstVisitor& _visitor) const
 	_visitor.endVisit(*this);
 }
 
-void UserDefinedValueTypeDefinition::accept(ASTConstVisitor& _visitor) const
-{
-	if (_visitor.visit(*this))
-	{
-		if (m_underlyingType)
-			m_underlyingType->accept(_visitor);
-	}
-	_visitor.endVisit(*this);
-}
-
-void UserDefinedValueTypeDefinition::accept(ASTVisitor& _visitor)
-{
-	if (_visitor.visit(*this))
-	{
-		if (m_underlyingType)
-			m_underlyingType->accept(_visitor);
-	}
-	_visitor.endVisit(*this);
-}
-
 void UsingForDirective::accept(ASTVisitor& _visitor)
 {
 	if (_visitor.visit(*this))
 	{
-		listAccept(m_functionsOrLibrary, _visitor);
+		m_libraryName->accept(_visitor);
 		if (m_typeName)
 			m_typeName->accept(_visitor);
 	}
@@ -209,7 +179,7 @@ void UsingForDirective::accept(ASTConstVisitor& _visitor) const
 {
 	if (_visitor.visit(*this))
 	{
-		listAccept(m_functionsOrLibrary, _visitor);
+		m_libraryName->accept(_visitor);
 		if (m_typeName)
 			m_typeName->accept(_visitor);
 	}
@@ -269,8 +239,6 @@ void FunctionDefinition::accept(ASTVisitor& _visitor)
 		m_parameters->accept(_visitor);
 		if (m_returnParameters)
 			m_returnParameters->accept(_visitor);
-		if (m_experimentalReturnExpression)
-			m_experimentalReturnExpression->accept(_visitor);
 		listAccept(m_functionModifiers, _visitor);
 		if (m_body)
 			m_body->accept(_visitor);
@@ -289,8 +257,6 @@ void FunctionDefinition::accept(ASTConstVisitor& _visitor) const
 		m_parameters->accept(_visitor);
 		if (m_returnParameters)
 			m_returnParameters->accept(_visitor);
-		if (m_experimentalReturnExpression)
-			m_experimentalReturnExpression->accept(_visitor);
 		listAccept(m_functionModifiers, _visitor);
 		if (m_body)
 			m_body->accept(_visitor);
@@ -304,8 +270,6 @@ void VariableDeclaration::accept(ASTVisitor& _visitor)
 	{
 		if (m_typeName)
 			m_typeName->accept(_visitor);
-		if (m_typeExpression)
-			m_typeExpression->accept(_visitor);
 		if (m_overrides)
 			m_overrides->accept(_visitor);
 		if (m_value)
@@ -320,8 +284,6 @@ void VariableDeclaration::accept(ASTConstVisitor& _visitor) const
 	{
 		if (m_typeName)
 			m_typeName->accept(_visitor);
-		if (m_typeExpression)
-			m_typeExpression->accept(_visitor);
 		if (m_overrides)
 			m_overrides->accept(_visitor);
 		if (m_value)
@@ -394,28 +356,6 @@ void EventDefinition::accept(ASTVisitor& _visitor)
 }
 
 void EventDefinition::accept(ASTConstVisitor& _visitor) const
-{
-	if (_visitor.visit(*this))
-	{
-		if (m_documentation)
-			m_documentation->accept(_visitor);
-		m_parameters->accept(_visitor);
-	}
-	_visitor.endVisit(*this);
-}
-
-void ErrorDefinition::accept(ASTVisitor& _visitor)
-{
-	if (_visitor.visit(*this))
-	{
-		if (m_documentation)
-			m_documentation->accept(_visitor);
-		m_parameters->accept(_visitor);
-	}
-	_visitor.endVisit(*this);
-}
-
-void ErrorDefinition::accept(ASTConstVisitor& _visitor) const
 {
 	if (_visitor.visit(*this))
 	{
@@ -720,20 +660,6 @@ void Throw::accept(ASTConstVisitor& _visitor) const
 	_visitor.endVisit(*this);
 }
 
-void RevertStatement::accept(ASTVisitor& _visitor)
-{
-	if (_visitor.visit(*this))
-		m_errorCall->accept(_visitor);
-	_visitor.endVisit(*this);
-}
-
-void RevertStatement::accept(ASTConstVisitor& _visitor) const
-{
-	if (_visitor.visit(*this))
-		m_errorCall->accept(_visitor);
-	_visitor.endVisit(*this);
-}
-
 void EmitStatement::accept(ASTVisitor& _visitor)
 {
 	if (_visitor.visit(*this))
@@ -1035,151 +961,5 @@ void Literal::accept(ASTConstVisitor& _visitor) const
 	_visitor.visit(*this);
 	_visitor.endVisit(*this);
 }
-
-/// Experimental Solidity nodes
-/// @{
-void TypeClassDefinition::accept(ASTVisitor& _visitor)
-{
-	if (_visitor.visit(*this))
-	{
-		m_typeVariable->accept(_visitor);
-		if (m_documentation)
-			m_documentation->accept(_visitor);
-		listAccept(m_subNodes, _visitor);
-	}
-	_visitor.endVisit(*this);
-}
-
-void TypeClassDefinition::accept(ASTConstVisitor& _visitor) const
-{
-	if (_visitor.visit(*this))
-	{
-		m_typeVariable->accept(_visitor);
-		if (m_documentation)
-			m_documentation->accept(_visitor);
-		listAccept(m_subNodes, _visitor);
-	}
-	_visitor.endVisit(*this);
-}
-
-void TypeClassInstantiation::accept(ASTVisitor& _visitor)
-{
-	if (_visitor.visit(*this))
-	{
-		m_typeConstructor->accept(_visitor);
-		if (m_argumentSorts)
-			m_argumentSorts->accept(_visitor);
-		m_class->accept(_visitor);
-		listAccept(m_subNodes, _visitor);
-	}
-	_visitor.endVisit(*this);
-}
-
-void TypeClassInstantiation::accept(ASTConstVisitor& _visitor) const
-{
-	if (_visitor.visit(*this))
-	{
-		m_typeConstructor->accept(_visitor);
-		if (m_argumentSorts)
-			m_argumentSorts->accept(_visitor);
-		m_class->accept(_visitor);
-		listAccept(m_subNodes, _visitor);
-	}
-	_visitor.endVisit(*this);
-}
-
-void TypeDefinition::accept(ASTVisitor& _visitor)
-{
-	if (_visitor.visit(*this))
-	{
-		if (m_arguments)
-			m_arguments->accept(_visitor);
-		if (m_typeExpression)
-			m_typeExpression->accept(_visitor);
-	}
-	_visitor.endVisit(*this);
-}
-
-void TypeDefinition::accept(ASTConstVisitor& _visitor) const
-{
-	if (_visitor.visit(*this))
-	{
-		if (m_arguments)
-			m_arguments->accept(_visitor);
-		if (m_typeExpression)
-			m_typeExpression->accept(_visitor);
-	}
-	_visitor.endVisit(*this);
-}
-
-
-void TypeClassName::accept(ASTVisitor& _visitor)
-{
-	if (_visitor.visit(*this))
-	{
-		if (auto* path = std::get_if<ASTPointer<IdentifierPath>>(&m_name))
-			(*path)->accept(_visitor);
-	}
-	_visitor.endVisit(*this);
-}
-
-void TypeClassName::accept(ASTConstVisitor& _visitor) const
-{
-	if (_visitor.visit(*this))
-	{
-		if (auto* path = std::get_if<ASTPointer<IdentifierPath>>(&m_name))
-			(*path)->accept(_visitor);
-	}
-	_visitor.endVisit(*this);
-}
-
-void Builtin::accept(ASTVisitor& _visitor)
-{
-	_visitor.visit(*this);
-	_visitor.endVisit(*this);
-}
-
-void Builtin::accept(ASTConstVisitor& _visitor) const
-{
-	_visitor.visit(*this);
-	_visitor.endVisit(*this);
-}
-
-void ForAllQuantifier::accept(ASTVisitor& _visitor)
-{
-	if (_visitor.visit(*this))
-	{
-		m_typeVariableDeclarations->accept(_visitor);
-		m_quantifiedDeclaration->accept(_visitor);
-	}
-	_visitor.endVisit(*this);
-}
-
-void ForAllQuantifier::accept(ASTConstVisitor& _visitor) const
-{
-	if (_visitor.visit(*this))
-	{
-		m_typeVariableDeclarations->accept(_visitor);
-		m_quantifiedDeclaration->accept(_visitor);
-	}
-	_visitor.endVisit(*this);
-}
-
-void StorageLayoutSpecifier::accept(ASTVisitor& _visitor)
-{
-	if (_visitor.visit(*this))
-		m_baseSlotExpression->accept(_visitor);
-
-	_visitor.endVisit(*this);
-}
-
-void StorageLayoutSpecifier::accept(ASTConstVisitor& _visitor) const
-{
-	if (_visitor.visit(*this))
-		m_baseSlotExpression->accept(_visitor);
-
-	_visitor.endVisit(*this);
-}
-/// @}
 
 }

@@ -14,4 +14,3 @@ contract B is A {
         return value.foo(); // Usage of Lib
     }
 }
-// ----

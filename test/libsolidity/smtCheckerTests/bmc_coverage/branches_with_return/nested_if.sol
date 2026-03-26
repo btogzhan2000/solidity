@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 
 	function test(uint256 a, uint256 b) public pure {
@@ -22,6 +24,5 @@ contract C {
 // ====
 // SMTEngine: bmc
 // ----
-// Warning 4661: (114-141): BMC: Assertion violation happens here.
-// Warning 6838: (299-315): BMC: Condition is always false.
-// Info 6002: BMC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 4661: (147-174): BMC: Assertion violation happens here.
+// Warning 6838: (332-348): BMC: Condition is always false.

@@ -7,4 +7,3 @@ contract C {
         return (i[x], j[y]);
     }
 }
-// ----

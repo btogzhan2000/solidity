@@ -8,4 +8,3 @@ contract C {
         x.value(42);
     }
 }
-// ----

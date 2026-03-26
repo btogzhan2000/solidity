@@ -4,4 +4,3 @@ contract A {
 contract C is A {
     fallback() external payable { }
 }
-// ----

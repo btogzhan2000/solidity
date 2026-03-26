@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C
 {
 	function f() internal pure returns (uint, bool, uint) {
@@ -13,7 +15,3 @@ contract C
 		assert(y == 999);
 	}
 }
-// ====
-// SMTEngine: all
-// ----
-// Info 1391: CHC: 3 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

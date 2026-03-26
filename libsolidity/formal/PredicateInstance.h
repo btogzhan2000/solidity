@@ -19,7 +19,6 @@
 #pragma once
 
 #include <libsolidity/formal/Predicate.h>
-#include <libsolidity/formal/SymbolicState.h>
 
 namespace solidity::frontend::smt
 {
@@ -38,14 +37,7 @@ smtutil::Expression interface(Predicate const& _pred, ContractDefinition const& 
 smtutil::Expression nondetInterface(Predicate const& _pred, ContractDefinition const& _contract, EncodingContext& _context, unsigned _preIdx, unsigned _postIdx);
 
 smtutil::Expression constructor(Predicate const& _pred, EncodingContext& _context);
-/// The encoding of the deployment procedure includes adding constraints
-/// for base constructors if inheritance is used.
-/// From the predicate point of view this is not different,
-/// but some of the arguments are different.
-/// @param _internal = true means that this constructor call is used in the
-/// deployment procedure, whereas false means it is used in the deployment
-/// of a contract.
-smtutil::Expression constructorCall(Predicate const& _pred, EncodingContext& _context, bool _internal = true);
+smtutil::Expression constructorCall(Predicate const& _pred, EncodingContext& _context);
 
 smtutil::Expression function(
 	Predicate const& _pred,
@@ -85,8 +77,7 @@ std::vector<smtutil::Expression> currentFunctionVariablesForDefinition(
 std::vector<smtutil::Expression> currentFunctionVariablesForCall(
 	FunctionDefinition const& _function,
 	ContractDefinition const* _contract,
-	EncodingContext& _context,
-	bool _internal = true
+	EncodingContext& _context
 );
 
 std::vector<smtutil::Expression> currentBlockVariables(
@@ -95,10 +86,4 @@ std::vector<smtutil::Expression> currentBlockVariables(
 	EncodingContext& _context
 );
 
-std::vector<smtutil::Expression> getStateExpressionsForInterfacePre(SymbolicState const& _state);
-std::vector<smtutil::Expression> getStateExpressionsForInterface(SymbolicState  const& _state);
-std::vector<smtutil::Expression> getStateExpressionsForNondetInterface(SymbolicState  const& _state);
-std::vector<smtutil::Expression> getStateExpressionsForConstructor(SymbolicState  const& _state);
-std::vector<smtutil::Expression> getStateExpressionsForCall(SymbolicState  const& _state, bool _internal);
-std::vector<smtutil::Expression> getStateExpressionsForDefinition(SymbolicState  const& _state);
 }

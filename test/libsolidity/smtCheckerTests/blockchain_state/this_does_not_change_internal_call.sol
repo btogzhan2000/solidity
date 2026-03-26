@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	address t;
 	constructor() {
@@ -11,7 +13,3 @@ contract C {
 		assert(a == address(this));
 	}
 }
-// ====
-// SMTEngine: all
-// ----
-// Info 1391: CHC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

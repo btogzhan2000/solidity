@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract c {
 	uint x;
 	function f() internal returns (uint) {
@@ -14,9 +16,6 @@ contract c {
 		return b;
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (169-185): CHC: Assertion violation happens here.
-// Warning 6328: (209-219): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (202-218): CHC: Assertion violation happens here.\nCounterexample:\nx = 101\n = false\n\nTransaction trace:\nc.constructor()\nState: x = 0\nc.g()\n    c.f() -- internal call
+// Warning 6328: (242-252): CHC: Assertion violation happens here.\nCounterexample:\nx = 101\n = false\n\nTransaction trace:\nc.constructor()\nState: x = 0\nc.g()\n    c.f() -- internal call

@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	function f() public pure {
 		assert(~1 | (~0xff & 0) == -2);
@@ -9,8 +11,5 @@ contract C {
 		assert(y & (0xffffffffffffffffff & 1) == 1);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (148-161): CHC: Assertion violation happens here.
-// Info 1391: CHC: 3 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (181-194): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nC.constructor()\nC.f()

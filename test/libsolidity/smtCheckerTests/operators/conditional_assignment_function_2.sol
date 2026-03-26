@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
     function f(uint a) internal pure returns (uint b) {
         require(a < 1000);
@@ -14,8 +16,6 @@ contract C {
     }
 }
 // ====
-// SMTEngine: all
 // SMTIgnoreCex: yes
 // ----
-// Warning 6328: (345-359): CHC: Assertion violation happens here.
-// Info 1391: CHC: 3 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (378-392): CHC: Assertion violation happens here.

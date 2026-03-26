@@ -1,1 +1,1 @@
-Error: Invalid option for --model-checker-targets: aaa,bbb
+Invalid option for --model-checker-targets: aaa,bbb

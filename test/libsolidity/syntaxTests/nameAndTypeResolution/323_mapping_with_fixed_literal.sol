@@ -4,7 +4,5 @@ contract test {
         fixedString[0.5] = "Half";
     }
 }
-// ====
-// compileViaYul: true
 // ----
-// UnimplementedFeatureError 1834: (96-112): Fixed point types not implemented.
+// UnimplementedFeatureError: Not yet implemented - FixedPointType.

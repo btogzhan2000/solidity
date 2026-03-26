@@ -30,13 +30,13 @@
 #include <libevmasm/ControlFlowGraph.h>
 #include <libevmasm/KnownState.h>
 #include <libevmasm/PathGasMeter.h>
-#include <libsolutil/FunctionSelector.h>
 #include <libsolutil/Keccak256.h>
 
 #include <functional>
 #include <map>
 #include <memory>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::evmasm;
 using namespace solidity::frontend;
@@ -44,17 +44,17 @@ using namespace solidity::langutil;
 
 GasEstimator::GasConsumption GasEstimator::functionalEstimation(
 	AssemblyItems const& _items,
-	std::string const& _signature
+	string const& _signature
 ) const
 {
-	auto state = std::make_shared<KnownState>();
+	auto state = make_shared<KnownState>();
 
 	if (!_signature.empty())
 	{
 		ExpressionClasses& classes = state->expressionClasses();
 		using Id = ExpressionClasses::Id;
-		using Ids = std::vector<Id>;
-		Id hashValue = classes.find(u256(util::selectorFromSignatureU32(_signature)));
+		using Ids = vector<Id>;
+		Id hashValue = classes.find(u256(util::FixedHash<4>::Arith(util::FixedHash<4>(util::keccak256(_signature)))));
 		Id calldata = classes.find(Instruction::CALLDATALOAD, Ids{classes.find(u256(0))});
 		if (!m_evmVersion.hasBitwiseShifting())
 			// div(calldataload(0), 1 << 224) equals to hashValue
@@ -87,10 +87,10 @@ GasEstimator::GasConsumption GasEstimator::functionalEstimation(
 	FunctionDefinition const& _function
 ) const
 {
-	auto state = std::make_shared<KnownState>();
+	auto state = make_shared<KnownState>();
 
 	unsigned parametersSize = CompilerUtils::sizeOnStack(_function.parameters());
-	if (parametersSize > m_evmVersion.reachableStackDepth())
+	if (parametersSize > 16)
 		return GasConsumption::infinite();
 
 	// Store an invalid return value on the stack, so that the path estimator breaks upon reaching
@@ -103,13 +103,13 @@ GasEstimator::GasConsumption GasEstimator::functionalEstimation(
 	return PathGasMeter::estimateMax(_items, m_evmVersion, _offset, state);
 }
 
-std::set<ASTNode const*> GasEstimator::finestNodesAtLocation(
-	std::vector<ASTNode const*> const& _roots
+set<ASTNode const*> GasEstimator::finestNodesAtLocation(
+	vector<ASTNode const*> const& _roots
 )
 {
-	std::map<SourceLocation, ASTNode const*> locations;
-	std::set<ASTNode const*> nodes;
-	SimpleASTVisitor visitor([](ASTNode const&) { return false; }, [&](ASTNode const& _n)
+	map<SourceLocation, ASTNode const*> locations;
+	set<ASTNode const*> nodes;
+	SimpleASTVisitor visitor(function<bool(ASTNode const&)>(), [&](ASTNode const& _n)
 	{
 		if (!locations.count(_n.location()))
 		{

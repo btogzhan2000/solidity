@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 library L {
 	struct S {
 		uint256[] data;
@@ -16,7 +18,6 @@ contract C {
 		assert(y == 42); // should hold
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6031: (289-292): Internal error: Expression undefined for SMT solver.
+// Warning 6031: (289-292): Internal error: Expression undefined for SMT solver.

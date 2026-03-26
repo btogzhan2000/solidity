@@ -1,5 +1,7 @@
 contract C {
+    // This should probably have a better error message at some point.
+    // Constant mappings should not be possible in general.
     mapping(uint => uint) constant x;
 }
 // ----
-// TypeError 9259: (17-49): Only constants of value type and byte array type are implemented.
+// DeclarationError 9259: (148-180): Constants of non-value type not yet implemented.

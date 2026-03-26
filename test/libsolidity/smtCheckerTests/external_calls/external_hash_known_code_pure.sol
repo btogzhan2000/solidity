@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract Crypto {
 	function hash(bytes32) external pure returns (bytes32) {
 		return bytes32(0);
@@ -26,8 +28,6 @@ contract C {
 	}
 }
 // ====
-// SMTEngine: all
 // SMTIgnoreCex: yes
 // ----
-// Warning 6328: (398-420): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (431-453): CHC: Assertion violation happens here.

@@ -1,5 +1,4 @@
 {
     function f() { }
-    function g(a) -> x { }
+    function g(a:u256) -> x:u256 { }
 }
-// ----

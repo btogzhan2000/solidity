@@ -23,6 +23,8 @@ contract C {
         return (a[0], b[1], a[2]);
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // f() -> 1, 3
 // g() -> 1, 2, 3

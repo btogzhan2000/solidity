@@ -6,37 +6,38 @@
 # This makes it possible to use this script as part of CI to check
 # that the list is up to date.
 
+import os
 import json
 import re
-from pathlib import Path
+import sys
 
 def comp(version_string):
     return [int(c) for c in version_string.split('.')]
 
-root_path = Path(__file__).resolve().parent.parent
-
-bugs = json.loads((root_path / 'docs/bugs.json').read_text(encoding='utf8'))
+path = os.path.dirname(os.path.realpath(__file__))
+with open(path + '/../docs/bugs.json') as bugsFile:
+    bugs = json.load(bugsFile)
 
 versions = {}
-with (root_path / 'Changelog.md').open(encoding='utf8') as changelog:
+with open(path + '/../Changelog.md') as changelog:
     for line in changelog:
         m = re.search(r'^### (\S+) \((\d+-\d+-\d+)\)$', line)
         if m:
             versions[m.group(1)] = {}
             versions[m.group(1)]['released'] = m.group(2)
 
-for key, value in versions.items():
-    value['bugs'] = []
+for v in versions:
+    versions[v]['bugs'] = []
     for bug in bugs:
-        if 'introduced' in bug and comp(bug['introduced']) > comp(key):
+        if 'introduced' in bug and comp(bug['introduced']) > comp(v):
             continue
-        if comp(bug['fixed']) <= comp(key):
+        if comp(bug['fixed']) <= comp(v):
             continue
-        value['bugs'] += [bug['name']]
+        versions[v]['bugs'] += [bug['name']]
 
-(root_path / 'docs/bugs_by_version.json').write_text(json.dumps(
-    versions,
-    sort_keys=True,
-    indent=4,
-    separators=(',', ': ')
-), encoding='utf8')
+new_contents = json.dumps(versions, sort_keys=True, indent=4, separators=(',', ': '))
+with open(path + '/../docs/bugs_by_version.json', 'r') as bugs_by_version:
+    old_contents = bugs_by_version.read()
+with open(path + '/../docs/bugs_by_version.json', 'w') as bugs_by_version:
+    bugs_by_version.write(new_contents)
+sys.exit(old_contents != new_contents)

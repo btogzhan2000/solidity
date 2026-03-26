@@ -7,23 +7,19 @@ object "t" {
 	}
 }
 // ====
-// EVMVersion: >=shanghai
-// optimizationPreset: full
-// outputs: Assembly
-// bytecodeFormat: legacy
+// optimize: true
 // ----
 // Assembly:
-//     /* "source":56:169   */
+//     /* "source":23:147   */
 //   dataSize(sub_0)
-//     /* "source":53:54   */
+//     /* "source":30:31   */
 //   0x00
-//     /* "source":46:170   */
+//     /* "source":23:147   */
 //   sstore
-//     /* "source":22:186   */
-//   stop
 // stop
 //
 // sub_0: assembly {
-//         /* "source":317:324   */
-//       stop
 // }
+// Bytecode: 6000600055fe
+// Opcodes: PUSH1 0x0 PUSH1 0x0 SSTORE INVALID
+// SourceMappings: 23:124:0:-:0;30:1;23:124

@@ -8,8 +8,6 @@
 // step: loadResolver
 //
 // {
-//     {
-//         let a := mload(calldataload(0))
-//         sstore(a, a)
-//     }
+//     let a := mload(calldataload(0))
+//     sstore(a, a)
 // }

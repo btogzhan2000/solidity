@@ -11,23 +11,16 @@ contract C {
 
 contract D {
     function f() public returns (uint256) {
-        return (new C{salt: hex"00"}()).balance();
+        return (new C()).balance();
     }
 
     function g() public returns (uint256) {
-        return (new C{salt: hex"01"}()).transfer(5);
+        return (new C()).transfer(5);
     }
 }
+
 // ====
-// EVMVersion: >=constantinople
+// compileViaYul: also
 // ----
 // f() -> 1
-// gas irOptimized: 54014
-// gas irOptimized code: 20200
-// gas legacy: 54553
-// gas legacy code: 57800
 // g() -> 5
-// gas irOptimized: 54042
-// gas irOptimized code: 20200
-// gas legacy: 55090
-// gas legacy code: 57800

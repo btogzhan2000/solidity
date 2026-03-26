@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract C {
 	function abiEncodeHash(string memory sig, uint a, uint b) public pure {
 		require(a == b);
@@ -10,10 +11,10 @@ contract C {
 		assert(keccak256(b1) != keccak256(b3)); // should fail
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreOS: macos
 // ----
-// Warning 6328: (337-375): CHC: Assertion violation happens here.
-// Warning 6328: (394-432): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 1218: (369-407): CHC: Error trying to invoke SMT solver.
+// Warning 6328: (369-407): CHC: Assertion violation might happen here.
+// Warning 1218: (426-464): CHC: Error trying to invoke SMT solver.
+// Warning 6328: (426-464): CHC: Assertion violation might happen here.
+// Warning 4661: (369-407): BMC: Assertion violation happens here.
+// Warning 4661: (426-464): BMC: Assertion violation happens here.

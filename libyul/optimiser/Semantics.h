@@ -21,17 +21,16 @@
 
 #pragma once
 
-#include <libyul/AST.h>
-#include <libyul/Object.h>
-#include <libyul/SideEffects.h>
 #include <libyul/optimiser/ASTWalker.h>
+#include <libyul/SideEffects.h>
 #include <libyul/optimiser/CallGraphGenerator.h>
+#include <libyul/AST.h>
 
 #include <set>
 
 namespace solidity::yul
 {
-class Dialect;
+struct Dialect;
 
 /**
  * Specific AST walker that determines side-effect free-ness and movability of code.
@@ -42,23 +41,23 @@ class SideEffectsCollector: public ASTWalker
 public:
 	explicit SideEffectsCollector(
 		Dialect const& _dialect,
-		std::map<FunctionHandle, SideEffects> const* _functionSideEffects = nullptr
+		std::map<YulString, SideEffects> const* _functionSideEffects = nullptr
 	): m_dialect(_dialect), m_functionSideEffects(_functionSideEffects) {}
 	SideEffectsCollector(
 		Dialect const& _dialect,
 		Expression const& _expression,
-		std::map<FunctionHandle, SideEffects> const* _functionSideEffects = nullptr
+		std::map<YulString, SideEffects> const* _functionSideEffects = nullptr
 	);
 	SideEffectsCollector(Dialect const& _dialect, Statement const& _statement);
 	SideEffectsCollector(
 		Dialect const& _dialect,
 		Block const& _ast,
-		std::map<FunctionHandle, SideEffects> const* _functionSideEffects = nullptr
+		std::map<YulString, SideEffects> const* _functionSideEffects = nullptr
 	);
 	SideEffectsCollector(
 		Dialect const& _dialect,
 		ForLoop const& _ast,
-		std::map<FunctionHandle, SideEffects> const* _functionSideEffects = nullptr
+		std::map<YulString, SideEffects> const* _functionSideEffects = nullptr
 	);
 
 	using ASTWalker::operator();
@@ -78,8 +77,7 @@ public:
 			!m_sideEffects.movableApartFromEffects ||
 			m_sideEffects.storage == SideEffects::Write ||
 			m_sideEffects.otherState == SideEffects::Write ||
-			m_sideEffects.memory == SideEffects::Write ||
-			m_sideEffects.transientStorage == SideEffects::Write
+			m_sideEffects.memory == SideEffects::Write
 		)
 			return false;
 
@@ -93,10 +91,6 @@ public:
 
 		if (m_sideEffects.memory == SideEffects::Read)
 			if (_codeContainsMSize || _other.memory == SideEffects::Write)
-				return false;
-
-		if (m_sideEffects.transientStorage == SideEffects::Read)
-			if (_other.transientStorage == SideEffects::Write)
 				return false;
 
 		return true;
@@ -117,7 +111,7 @@ public:
 
 private:
 	Dialect const& m_dialect;
-	std::map<FunctionHandle, SideEffects> const* m_functionSideEffects = nullptr;
+	std::map<YulString, SideEffects> const* m_functionSideEffects = nullptr;
 	SideEffects m_sideEffects;
 };
 
@@ -130,15 +124,14 @@ private:
 class SideEffectsPropagator
 {
 public:
-	static std::map<FunctionHandle, SideEffects> sideEffects(
+	static std::map<YulString, SideEffects> sideEffects(
 		Dialect const& _dialect,
 		CallGraph const& _directCallGraph
 	);
 };
 
 /**
- * Class that can be used to find out if certain code contains the MSize instruction
- * or a verbatim bytecode builtin (which is always assumed that it could contain MSize).
+ * Class that can be used to find out if certain code contains the MSize instruction.
  *
  * Note that this is a purely syntactic property meaning that even if this is false,
  * the code can still contain calls to functions that contain the msize instruction.
@@ -149,7 +142,6 @@ class MSizeFinder: public ASTWalker
 {
 public:
 	static bool containsMSize(Dialect const& _dialect, Block const& _ast);
-	static bool containsMSize(Object const& _object);
 
 	using ASTWalker::operator();
 	void operator()(FunctionCall const& _funCall) override;
@@ -195,7 +187,7 @@ class MovableChecker: public SideEffectsCollector
 public:
 	explicit MovableChecker(
 		Dialect const& _dialect,
-		std::map<FunctionHandle, SideEffects> const* _functionSideEffects = nullptr
+		std::map<YulString, SideEffects> const* _functionSideEffects = nullptr
 	): SideEffectsCollector(_dialect, _functionSideEffects) {}
 	MovableChecker(Dialect const& _dialect, Expression const& _expression);
 
@@ -205,38 +197,29 @@ public:
 	void visit(Statement const&) override;
 	using ASTWalker::visit;
 
-	std::set<YulName> const& referencedVariables() const { return m_variableReferences; }
+	std::set<YulString> const& referencedVariables() const { return m_variableReferences; }
 
 private:
 	/// Which variables the current expression references.
-	std::set<YulName> m_variableReferences;
+	std::set<YulString> m_variableReferences;
 };
 
-struct ControlFlowSideEffects;
 
 /**
  * Helper class to find "irregular" control flow.
- * This includes termination, break, continue and leave.
- * In general, it is applied only to "simple" statements. The control-flow
- * of loops, switches and if statements is always "FlowOut" with the assumption
- * that the caller will descend into them.
+ * This includes termination, break and continue.
  */
 class TerminationFinder
 {
 public:
-	/// "Terminate" here means that there is no continuing control-flow.
-	/// If this is applied to a function that can revert or stop, but can also
-	/// exit regularly, the property is set to "FlowOut".
+	// TODO check all uses of TerminationFinder!
 	enum class ControlFlow { FlowOut, Break, Continue, Terminate, Leave };
 
-	TerminationFinder(
-		Dialect const& _dialect,
-		std::map<YulName, ControlFlowSideEffects> const* _functionSideEffects = nullptr
-	): m_dialect(_dialect), m_functionSideEffects(_functionSideEffects) {}
+	TerminationFinder(Dialect const& _dialect): m_dialect(_dialect) {}
 
 	/// @returns the index of the first statement in the provided sequence
 	/// that is an unconditional ``break``, ``continue``, ``leave`` or a
-	/// call to a terminating function.
+	/// call to a terminating builtin function.
 	/// If control flow can continue at the end of the list,
 	/// returns `FlowOut` and ``size_t(-1)``.
 	/// The function might return ``FlowOut`` even though control
@@ -249,14 +232,13 @@ public:
 	/// This function could return FlowOut even if control flow never continues.
 	ControlFlow controlFlowKind(Statement const& _statement);
 
-	/// @returns true if the expression contains a
-	/// call to a terminating function, i.e. a function that does not have
-	/// a regular "flow out" control-flow (it might also be recursive).
-	bool containsNonContinuingFunctionCall(Expression const& _expr);
+	/// @returns true if the expression statement is a direct
+	/// call to a builtin terminating function like
+	/// ``stop``, ``revert`` or ``return``.
+	bool isTerminatingBuiltin(ExpressionStatement const& _exprStmnt);
 
 private:
 	Dialect const& m_dialect;
-	std::map<YulName, ControlFlowSideEffects> const* m_functionSideEffects;
 };
 
 }

@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C
 {
 	function f(int8 x) public pure returns (int8) {
@@ -10,8 +12,5 @@ contract C
 		return y;
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 4984: (136-143): CHC: Overflow (resulting value larger than 127) happens here.
-// Info 1391: CHC: 3 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 4984: (169-176): CHC: Overflow (resulting value larger than 127) happens here.\nCounterexample:\n\nx = 100\n = 0\n\nTransaction trace:\nC.constructor()\nC.f(0)

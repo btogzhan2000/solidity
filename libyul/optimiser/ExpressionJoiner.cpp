@@ -22,7 +22,6 @@
 
 #include <libyul/optimiser/ExpressionJoiner.h>
 
-#include <libyul/optimiser/FunctionGrouper.h>
 #include <libyul/optimiser/NameCollector.h>
 #include <libyul/optimiser/OptimizerUtilities.h>
 #include <libyul/Exceptions.h>
@@ -30,17 +29,15 @@
 
 #include <libsolutil/CommonData.h>
 
-#include <range/v3/view/reverse.hpp>
+#include <boost/range/adaptor/reversed.hpp>
 
-#include <limits>
-
+using namespace std;
 using namespace solidity;
 using namespace solidity::yul;
 
-void ExpressionJoiner::run(OptimiserStepContext& _context, Block& _ast)
+void ExpressionJoiner::run(OptimiserStepContext&, Block& _ast)
 {
 	ExpressionJoiner{_ast}(_ast);
-	FunctionGrouper::run(_context, _ast);
 }
 
 
@@ -65,7 +62,7 @@ void ExpressionJoiner::operator()(Block& _block)
 
 void ExpressionJoiner::visit(Expression& _e)
 {
-	if (std::holds_alternative<Identifier>(_e))
+	if (holds_alternative<Identifier>(_e))
 	{
 		Identifier const& identifier = std::get<Identifier>(_e);
 		if (isLatestStatementVarDeclJoinable(identifier))
@@ -85,10 +82,10 @@ void ExpressionJoiner::visit(Expression& _e)
 
 ExpressionJoiner::ExpressionJoiner(Block& _ast)
 {
-	m_references = VariableReferencesCounter::countReferences(_ast);
+	m_references = ReferencesCounter::countReferences(_ast);
 }
 
-void ExpressionJoiner::handleArguments(std::vector<Expression>& _arguments)
+void ExpressionJoiner::handleArguments(vector<Expression>& _arguments)
 {
 	// We have to fill from left to right, but we can only
 	// fill if everything to the right is just an identifier
@@ -97,10 +94,10 @@ void ExpressionJoiner::handleArguments(std::vector<Expression>& _arguments)
 	// on the right is an identifier or literal.
 
 	size_t i = _arguments.size();
-	for (Expression const& arg: _arguments | ranges::views::reverse)
+	for (Expression const& arg: _arguments | boost::adaptors::reversed)
 	{
 		--i;
-		if (!std::holds_alternative<Identifier>(arg) && !std::holds_alternative<Literal>(arg))
+		if (!holds_alternative<Identifier>(arg) && !holds_alternative<Literal>(arg))
 			break;
 	}
 	// i points to the last element that is neither an identifier nor a literal,
@@ -123,7 +120,7 @@ void ExpressionJoiner::decrementLatestStatementPointer()
 void ExpressionJoiner::resetLatestStatementPointer()
 {
 	m_currentBlock = nullptr;
-	m_latestStatementInBlock = std::numeric_limits<size_t>::max();
+	m_latestStatementInBlock = numeric_limits<size_t>::max();
 }
 
 Statement* ExpressionJoiner::latestStatement()
@@ -137,7 +134,7 @@ Statement* ExpressionJoiner::latestStatement()
 bool ExpressionJoiner::isLatestStatementVarDeclJoinable(Identifier const& _identifier)
 {
 	Statement const* statement = latestStatement();
-	if (!statement || !std::holds_alternative<VariableDeclaration>(*statement))
+	if (!statement || !holds_alternative<VariableDeclaration>(*statement))
 		return false;
 	VariableDeclaration const& varDecl = std::get<VariableDeclaration>(*statement);
 	if (varDecl.variables.size() != 1 || !varDecl.value)

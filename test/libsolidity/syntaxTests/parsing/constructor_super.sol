@@ -8,4 +8,3 @@ contract B is A {
     super.x();
   }
 }
-// ----

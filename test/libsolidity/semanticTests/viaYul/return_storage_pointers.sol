@@ -10,5 +10,8 @@ contract C {
 	}
 
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // g() -> 0, 0

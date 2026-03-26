@@ -59,6 +59,9 @@ contract C {
         } while(false);
     }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f(bool): 0 -> 23
 // f(bool): 1 -> 42

@@ -31,6 +31,7 @@
 
 #include <boost/test/unit_test.hpp>
 
+using namespace std;
 using namespace solidity::langutil;
 
 namespace solidity::frontend::test
@@ -38,19 +39,18 @@ namespace solidity::frontend::test
 
 namespace
 {
-ASTPointer<ContractDefinition> parseText(std::string const& _source, ErrorList& _errors)
+ASTPointer<ContractDefinition> parseText(std::string const& _source, ErrorList& _errors, bool errorRecovery = false)
 {
 	ErrorReporter errorReporter(_errors);
-	auto charStream = CharStream(_source, "");
 	ASTPointer<SourceUnit> sourceUnit = Parser(
 		errorReporter,
 		solidity::test::CommonOptions::get().evmVersion(),
-		solidity::test::CommonOptions::get().eofVersion()
-	).parse(charStream);
+		errorRecovery
+	).parse(std::make_shared<Scanner>(CharStream(_source, "")));
 	if (!sourceUnit)
 		return ASTPointer<ContractDefinition>();
 	for (ASTPointer<ASTNode> const& node: sourceUnit->nodes())
-		if (ASTPointer<ContractDefinition> contract = std::dynamic_pointer_cast<ContractDefinition>(node))
+		if (ASTPointer<ContractDefinition> contract = dynamic_pointer_cast<ContractDefinition>(node))
 			return contract;
 	BOOST_FAIL("No contract found in source.");
 	return ASTPointer<ContractDefinition>();
@@ -73,16 +73,16 @@ bool successParse(std::string const& _source)
 	if (Error::containsErrorOfType(errors, Error::Type::ParserError))
 		return false;
 
-	BOOST_CHECK(!Error::containsErrors(errors));
+	BOOST_CHECK(Error::containsOnlyWarnings(errors));
 	return true;
 }
 
-Error getError(std::string const& _source)
+Error getError(std::string const& _source, bool errorRecovery = false)
 {
 	ErrorList errors;
 	try
 	{
-		parseText(_source, errors);
+		parseText(_source, errors, errorRecovery);
 	}
 	catch (FatalError const& /*_exception*/)
 	{
@@ -525,7 +525,7 @@ BOOST_AUTO_TEST_CASE(keyword_is_reserved)
 	for (auto const& keyword: keywords)
 	{
 		auto text = std::string("contract ") + keyword + " {}";
-		CHECK_PARSE_ERROR(text.c_str(), std::string("Expected identifier but got reserved keyword '") + keyword + "'");
+		CHECK_PARSE_ERROR(text.c_str(), string("Expected identifier but got reserved keyword '") + keyword + "'");
 	}
 }
 
@@ -591,21 +591,19 @@ BOOST_AUTO_TEST_CASE(inline_asm_end_location)
 	class CheckInlineAsmLocation: public ASTConstVisitor
 	{
 	public:
-		explicit CheckInlineAsmLocation(std::string _sourceCode): m_sourceCode(_sourceCode) {}
 		bool visited = false;
 		bool visit(InlineAssembly const& _inlineAsm) override
 		{
 			auto loc = _inlineAsm.location();
-			auto asmStr = m_sourceCode.substr(static_cast<size_t>(loc.start), static_cast<size_t>(loc.end - loc.start));
+			auto asmStr = loc.source->source().substr(static_cast<size_t>(loc.start), static_cast<size_t>(loc.end - loc.start));
 			BOOST_CHECK_EQUAL(asmStr, "assembly { a := 0x12345678 }");
 			visited = true;
 
 			return false;
 		}
-		std::string m_sourceCode;
 	};
 
-	CheckInlineAsmLocation visitor{sourceCode};
+	CheckInlineAsmLocation visitor;
 	contract->accept(visitor);
 
 	BOOST_CHECK_MESSAGE(visitor.visited, "No inline asm block found?!");

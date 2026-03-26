@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint[] a;
 	function g() internal {
@@ -8,7 +10,5 @@ contract C {
 		g();
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 2529: (89-96): CHC: Empty array "pop" happens here.\nCounterexample:\na = []\n\nTransaction trace:\nC.constructor()\nState: a = []\nC.f()
+// Warning 2529: (122-129): CHC: Empty array "pop" happens here.\nCounterexample:\na = []\n\nTransaction trace:\nC.constructor()\nState: a = []\nC.f()

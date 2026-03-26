@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract C
 {
 	struct S {
@@ -9,7 +10,5 @@ contract C
 			smap[y] = S(v);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6838: (108-112): BMC: Condition is always false.
+// Warning 6838: (140-144): BMC: Condition is always false.

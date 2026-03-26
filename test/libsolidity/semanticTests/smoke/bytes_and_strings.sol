@@ -12,6 +12,8 @@ contract C {
         return "any";
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // e(bytes): 32, 3, hex"AB33BB" -> 32, 3, left(0xAB33BB)
 // e(bytes): 32, 32, 0x20 -> 32, 32, 0x20
@@ -19,3 +21,4 @@ contract C {
 // f() -> 0x40, 0x80, 3, "any", 3, "any"
 // g() -> 0x60, 0x2a, 0xa0, 3, "any", 3, "any"
 // h() -> 0x20, 3, "any"
+

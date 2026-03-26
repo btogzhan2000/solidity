@@ -5,4 +5,3 @@ contract C {
         return (e[v], e[E.A]);
     }
 }
-// ----

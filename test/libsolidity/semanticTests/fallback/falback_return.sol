@@ -5,6 +5,8 @@ contract A {
         x++;
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // ()
 // x() -> 1

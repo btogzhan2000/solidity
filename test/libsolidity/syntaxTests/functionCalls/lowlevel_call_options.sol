@@ -4,6 +4,4 @@ contract C {
         success;
     }
 }
-// ====
-// bytecodeFormat: legacy
 // ----

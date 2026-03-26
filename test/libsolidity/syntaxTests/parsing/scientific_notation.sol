@@ -5,4 +5,3 @@ contract test {
 	uint256 d = 2E10 wei;
 	uint256 e = 2.5e10;
 }
-// ----

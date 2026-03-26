@@ -26,4 +26,3 @@ contract C {
         return m_c;
     }
 }
-// ----

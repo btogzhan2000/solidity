@@ -23,93 +23,68 @@
 
 #include <libyul/AsmPrinter.h>
 #include <libyul/AST.h>
-#include <libyul/Dialect.h>
 #include <libyul/Exceptions.h>
-#include <libyul/Utilities.h>
+#include <libyul/Dialect.h>
 
 #include <libsolutil/CommonData.h>
-#include <libsolutil/StringUtils.h>
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/replace.hpp>
+#include <boost/range/adaptor/transformed.hpp>
 
-#include <range/v3/view/transform.hpp>
-
-#include <functional>
 #include <memory>
+#include <functional>
 
+using namespace std;
 using namespace solidity;
-using namespace solidity::langutil;
 using namespace solidity::util;
 using namespace solidity::yul;
 
-std::string AsmPrinter::format(
-	AST const& _ast,
-	std::optional<std::map<unsigned, std::shared_ptr<std::string const>>> const& _sourceIndexToName,
-	DebugInfoSelection const& _debugInfoSelection,
-	CharStreamProvider const* _soliditySourceProvider)
+//@TODO source locations
+
+string AsmPrinter::operator()(Literal const& _literal) const
 {
-	return AsmPrinter{_ast.dialect(), _sourceIndexToName, _debugInfoSelection, _soliditySourceProvider}(_ast.root());
-}
-
-
-std::string AsmPrinter::operator()(Literal const& _literal)
-{
-	yulAssert(validLiteral(_literal));
-
-	std::string const locationComment = formatDebugData(_literal);
-	std::string const formattedValue = formatLiteral(_literal);
-
 	switch (_literal.kind)
 	{
 	case LiteralKind::Number:
+		yulAssert(isValidDecimal(_literal.value.str()) || isValidHex(_literal.value.str()), "Invalid number literal");
+		return _literal.value.str() + appendTypeName(_literal.type);
 	case LiteralKind::Boolean:
-		return locationComment + formattedValue;
+		yulAssert(_literal.value == "true"_yulstring || _literal.value == "false"_yulstring, "Invalid bool literal.");
+		return ((_literal.value == "true"_yulstring) ? "true" : "false") + appendTypeName(_literal.type, true);
 	case LiteralKind::String:
 		break;
 	}
 
-	return locationComment + escapeAndQuoteString(formattedValue);
+	return escapeAndQuoteString(_literal.value.str()) + appendTypeName(_literal.type);
 }
 
-std::string AsmPrinter::operator()(Identifier const& _identifier)
+string AsmPrinter::operator()(Identifier const& _identifier) const
 {
 	yulAssert(!_identifier.name.empty(), "Invalid identifier.");
-	return formatDebugData(_identifier) + _identifier.name.str();
+	return _identifier.name.str();
 }
 
-std::string AsmPrinter::operator()(BuiltinName const& _builtin)
+string AsmPrinter::operator()(ExpressionStatement const& _statement) const
 {
-	return formatDebugData(_builtin) + m_dialect.builtin(_builtin.handle).name;
+	return std::visit(*this, _statement.expression);
 }
 
-std::string AsmPrinter::operator()(ExpressionStatement const& _statement)
+string AsmPrinter::operator()(Assignment const& _assignment) const
 {
-	std::string const locationComment = formatDebugData(_statement);
-
-	return locationComment + std::visit(*this, _statement.expression);
-}
-
-std::string AsmPrinter::operator()(Assignment const& _assignment)
-{
-	std::string const locationComment = formatDebugData(_assignment);
-
 	yulAssert(_assignment.variableNames.size() >= 1, "");
-	std::string variables = (*this)(_assignment.variableNames.front());
+	string variables = (*this)(_assignment.variableNames.front());
 	for (size_t i = 1; i < _assignment.variableNames.size(); ++i)
 		variables += ", " + (*this)(_assignment.variableNames[i]);
-
-	return locationComment + variables + " := " + std::visit(*this, *_assignment.value);
+	return variables + " := " + std::visit(*this, *_assignment.value);
 }
 
-std::string AsmPrinter::operator()(VariableDeclaration const& _variableDeclaration)
+string AsmPrinter::operator()(VariableDeclaration const& _variableDeclaration) const
 {
-	std::string out = formatDebugData(_variableDeclaration);
-
-	out += "let ";
+	string out = "let ";
 	out += boost::algorithm::join(
-		_variableDeclaration.variables | ranges::views::transform(
-			[this](NameWithDebugData argument) { return formatNameWithDebugData(argument); }
+		_variableDeclaration.variables | boost::adaptors::transformed(
+			[this](TypedName argument) { return formatTypedName(argument); }
 		),
 		", "
 	);
@@ -121,15 +96,13 @@ std::string AsmPrinter::operator()(VariableDeclaration const& _variableDeclarati
 	return out;
 }
 
-std::string AsmPrinter::operator()(FunctionDefinition const& _functionDefinition)
+string AsmPrinter::operator()(FunctionDefinition const& _functionDefinition) const
 {
 	yulAssert(!_functionDefinition.name.empty(), "Invalid function name.");
-
-	std::string out = formatDebugData(_functionDefinition);
-	out += "function " + _functionDefinition.name.str() + "(";
+	string out = "function " + _functionDefinition.name.str() + "(";
 	out += boost::algorithm::join(
-		_functionDefinition.parameters | ranges::views::transform(
-			[this](NameWithDebugData argument) { return formatNameWithDebugData(argument); }
+		_functionDefinition.parameters | boost::adaptors::transformed(
+			[this](TypedName argument) { return formatTypedName(argument); }
 		),
 		", "
 	);
@@ -138,8 +111,8 @@ std::string AsmPrinter::operator()(FunctionDefinition const& _functionDefinition
 	{
 		out += " -> ";
 		out += boost::algorithm::join(
-			_functionDefinition.returnVariables | ranges::views::transform(
-				[this](NameWithDebugData argument) { return formatNameWithDebugData(argument); }
+			_functionDefinition.returnVariables | boost::adaptors::transformed(
+				[this](TypedName argument) { return formatTypedName(argument); }
 			),
 			", "
 		);
@@ -148,41 +121,30 @@ std::string AsmPrinter::operator()(FunctionDefinition const& _functionDefinition
 	return out + "\n" + (*this)(_functionDefinition.body);
 }
 
-std::string AsmPrinter::operator()(FunctionCall const& _functionCall)
+string AsmPrinter::operator()(FunctionCall const& _functionCall) const
 {
-	std::string const locationComment = formatDebugData(_functionCall);
-	std::string const functionName = std::visit(*this, _functionCall.functionName);
 	return
-		locationComment +
-		functionName + "(" +
+		(*this)(_functionCall.functionName) + "(" +
 		boost::algorithm::join(
-			_functionCall.arguments | ranges::views::transform([&](auto&& _node) { return std::visit(*this, _node); }),
+			_functionCall.arguments | boost::adaptors::transformed([&](auto&& _node) { return std::visit(*this, _node); }),
 			", " ) +
 		")";
 }
 
-std::string AsmPrinter::operator()(If const& _if)
+string AsmPrinter::operator()(If const& _if) const
 {
 	yulAssert(_if.condition, "Invalid if condition.");
-
-	std::string out = formatDebugData(_if);
-	out += "if " + std::visit(*this, *_if.condition);
-
-	std::string body = (*this)(_if.body);
+	string body = (*this)(_if.body);
 	char delim = '\n';
-	if (body.find('\n') == std::string::npos)
+	if (body.find('\n') == string::npos)
 		delim = ' ';
-
-	return out + delim + body;
+	return "if " + std::visit(*this, *_if.condition) + delim + (*this)(_if.body);
 }
 
-std::string AsmPrinter::operator()(Switch const& _switch)
+string AsmPrinter::operator()(Switch const& _switch) const
 {
 	yulAssert(_switch.expression, "Invalid expression pointer.");
-
-	std::string out = formatDebugData(_switch);
-	out += "switch " + std::visit(*this, *_switch.expression);
-
+	string out = "switch " + std::visit(*this, *_switch.expression);
 	for (auto const& _case: _switch.cases)
 	{
 		if (!_case.value)
@@ -194,148 +156,74 @@ std::string AsmPrinter::operator()(Switch const& _switch)
 	return out;
 }
 
-std::string AsmPrinter::operator()(ForLoop const& _forLoop)
+string AsmPrinter::operator()(ForLoop const& _forLoop) const
 {
 	yulAssert(_forLoop.condition, "Invalid for loop condition.");
-	std::string const locationComment = formatDebugData(_forLoop);
-
-	std::string pre = (*this)(_forLoop.pre);
-	std::string condition = std::visit(*this, *_forLoop.condition);
-	std::string post = (*this)(_forLoop.post);
-
+	string pre = (*this)(_forLoop.pre);
+	string condition = std::visit(*this, *_forLoop.condition);
+	string post = (*this)(_forLoop.post);
 	char delim = '\n';
 	if (
 		pre.size() + condition.size() + post.size() < 60 &&
-		pre.find('\n') == std::string::npos &&
-		post.find('\n') == std::string::npos
+		pre.find('\n') == string::npos &&
+		post.find('\n') == string::npos
 	)
 		delim = ' ';
 	return
-		locationComment +
-		("for " + std::move(pre) + delim + std::move(condition) + delim + std::move(post) + "\n") +
+		("for " + move(pre) + delim + move(condition) + delim + move(post) + "\n") +
 		(*this)(_forLoop.body);
 }
 
-std::string AsmPrinter::operator()(Break const& _break)
+string AsmPrinter::operator()(Break const&) const
 {
-	return formatDebugData(_break) + "break";
+	return "break";
 }
 
-std::string AsmPrinter::operator()(Continue const& _continue)
+string AsmPrinter::operator()(Continue const&) const
 {
-	return formatDebugData(_continue) + "continue";
+	return "continue";
 }
 
-// '_leave' and '__leave' is reserved in VisualStudio
-std::string AsmPrinter::operator()(Leave const& leave_)
+string AsmPrinter::operator()(Leave const&) const
 {
-	return formatDebugData(leave_) + "leave";
+	return "leave";
 }
 
-std::string AsmPrinter::operator()(Block const& _block)
+string AsmPrinter::operator()(Block const& _block) const
 {
-	std::string const locationComment = formatDebugData(_block);
-
 	if (_block.statements.empty())
-		return locationComment + "{ }";
-	std::string body = boost::algorithm::join(
-		_block.statements | ranges::views::transform([&](auto&& _node) { return std::visit(*this, _node); }),
+		return "{ }";
+	string body = boost::algorithm::join(
+		_block.statements | boost::adaptors::transformed([&](auto&& _node) { return std::visit(*this, _node); }),
 		"\n"
 	);
-	if (body.size() < 30 && body.find('\n') == std::string::npos)
-		return locationComment + "{ " + body + " }";
+	if (body.size() < 30 && body.find('\n') == string::npos)
+		return "{ " + body + " }";
 	else
 	{
 		boost::replace_all(body, "\n", "\n    ");
-		return locationComment + "{\n    " + body + "\n}";
+		return "{\n    " + body + "\n}";
 	}
 }
 
-std::string AsmPrinter::formatNameWithDebugData(NameWithDebugData _variable)
+string AsmPrinter::formatTypedName(TypedName _variable) const
 {
 	yulAssert(!_variable.name.empty(), "Invalid variable name.");
-	return formatDebugData(_variable) + _variable.name.str();
+	return _variable.name.str() + appendTypeName(_variable.type);
 }
 
-std::string AsmPrinter::formatSourceLocation(
-	SourceLocation const& _location,
-	std::map<std::string, unsigned> const& _nameToSourceIndex,
-	DebugInfoSelection const& _debugInfoSelection,
-	CharStreamProvider const* _soliditySourceProvider
-)
+string AsmPrinter::appendTypeName(YulString _type, bool _isBoolLiteral) const
 {
-	yulAssert(!_nameToSourceIndex.empty(), "");
-	if (_debugInfoSelection.snippet)
-		yulAssert(_debugInfoSelection.location, "@src tag must always contain the source location");
-
-	if (_debugInfoSelection.none())
-		return "";
-
-	std::string sourceIndex = "-1";
-	std::string solidityCodeSnippet = "";
-	if (_location.sourceName)
+	if (m_dialect && !_type.empty())
 	{
-		sourceIndex = std::to_string(_nameToSourceIndex.at(*_location.sourceName));
-
-		if (
-			_debugInfoSelection.snippet &&
-			_soliditySourceProvider &&
-			!_soliditySourceProvider->charStream(*_location.sourceName).isImportedFromAST()
-		)
-		{
-			solidityCodeSnippet = escapeAndQuoteString(
-				_soliditySourceProvider->charStream(*_location.sourceName).singleLineSnippet(_location)
-			);
-
-			// On top of escaping quotes we also escape the slash inside any `*/` to guard against
-			// it prematurely terminating multi-line comment blocks. We do not escape all slashes
-			// because the ones without `*` are not dangerous and ignoring them reduces visual noise.
-			boost::replace_all(solidityCodeSnippet, "*/", "*\\/");
-		}
+		if (!_isBoolLiteral && _type == m_dialect->defaultType)
+			_type = {};
+		else if (_isBoolLiteral && _type == m_dialect->boolType && !m_dialect->defaultType.empty())
+			// Special case: If we have a bool type but empty default type, do not remove the type.
+			_type = {};
 	}
-
-	std::string sourceLocation =
-		"@src " +
-		sourceIndex +
-		":" +
-		std::to_string(_location.start) +
-		":" +
-		std::to_string(_location.end);
-
-	return sourceLocation + (solidityCodeSnippet.empty() ? "" : "  ") + solidityCodeSnippet;
-}
-
-std::string AsmPrinter::formatDebugData(langutil::DebugData::ConstPtr const& _debugData, bool _statement)
-{
-	if (!_debugData || m_debugInfoSelection.none())
-		return "";
-
-	std::vector<std::string> items;
-	if (auto id = _debugData->astID)
-		if (m_debugInfoSelection.astID)
-			items.emplace_back("@ast-id " + std::to_string(*id));
-
-	if (
-		m_lastLocation != _debugData->originLocation &&
-		!m_nameToSourceIndex.empty()
-	)
-	{
-		m_lastLocation = _debugData->originLocation;
-
-		items.emplace_back(formatSourceLocation(
-			_debugData->originLocation,
-			m_nameToSourceIndex,
-			m_debugInfoSelection,
-			m_soliditySourceProvider
-		));
-	}
-
-	std::string commentBody = joinHumanReadable(items, " ");
-	if (commentBody.empty())
-		return "";
+	if (_type.empty())
+		return {};
 	else
-		return
-			_statement ?
-			"/// " + commentBody + "\n" :
-			"/** " + commentBody + " */ ";
+		return ":" + _type.str();
 }

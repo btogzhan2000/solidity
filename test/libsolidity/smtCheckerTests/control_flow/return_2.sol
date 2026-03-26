@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint c;
 	function add(uint x, uint y) internal returns (uint) {
@@ -25,7 +27,4 @@ contract C {
 		assert(c == 0xffffffff);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 11 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

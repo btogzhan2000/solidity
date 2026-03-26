@@ -30,7 +30,7 @@
 #include <libsolidity/interface/CompilerStack.h>
 #include <libsolidity/interface/DebugSettings.h>
 
-#include <libyul/YulStack.h>
+#include <libyul/AssemblyStack.h>
 
 namespace solidity::frontend::test
 {
@@ -40,16 +40,8 @@ class SolidityExecutionFramework: public solidity::test::ExecutionFramework
 
 public:
 	SolidityExecutionFramework(): m_showMetadata(solidity::test::CommonOptions::get().showMetadata) {}
-	explicit SolidityExecutionFramework(
-		langutil::EVMVersion _evmVersion,
-		std::optional<uint8_t> _eofVersion,
-		std::vector<boost::filesystem::path> const& _vmPaths,
-		bool _appendCBORMetadata = true
-	):
-		ExecutionFramework(_evmVersion, _vmPaths),
-		m_eofVersion(_eofVersion),
-		m_showMetadata(solidity::test::CommonOptions::get().showMetadata),
-		m_appendCBORMetadata(_appendCBORMetadata)
+	explicit SolidityExecutionFramework(langutil::EVMVersion _evmVersion, std::vector<boost::filesystem::path> const& _vmPaths):
+		ExecutionFramework(_evmVersion, _vmPaths), m_showMetadata(solidity::test::CommonOptions::get().showMetadata)
 	{}
 
 	bytes const& compileAndRunWithoutCheck(
@@ -57,12 +49,11 @@ public:
 		u256 const& _value = 0,
 		std::string const& _contractName = "",
 		bytes const& _arguments = {},
-		std::map<std::string, solidity::test::Address> const& _libraryAddresses = {},
-		std::optional<std::string> const& _sourceName = std::nullopt
+		std::map<std::string, solidity::test::Address> const& _libraryAddresses = {}
 	) override
 	{
-		bytes bytecode = multiSourceCompileContract(_sourceCode, _sourceName, _contractName, _libraryAddresses);
-		sendMessage(bytecode, _arguments, true, _value);
+		bytes bytecode = multiSourceCompileContract(_sourceCode, _contractName, _libraryAddresses);
+		sendMessage(bytecode + _arguments, true, _value);
 		return m_output;
 	}
 
@@ -74,20 +65,19 @@ public:
 
 	bytes multiSourceCompileContract(
 		std::map<std::string, std::string> const& _sources,
-		std::optional<std::string> const& _mainSourceName = std::nullopt,
 		std::string const& _contractName = "",
 		std::map<std::string, solidity::test::Address> const& _libraryAddresses = {}
 	);
 
+	/// Returns @param _sourceCode prefixed with the version pragma and the abi coder v1 pragma,
+	/// the latter only if it is forced.
+	static std::string addPreamble(std::string const& _sourceCode);
 protected:
-	using CompilerStack = solidity::frontend::CompilerStack;
-	std::optional<uint8_t> m_eofVersion;
-	CompilerStack m_compiler;
+
+	solidity::frontend::CompilerStack m_compiler;
 	bool m_compileViaYul = false;
-	bool m_compileViaSSACFG = false;
+	bool m_compileToEwasm = false;
 	bool m_showMetadata = false;
-	bool m_appendCBORMetadata = true;
-	CompilerStack::MetadataHash m_metadataHash = CompilerStack::MetadataHash::IPFS;
 	RevertStrings m_revertStrings = RevertStrings::Default;
 };
 

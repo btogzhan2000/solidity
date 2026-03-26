@@ -23,14 +23,17 @@
 
 #pragma once
 
-#include <iosfwd>
+#include <libsolutil/Assertions.h>
+#include <libsolutil/Exceptions.h>
+
+#include <liblangutil/CharStream.h>
+
 #include <memory>
 #include <string>
-#include <tuple>
-#include <vector>
 
 namespace solidity::langutil
 {
+struct SourceLocationError: virtual util::Exception {};
 
 /**
  * Representation of an interval of source positions.
@@ -40,51 +43,51 @@ struct SourceLocation
 {
 	bool operator==(SourceLocation const& _other) const
 	{
-		return start == _other.start && end == _other.end && equalSources(_other);
+		return source.get() == _other.source.get() && start == _other.start && end == _other.end;
 	}
 	bool operator!=(SourceLocation const& _other) const { return !operator==(_other); }
 
-	bool operator<(SourceLocation const& _other) const
+	inline bool operator<(SourceLocation const& _other) const
 	{
-		if (!sourceName || !_other.sourceName)
-			return std::make_tuple(int(!!sourceName), start, end) < std::make_tuple(int(!!_other.sourceName), _other.start, _other.end);
+		if (!source|| !_other.source)
+			return std::make_tuple(int(!!source), start, end) < std::make_tuple(int(!!_other.source), _other.start, _other.end);
 		else
-			return std::make_tuple(*sourceName, start, end) < std::make_tuple(*_other.sourceName, _other.start, _other.end);
+			return std::make_tuple(source->name(), start, end) < std::make_tuple(_other.source->name(), _other.start, _other.end);
 	}
 
-	bool contains(SourceLocation const& _other) const
+	inline bool contains(SourceLocation const& _other) const
 	{
-		if (!hasText() || !_other.hasText() || !equalSources(_other))
+		if (!hasText() || !_other.hasText() || source.get() != _other.source.get())
 			return false;
 		return start <= _other.start && _other.end <= end;
 	}
 
-	bool containsOffset(int _pos) const
+	inline bool intersects(SourceLocation const& _other) const
 	{
-		if (!hasText() || _pos < 0)
-			return false;
-		return start <= _pos && _pos < end;
-	}
-
-	bool intersects(SourceLocation const& _other) const
-	{
-		if (!hasText() || !_other.hasText() || !equalSources(_other))
+		if (!hasText() || !_other.hasText() || source.get() != _other.source.get())
 			return false;
 		return _other.start < end && start < _other.end;
 	}
 
-	bool equalSources(SourceLocation const& _other) const
+	bool isValid() const { return source || start != -1 || end != -1; }
+
+	bool hasText() const
 	{
-		if (!!sourceName != !!_other.sourceName)
-			return false;
-		if (sourceName && *sourceName != *_other.sourceName)
-			return false;
-		return true;
+		return
+			source &&
+			0 <= start &&
+			start <= end &&
+			end <= int(source->source().length());
 	}
 
-	bool isValid() const { return sourceName || start != -1 || end != -1; }
-
-	bool hasText() const { return sourceName && 0 <= start && start <= end; }
+	std::string text() const
+	{
+		assertThrow(source, SourceLocationError, "Requested text from null source.");
+		assertThrow(0 <= start, SourceLocationError, "Invalid source location.");
+		assertThrow(start <= end, SourceLocationError, "Invalid source location.");
+		assertThrow(end <= int(source->source().length()), SourceLocationError, "Invalid source location.");
+		return source->source().substr(size_t(start), size_t(end - start));
+	}
 
 	/// @returns the smallest SourceLocation that contains both @param _a and @param _b.
 	/// Assumes that @param _a and @param _b refer to the same source (exception: if the source of either one
@@ -93,8 +96,8 @@ struct SourceLocation
 	/// @param _b, then start resp. end of the result will be -1 as well).
 	static SourceLocation smallestCovering(SourceLocation _a, SourceLocation const& _b)
 	{
-		if (!_a.sourceName)
-			_a.sourceName = _b.sourceName;
+		if (!_a.source)
+			_a.source = _b.source;
 
 		if (_a.start < 0)
 			_a.start = _b.start;
@@ -108,34 +111,27 @@ struct SourceLocation
 
 	int start = -1;
 	int end = -1;
-	std::shared_ptr<std::string const> sourceName;
+	std::shared_ptr<CharStream> source;
 };
 
-SourceLocation parseSourceLocation(
+SourceLocation const parseSourceLocation(
 	std::string const& _input,
-	std::vector<std::shared_ptr<std::string const>> const& _sourceNames
+	std::string const& _sourceName,
+	size_t _maxIndex = std::numeric_limits<size_t>::max()
 );
 
 /// Stream output for Location (used e.g. in boost exceptions).
-std::ostream& operator<<(std::ostream& _out, SourceLocation const& _location);
-
-
-/**
- * Alternative, line-column-based representation for source locations.
- * Both line and column are zero-based.
- * If used as a range, the second location is considered exclusive.
- * Negative values are invalid.
- */
-struct LineColumn
+inline std::ostream& operator<<(std::ostream& _out, SourceLocation const& _location)
 {
-	/// Line value, can be between zero and number of `\n` characters in the source file.
-	int line = -1;
-	/// Column value, can be between zero and number of characters in the line (inclusive).
-	int column = -1;
+	if (!_location.isValid())
+		return _out << "NO_LOCATION_SPECIFIED";
 
-	LineColumn() = default;
-	explicit LineColumn(int _line, int _column): line(_line), column(_column) {}
-};
+	if (_location.source)
+		_out << _location.source->name();
 
+	_out << "[" << _location.start << "," << _location.end << "]";
+
+	return _out;
+}
 
 }

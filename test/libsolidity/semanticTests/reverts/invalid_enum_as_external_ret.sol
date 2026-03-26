@@ -23,7 +23,10 @@ contract C {
         _ret = tmp;
     }
 }
+
 // ====
+// compileViaYul: also
+// compileToEwasm: also
 // EVMVersion: >=byzantium
 // ----
 // test_return() -> FAILURE, hex"4e487b71", 33 # both should throw #

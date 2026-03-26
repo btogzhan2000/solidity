@@ -23,8 +23,8 @@
 
 #pragma once
 
-#include <liblangutil/EVMVersion.h>
 #include <libsolidity/ast/ASTForward.h>
+#include <boost/noncopyable.hpp>
 #include <map>
 #include <memory>
 #include <string>
@@ -41,14 +41,10 @@ class Type; // forward
  * @note must not be destroyed or moved during compilation as its objects can be referenced from
  * other objects.
  */
-class GlobalContext
+class GlobalContext: private boost::noncopyable
 {
 public:
-	/// Noncopyable.
-	GlobalContext(GlobalContext const&) = delete;
-	GlobalContext& operator=(GlobalContext const&) = delete;
-
-	GlobalContext(langutil::EVMVersion _evmVersion);
+	GlobalContext();
 	void setCurrentContract(ContractDefinition const& _contract);
 	void resetCurrentContract() { m_currentContract = nullptr; }
 	MagicVariableDeclaration const* currentThis() const;

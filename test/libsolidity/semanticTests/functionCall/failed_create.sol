@@ -2,35 +2,27 @@ contract D { constructor() payable {} }
 contract C {
 	uint public x;
 	constructor() payable {}
-	function f(uint amount) public {
+	function f(uint amount) public returns (D) {
 		x++;
-		(new D){value: amount, salt: bytes32(x)}();
+		return (new D){value: amount}();
 	}
-	function stack(uint depth) public payable {
+	function stack(uint depth) public payable returns (address) {
 		if (depth > 0)
-			this.stack(depth - 1);
+			return this.stack(depth - 1);
 		else
-			f(0);
+			return address(f(0));
 	}
 }
 // ====
-// EVMVersion: >=constantinople
+// compileViaYul: also
+// EVMVersion: >=byzantium
 // ----
 // constructor(), 20 wei
-// gas irOptimized: 59688
-// gas irOptimized code: 81800
-// gas legacy: 64468
-// gas legacy code: 145400
-// gas legacyOptimized: 60443
-// gas legacyOptimized code: 91200
-// f(uint256): 20 ->
+// f(uint256): 20 -> 1370859564726510389319704988634906228201275401179
 // x() -> 1
 // f(uint256): 20 -> FAILURE
 // x() -> 1
 // stack(uint256): 1023 -> FAILURE
-// gas irOptimized: 298110
-// gas legacy: 527207
-// gas legacyOptimized: 353607
 // x() -> 1
-// stack(uint256): 10 ->
+// stack(uint256): 10 -> 693016686122178122849713379390321835634789309880
 // x() -> 2

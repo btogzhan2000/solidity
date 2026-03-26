@@ -16,4 +16,3 @@ contract C
         return (1, 2);
     }
 }
-// ----

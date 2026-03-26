@@ -16,7 +16,7 @@
 */
 // SPDX-License-Identifier: GPL-3.0
 /**
- * Unit tests for the CommonData routines.
+ * Unit tests for the StringUtils routines.
  */
 
 #include <libsolutil/Common.h>
@@ -28,6 +28,7 @@
 
 #include <boost/test/unit_test.hpp>
 
+using namespace std;
 using namespace solidity::frontend;
 
 // TODO: Fix Boost...

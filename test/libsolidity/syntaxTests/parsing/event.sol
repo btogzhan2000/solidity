@@ -1,4 +1,3 @@
 contract c {
     event e();
 }
-// ----

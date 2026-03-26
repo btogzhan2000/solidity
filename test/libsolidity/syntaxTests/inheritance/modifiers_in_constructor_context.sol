@@ -7,4 +7,3 @@ contract B is A {
   modifier m2 { _; }
   constructor() A() m1 m2 {  }
 }
-// ----

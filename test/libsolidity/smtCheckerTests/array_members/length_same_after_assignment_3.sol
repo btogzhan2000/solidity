@@ -1,18 +1,8 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint[][] arr;
-
-	constructor() {
-		arr.push();
-		arr.push();
-		arr.push();
-		arr.push();
-		arr.push();
-		arr.push();
-		arr.push();
-		arr.push();
-		arr.push();
-	}
-
+	uint[][] arr2;
 	function f() public {
 		uint x = arr[2].length;
 		uint y = arr[3].length;
@@ -25,7 +15,3 @@ contract C {
 		assert(arr[5].length == t);
 	}
 }
-// ====
-// SMTEngine: all
-// ----
-// Info 1391: CHC: 12 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

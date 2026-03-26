@@ -21,8 +21,8 @@
 
 #include <libsolutil/CommonIO.h>
 #include <libsolutil/Exceptions.h>
-#include <libsolutil/StringUtils.h>
 #include <liblangutil/ErrorReporter.h>
+#include <liblangutil/Scanner.h>
 #include <libyul/AsmAnalysis.h>
 #include <libyul/AsmAnalysisInfo.h>
 #include <libsolidity/parsing/Parser.h>
@@ -37,13 +37,11 @@
 #include <libyul/optimiser/StackCompressor.h>
 #include <libyul/optimiser/VarNameCleaner.h>
 #include <libyul/optimiser/Suite.h>
+#include <libyul/optimiser/ReasoningBasedSimplifier.h>
 
 #include <libyul/backends/evm/EVMDialect.h>
 
 #include <libsolutil/JSON.h>
-
-#include <libsolidity/interface/OptimiserSettings.h>
-#include <liblangutil/CharStreamProvider.h>
 
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/algorithm/string/join.hpp>
@@ -58,10 +56,14 @@
 #include <range/v3/view/stride.hpp>
 #include <range/v3/view/transform.hpp>
 
+#include <cctype>
 #include <string>
+#include <sstream>
 #include <iostream>
 #include <variant>
 
+using namespace std;
+using namespace ranges;
 using namespace solidity;
 using namespace solidity::util;
 using namespace solidity::langutil;
@@ -73,69 +75,58 @@ namespace po = boost::program_options;
 class YulOpti
 {
 public:
-	static void printErrors(CharStream const& _charStream, ErrorList const& _errors)
+	void printErrors()
 	{
-		SourceReferenceFormatter{
-			std::cerr,
-			SingletonCharStreamProvider(_charStream),
-			true,
-			false
-		}.printErrorInformation(_errors);
+		SourceReferenceFormatter formatter(cerr, true, false);
+
+		for (auto const& error: m_errors)
+			formatter.printErrorInformation(*error);
 	}
 
-	void parse(std::string const& _input)
+	bool parse(string const& _input)
 	{
-		ErrorList errors;
-		ErrorReporter errorReporter(errors);
-		CharStream _charStream(_input, "");
-		try
+		ErrorReporter errorReporter(m_errors);
+		shared_ptr<Scanner> scanner = make_shared<Scanner>(CharStream(_input, ""));
+		m_ast = yul::Parser(errorReporter, m_dialect).parse(scanner, false);
+		if (!m_ast || !errorReporter.errors().empty())
 		{
-			auto ast = yul::Parser(errorReporter, m_dialect).parse(_charStream);
-			if (!ast || errorReporter.hasErrors())
-			{
-				std::cerr << "Error parsing source." << std::endl;
-				printErrors(_charStream, errors);
-				throw std::runtime_error("Could not parse source.");
-			}
-			m_astRoot = std::make_shared<yul::Block>(std::get<yul::Block>(ASTCopier{}(ast->root())));
-			m_analysisInfo = std::make_unique<yul::AsmAnalysisInfo>();
-			AsmAnalyzer analyzer(
-				*m_analysisInfo,
-				errorReporter,
-				m_dialect
-			);
-			if (!analyzer.analyze(*m_astRoot) || errorReporter.hasErrors())
-			{
-				std::cerr << "Error analyzing source." << std::endl;
-				printErrors(_charStream, errors);
-				throw std::runtime_error("Could not analyze source.");
-			}
+			cerr << "Error parsing source." << endl;
+			printErrors();
+			return false;
 		}
-		catch(...)
+		m_analysisInfo = make_shared<yul::AsmAnalysisInfo>();
+		AsmAnalyzer analyzer(
+			*m_analysisInfo,
+			errorReporter,
+			m_dialect
+		);
+		if (!analyzer.analyze(*m_ast) || !errorReporter.errors().empty())
 		{
-			std::cerr << "Fatal error during parsing: " << std::endl;
-			printErrors(_charStream, errors);
-			throw;
+			cerr << "Error analyzing source." << endl;
+			printErrors();
+			return false;
 		}
+		return true;
 	}
 
 	void printUsageBanner(
-		std::map<char, std::string> const& _extraOptions,
+		map<char, string> const& _optimizationSteps,
+		map<char, string> const& _extraOptions,
 		size_t _columns
 	)
 	{
-		yulAssert(_columns > 0);
-		auto const& optimiserSteps = OptimiserSuite::stepAbbreviationToNameMap();
+		yulAssert(_columns > 0, "");
+
 		auto hasShorterString = [](auto const& a, auto const& b) { return a.second.size() < b.second.size(); };
 		size_t longestDescriptionLength = std::max(
-			max_element(optimiserSteps.begin(), optimiserSteps.end(), hasShorterString)->second.size(),
+			max_element(_optimizationSteps.begin(), _optimizationSteps.end(), hasShorterString)->second.size(),
 			max_element(_extraOptions.begin(), _extraOptions.end(), hasShorterString)->second.size()
 		);
 
-		std::vector<std::string> overlappingAbbreviations =
-			ranges::views::set_intersection(_extraOptions | ranges::views::keys, optimiserSteps | ranges::views::keys) |
-			ranges::views::transform([](char _abbreviation){ return std::string(1, _abbreviation); }) |
-			ranges::to<std::vector>();
+		vector<string> overlappingAbbreviations =
+			ranges::views::set_intersection(_extraOptions | views::keys, _optimizationSteps | views::keys) |
+			views::transform([](char _abbreviation){ return string(1, _abbreviation); }) |
+			to<vector>();
 
 		yulAssert(
 			overlappingAbbreviations.empty(),
@@ -146,224 +137,150 @@ public:
 			"Please update the code to use a different character and recompile yulopti."
 		);
 
-		std::vector<std::tuple<char, std::string>> sortedOptions =
-			ranges::views::concat(optimiserSteps, _extraOptions) |
-			ranges::to<std::vector<std::tuple<char, std::string>>>() |
-			ranges::actions::sort([](std::tuple<char, std::string> const& _a, std::tuple<char, std::string> const& _b) {
+		vector<tuple<char, string>> sortedOptions =
+			views::concat(_optimizationSteps, _extraOptions) |
+			to<vector<tuple<char, string>>>() |
+			actions::sort([](tuple<char, string> const& _a, tuple<char, string> const& _b) {
 				return (
 					!boost::algorithm::iequals(get<1>(_a), get<1>(_b)) ?
 					boost::algorithm::lexicographical_compare(get<1>(_a), get<1>(_b), boost::algorithm::is_iless()) :
-					toLower(get<0>(_a)) < toLower(get<0>(_b))
+					tolower(get<0>(_a)) < tolower(get<0>(_b))
 				);
 			});
 
-		yulAssert(sortedOptions.size() > 0);
+		yulAssert(sortedOptions.size() > 0, "");
 		size_t rows = (sortedOptions.size() - 1) / _columns + 1;
 		for (size_t row = 0; row < rows; ++row)
 		{
-			for (auto const& [key, name]: sortedOptions | ranges::views::drop(row) | ranges::views::stride(rows))
-				std::cout << key << ": " << std::setw(static_cast<int>(longestDescriptionLength)) << std::setiosflags(std::ios::left) << name << " ";
+			for (auto const& [key, name]: sortedOptions | views::drop(row) | views::stride(rows))
+				cout << key << ": " << setw(static_cast<int>(longestDescriptionLength)) << setiosflags(ios::left) << name << " ";
 
-			std::cout << std::endl;
+			cout << endl;
 		}
 	}
 
-	void disambiguate()
+	void runInteractive(string source)
 	{
-		*m_astRoot = std::get<yul::Block>(Disambiguator(m_dialect, *m_analysisInfo)(*m_astRoot));
-		m_analysisInfo.reset();
-		m_nameDispenser.reset(*m_astRoot);
-	}
-
-	void runSteps(std::string _source, std::string _steps)
-	{
-		parse(_source);
-		disambiguate();
-		OptimiserSuite{m_context}.runSequence(_steps, *m_astRoot);
-		std::cout << AsmPrinter{m_dialect}(*m_astRoot) << std::endl;
-	}
-
-	void runInteractive(std::string _source, bool _disambiguated = false)
-	{
-		bool disambiguated = _disambiguated;
+		bool disambiguated = false;
 		while (true)
 		{
-			parse(_source);
-			disambiguated = disambiguated || (disambiguate(), true);
-			std::map<char, std::string> const& extraOptions = {
+			cout << "----------------------" << endl;
+			cout << source << endl;
+			if (!parse(source))
+				return;
+			set<YulString> reservedIdentifiers;
+			if (!disambiguated)
+			{
+				*m_ast = std::get<yul::Block>(Disambiguator(m_dialect, *m_analysisInfo)(*m_ast));
+				m_analysisInfo.reset();
+				m_nameDispenser = make_shared<NameDispenser>(m_dialect, *m_ast, reservedIdentifiers);
+				disambiguated = true;
+			}
+			map<char, string> const& abbreviationMap = OptimiserSuite::stepAbbreviationToNameMap();
+			map<char, string> const& extraOptions = {
 				// QUIT starts with a non-letter character on purpose to get it to show up on top of the list
 				{'#', ">>> QUIT <<<"},
 				{',', "VarNameCleaner"},
 				{';', "StackCompressor"}
 			};
 
-			printUsageBanner(extraOptions, 4);
-			std::cout << "? ";
-			std::cout.flush();
+			printUsageBanner(abbreviationMap, extraOptions, 4);
+			cout << "? ";
+			cout.flush();
+			// TODO: handle EOF properly.
 			char option = static_cast<char>(readStandardInputChar());
-			std::cout << ' ' << option << std::endl;
+			cout << ' ' << option << endl;
 
-			try
+			OptimiserStepContext context{m_dialect, *m_nameDispenser, reservedIdentifiers};
+
+			auto abbreviationAndName = abbreviationMap.find(option);
+			if (abbreviationAndName != abbreviationMap.end())
 			{
-				switch (option)
-				{
-					case 4:
-					case '#':
-						return;
-					case ',':
-						VarNameCleaner::run(m_context, *m_astRoot);
-						// VarNameCleaner destroys the unique names guarantee of the disambiguator.
-						disambiguated = false;
-						break;
-					case ';':
-					{
-						Object obj;
-						obj.setCode(std::make_shared<AST>(m_dialect, std::get<yul::Block>(ASTCopier{}(*m_astRoot))));
-						*m_astRoot = std::get<1>(StackCompressor::run(obj, true, 16));
-						break;
-					}
-					default:
-						OptimiserSuite{m_context}.runSequence(
-							std::string_view(&option, 1),
-							*m_astRoot
-						);
-				}
-				_source = AsmPrinter{m_dialect}(*m_astRoot);
+				OptimiserStep const& step = *OptimiserSuite::allSteps().at(abbreviationAndName->second);
+				step.run(context, *m_ast);
 			}
-			catch (...)
+			else switch (option)
 			{
-				std::cerr << std::endl << "Exception during optimiser step:" << std::endl;
-				std::cerr << boost::current_exception_diagnostic_information() << std::endl;
+			case '#':
+				return;
+			case ',':
+				VarNameCleaner::run(context, *m_ast);
+				// VarNameCleaner destroys the unique names guarantee of the disambiguator.
+				disambiguated = false;
+				break;
+			case ';':
+			{
+				Object obj;
+				obj.code = m_ast;
+				StackCompressor::run(m_dialect, obj, true, 16);
+				break;
 			}
-			std::cout << "----------------------" << std::endl;
-			std::cout << _source << std::endl;
+			default:
+				cerr << "Unknown option." << endl;
+			}
+			source = AsmPrinter{m_dialect}(*m_ast);
 		}
 	}
 
 private:
-	std::shared_ptr<yul::Block> m_astRoot;
-	Dialect const& m_dialect{EVMDialect::strictAssemblyForEVMObjects(EVMVersion{}, std::nullopt)};
-	std::unique_ptr<AsmAnalysisInfo> m_analysisInfo;
-	std::set<YulName> const m_reservedIdentifiers = {};
-	NameDispenser m_nameDispenser{m_dialect, m_reservedIdentifiers};
-	OptimiserStepContext m_context{
-		m_dialect,
-		m_nameDispenser,
-		m_reservedIdentifiers,
-		solidity::frontend::OptimiserSettings::standard().expectedExecutionsPerDeployment
-	};
+	ErrorList m_errors;
+	shared_ptr<yul::Block> m_ast;
+	Dialect const& m_dialect{EVMDialect::strictAssemblyForEVMObjects(EVMVersion{})};
+	shared_ptr<AsmAnalysisInfo> m_analysisInfo;
+	shared_ptr<NameDispenser> m_nameDispenser;
 };
 
 int main(int argc, char** argv)
 {
+	po::options_description options(
+		R"(yulopti, yul optimizer exploration tool.
+Usage: yulopti [Options] <file>
+Reads <file> as yul code and applies optimizer steps to it,
+interactively read from stdin.
+
+Allowed options)",
+		po::options_description::m_default_line_length,
+		po::options_description::m_default_line_length - 23);
+	options.add_options()
+		(
+			"input-file",
+			po::value<string>(),
+			"input file"
+		)
+		("help", "Show this help screen.");
+
+	// All positional options should be interpreted as input files
+	po::positional_options_description filesPositions;
+	filesPositions.add("input-file", 1);
+
+	po::variables_map arguments;
 	try
 	{
-		bool nonInteractive = false;
-		po::options_description options(
-			R"(yulopti, yul optimizer exploration tool.
-	Usage: yulopti [Options] <file>
-	Reads <file> as yul code and applies optimizer steps to it,
-	interactively read from stdin.
-	In non-interactive mode a list of steps has to be provided.
-	If <file> is -, yul code is read from stdin and run non-interactively.
-
-	Allowed options)",
-			po::options_description::m_default_line_length,
-			po::options_description::m_default_line_length - 23);
-		options.add_options()
-			(
-				"input-file",
-				po::value<std::string>(),
-				"input file"
-			)
-			(
-				"steps",
-				po::value<std::string>(),
-				"steps to execute non-interactively"
-			)
-			(
-				"non-interactive,n",
-				po::bool_switch(&nonInteractive)->default_value(false),
-				"stop after executing the provided steps"
-			)
-			("help,h", "Show this help screen.");
-
-		// All positional options should be interpreted as input files
-		po::positional_options_description filesPositions;
-		filesPositions.add("input-file", 1);
-
-		po::variables_map arguments;
 		po::command_line_parser cmdLineParser(argc, argv);
 		cmdLineParser.options(options).positional(filesPositions);
 		po::store(cmdLineParser.run(), arguments);
-		po::notify(arguments);
-
-		if (arguments.count("help"))
-		{
-			std::cout << options;
-			return 0;
-		}
-
-		std::string input;
-		if (arguments.count("input-file"))
-		{
-			std::string filename = arguments["input-file"].as<std::string>();
-			if (filename == "-")
-			{
-				nonInteractive = true;
-				input = readUntilEnd(std::cin);
-			}
-			else
-				input = readFileAsString(arguments["input-file"].as<std::string>());
-		}
-		else
-		{
-			std::cout << options;
-			return 1;
-		}
-
-		if (nonInteractive && !arguments.count("steps"))
-		{
-			std::cout << options;
-			return 1;
-		}
-
-		YulOpti yulOpti;
-		bool disambiguated = false;
-		if (!nonInteractive)
-			std::cout << input << std::endl;
-		if (arguments.count("steps"))
-		{
-			std::string sequence = arguments["steps"].as<std::string>();
-			if (!nonInteractive)
-				std::cout << "----------------------" << std::endl;
-			yulOpti.runSteps(input, sequence);
-			disambiguated = true;
-		}
-		if (!nonInteractive)
-			yulOpti.runInteractive(input, disambiguated);
-
-		return 0;
 	}
 	catch (po::error const& _exception)
 	{
-		std::cerr << _exception.what() << std::endl;
+		cerr << _exception.what() << endl;
 		return 1;
+	}
+
+	string input;
+	try
+	{
+		input = readFileAsString(arguments["input-file"].as<string>());
 	}
 	catch (FileNotFound const& _exception)
 	{
-		std::cerr << "File not found:" << _exception.comment() << std::endl;
+		cerr << "File not found:" << _exception.comment() << endl;
 		return 1;
 	}
-	catch (NotAFile const& _exception)
-	{
-		std::cerr << "Not a regular file:" << _exception.comment() << std::endl;
-		return 1;
-	}
-	catch(...)
-	{
-		std::cerr << std::endl << "Exception:" << std::endl;
-		std::cerr << boost::current_exception_diagnostic_information() << std::endl;
-		return 1;
-	}
+
+	if (arguments.count("input-file"))
+		YulOpti{}.runInteractive(input);
+	else
+		cout << options;
+
+	return 0;
 }

@@ -20,11 +20,11 @@
 
 #include <libsolidity/ast/TypeProvider.h>
 
-using namespace std::literals;
+using namespace std;
 using namespace solidity;
 using namespace solidity::frontend;
 
-Json StorageLayout::generate(ContractDefinition const& _contractDef, DataLocation const _location)
+Json::Value StorageLayout::generate(ContractDefinition const& _contractDef)
 {
 	solAssert(!m_contract, "");
 	m_contract = &_contractDef;
@@ -35,21 +35,20 @@ Json StorageLayout::generate(ContractDefinition const& _contractDef, DataLocatio
 	auto contractType = dynamic_cast<ContractType const*>(typeType->actualType());
 	solAssert(contractType, "");
 
-	Json variables = Json::array();
-	for (auto [var, slot, offset]: contractType->linearizedStateVariables(_location))
-		variables.emplace_back(generate(*var, slot, offset));
+	Json::Value variables(Json::arrayValue);
+	for (auto [var, slot, offset]: contractType->stateVariables())
+		variables.append(generate(*var, slot, offset));
 
-	Json layout;
-	layout["storage"] = std::move(variables);
-	layout["types"] = std::move(m_types);
-
+	Json::Value layout;
+	layout["storage"] = move(variables);
+	layout["types"] = move(m_types);
 	return layout;
 }
 
-Json StorageLayout::generate(VariableDeclaration const& _var, u256 const& _slot, unsigned _offset)
+Json::Value StorageLayout::generate(VariableDeclaration const& _var, u256 const& _slot, unsigned _offset)
 {
-	Json varEntry;
-	Type const* varType = _var.type();
+	Json::Value varEntry;
+	TypePointer varType = _var.type();
 
 	varEntry["label"] = _var.name();
 	varEntry["astId"] = static_cast<int>(_var.id());
@@ -63,26 +62,26 @@ Json StorageLayout::generate(VariableDeclaration const& _var, u256 const& _slot,
 	return varEntry;
 }
 
-void StorageLayout::generate(Type const* _type)
+void StorageLayout::generate(TypePointer _type)
 {
-	if (m_types.contains(typeKeyName(_type)))
+	if (m_types.isMember(typeKeyName(_type)))
 		return;
 
 	// Register it now to cut recursive visits.
-	Json& typeInfo = m_types[typeKeyName(_type)];
+	Json::Value& typeInfo = m_types[typeKeyName(_type)];
 	typeInfo["label"] = _type->toString(true);
 	typeInfo["numberOfBytes"] = u256(_type->storageBytes() * _type->storageSize()).str();
 
 	if (auto structType = dynamic_cast<StructType const*>(_type))
 	{
-		Json members = Json::array();
+		Json::Value members(Json::arrayValue);
 		auto const& structDef = structType->structDefinition();
 		for (auto const& member: structDef.members())
 		{
 			auto const& offsets = structType->storageOffsetsOfMember(member->name());
-			members.emplace_back(generate(*member, offsets.first, offsets.second));
+			members.append(generate(*member, offsets.first, offsets.second));
 		}
-		typeInfo["members"] = std::move(members);
+		typeInfo["members"] = move(members);
 		typeInfo["encoding"] = "inplace";
 	}
 	else if (auto mappingType = dynamic_cast<MappingType const*>(_type))
@@ -95,7 +94,7 @@ void StorageLayout::generate(Type const* _type)
 	}
 	else if (auto arrayType = dynamic_cast<ArrayType const*>(_type))
 	{
-		if (arrayType->isByteArrayOrString())
+		if (arrayType->isByteArray())
 			typeInfo["encoding"] = "bytes";
 		else
 		{
@@ -110,10 +109,10 @@ void StorageLayout::generate(Type const* _type)
 		typeInfo["encoding"] = "inplace";
 	}
 
-	solAssert(typeInfo.contains("encoding"), "");
+	solAssert(typeInfo.isMember("encoding"), "");
 }
 
-std::string StorageLayout::typeKeyName(Type const* _type)
+string StorageLayout::typeKeyName(TypePointer _type)
 {
 	if (auto refType = dynamic_cast<ReferenceType const*>(_type))
 		return TypeProvider::withLocationIfReference(refType->location(), _type)->richIdentifier();

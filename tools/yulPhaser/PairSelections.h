@@ -23,7 +23,6 @@
 #pragma once
 
 #include <cassert>
-#include <cstddef>
 #include <tuple>
 #include <vector>
 
@@ -107,7 +106,7 @@ class PairMosaicSelection: public PairSelection
 {
 public:
 	explicit PairMosaicSelection(std::vector<std::tuple<size_t, size_t>> _pattern, double _selectionSize = 1.0):
-		m_pattern(std::move(_pattern)),
+		m_pattern(move(_pattern)),
 		m_selectionSize(_selectionSize)
 	{
 		assert(m_pattern.size() > 0 || _selectionSize == 0.0);

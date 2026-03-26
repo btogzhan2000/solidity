@@ -24,16 +24,22 @@
 #include <string>
 #include <tuple>
 #include <vector>
-#include <variant>
 
 namespace solidity::langutil
 {
 
-class CharStreamProvider;
+struct LineColumn
+{
+	int line = {-1};
+	int column = {-1};
+
+	LineColumn() = default;
+	LineColumn(std::tuple<int, int> const& _t): line{std::get<0>(_t)}, column{std::get<1>(_t)} {}
+};
 
 struct SourceReference
 {
-	std::string message;      ///< A message that relates to this source reference (such as a warning, info or an error message).
+	std::string message;      ///< A message that relates to this source reference (such as a warning or an error message).
 	std::string sourceName;   ///< Underlying source name (for example the filename).
 	LineColumn position;      ///< Actual (error) position this source reference is surrounding.
 	bool multiline = {false}; ///< Indicates whether the actual SourceReference is truncated to one line.
@@ -56,23 +62,14 @@ namespace SourceReferenceExtractor
 	struct Message
 	{
 		SourceReference primary;
-		std::variant<Error::Type, Error::Severity> _typeOrSeverity;
+		std::string category; // "Error", "Warning", ...
 		std::vector<SourceReference> secondary;
 		std::optional<ErrorId> errorId;
 	};
 
-	Message extract(
-		CharStreamProvider const& _charStreamProvider,
-		util::Exception const& _exception,
-		std::variant<Error::Type, Error::Severity> _typeOrSeverity
-	);
-	Message extract(
-		CharStreamProvider const& _charStreamProvider,
-		Error const& _error,
-		std::variant<Error::Type, Error::Severity> _typeOrSeverity
-	);
-	Message extract(CharStreamProvider const& _charStreamProvider, Error const& _error);
-	SourceReference extract(CharStreamProvider const& _charStreamProvider, SourceLocation const* _location, std::string message = "");
+	Message extract(util::Exception const& _exception, std::string _category);
+	Message extract(Error const& _error);
+	SourceReference extract(SourceLocation const* _location, std::string message = "");
 }
 
 }

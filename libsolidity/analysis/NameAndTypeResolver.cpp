@@ -30,7 +30,7 @@
 #include <boost/algorithm/string.hpp>
 #include <unordered_set>
 
-using namespace std::string_literals;
+using namespace std;
 using namespace solidity::langutil;
 
 namespace solidity::frontend
@@ -39,15 +39,13 @@ namespace solidity::frontend
 NameAndTypeResolver::NameAndTypeResolver(
 	GlobalContext& _globalContext,
 	langutil::EVMVersion _evmVersion,
-	ErrorReporter& _errorReporter,
-	bool _experimentalSolidity
+	ErrorReporter& _errorReporter
 ):
 	m_evmVersion(_evmVersion),
 	m_errorReporter(_errorReporter),
-	m_globalContext(_globalContext),
-	m_experimentalSolidity(_experimentalSolidity)
+	m_globalContext(_globalContext)
 {
-	m_scopes[nullptr] = std::make_shared<DeclarationContainer>();
+	m_scopes[nullptr] = make_shared<DeclarationContainer>();
 	for (Declaration const* declaration: _globalContext.declarations())
 	{
 		solAssert(m_scopes[nullptr]->registerDeclaration(*declaration, false, false), "Unable to register global declaration.");
@@ -61,35 +59,39 @@ bool NameAndTypeResolver::registerDeclarations(SourceUnit& _sourceUnit, ASTNode 
 	{
 		DeclarationRegistrationHelper registrar(m_scopes, _sourceUnit, m_errorReporter, m_globalContext, _currentScope);
 	}
-	catch (FatalError const&)
+	catch (langutil::FatalError const&)
 	{
-		if (!m_errorReporter.hasErrors())
-		{
-			std::cerr << "Unreported fatal error:" << std::endl;
-			std::cerr << boost::current_exception_diagnostic_information() << std::endl;
-			solAssert(false, "Unreported fatal error.");
-		}
+		if (m_errorReporter.errors().empty())
+			throw; // Something is weird here, rather throw again.
 		return false;
 	}
 	return true;
 }
 
-bool NameAndTypeResolver::performImports(SourceUnit& _sourceUnit, std::map<std::string, SourceUnit const*> const& _sourceUnits)
+bool NameAndTypeResolver::performImports(SourceUnit& _sourceUnit, map<string, SourceUnit const*> const& _sourceUnits)
 {
 	DeclarationContainer& target = *m_scopes.at(&_sourceUnit);
 	bool error = false;
 	for (auto const& node: _sourceUnit.nodes())
 		if (auto imp = dynamic_cast<ImportDirective const*>(node.get()))
 		{
-			std::string const& path = *imp->annotation().absolutePath;
-			// The import resolution in CompilerStack enforces this.
-			solAssert(_sourceUnits.count(path), "");
+			string const& path = *imp->annotation().absolutePath;
+			if (!_sourceUnits.count(path))
+			{
+				m_errorReporter.declarationError(
+					5073_error,
+					imp->location(),
+					"Import \"" + path + "\" (referenced as \"" + imp->path() + "\") not found."
+				);
+				error = true;
+				continue;
+			}
 			auto scope = m_scopes.find(_sourceUnits.at(path));
 			solAssert(scope != end(m_scopes), "");
 			if (!imp->symbolAliases().empty())
 				for (auto const& alias: imp->symbolAliases())
 				{
-					auto declarations = scope->second->resolveName(alias.symbol->name());
+					auto declarations = scope->second->resolveName(alias.symbol->name(), false);
 					if (declarations.empty())
 					{
 						m_errorReporter.declarationError(
@@ -108,12 +110,7 @@ bool NameAndTypeResolver::performImports(SourceUnit& _sourceUnit, std::map<std::
 					else
 						for (Declaration const* declaration: declarations)
 							if (!DeclarationRegistrationHelper::registerDeclaration(
-								target,
-								*declaration,
-								alias.alias ? alias.alias.get() : &alias.symbol->name(),
-								&alias.location,
-								false,
-								m_errorReporter
+								target, *declaration, alias.alias.get(), &alias.location, false, m_errorReporter
 							))
 								error = true;
 				}
@@ -133,21 +130,17 @@ bool NameAndTypeResolver::resolveNamesAndTypes(SourceUnit& _source)
 {
 	try
 	{
-		for (std::shared_ptr<ASTNode> const& node: _source.nodes())
+		for (shared_ptr<ASTNode> const& node: _source.nodes())
 		{
 			setScope(&_source);
 			if (!resolveNamesAndTypesInternal(*node, true))
 				return false;
 		}
 	}
-	catch (FatalError const&)
+	catch (langutil::FatalError const&)
 	{
-		if (!m_errorReporter.hasErrors())
-		{
-			std::cerr << "Unreported fatal error:" << std::endl;
-			std::cerr << boost::current_exception_diagnostic_information() << std::endl;
-			solAssert(false, "Unreported fatal error.");
-		}
+		if (m_errorReporter.errors().empty())
+			throw; // Something is weird here, rather throw again.
 		return false;
 	}
 	return true;
@@ -160,20 +153,16 @@ bool NameAndTypeResolver::updateDeclaration(Declaration const& _declaration)
 		m_scopes[nullptr]->registerDeclaration(_declaration, false, true);
 		solAssert(_declaration.scope() == nullptr, "Updated declaration outside global scope.");
 	}
-	catch (FatalError const&)
+	catch (langutil::FatalError const&)
 	{
-		if (!m_errorReporter.hasErrors())
-		{
-			std::cerr << "Unreported fatal error:" << std::endl;
-			std::cerr << boost::current_exception_diagnostic_information() << std::endl;
-			solAssert(false, "Unreported fatal error.");
-		}
+		if (m_errorReporter.errors().empty())
+			throw; // Something is weird here, rather throw again.
 		return false;
 	}
 	return true;
 }
 
-void NameAndTypeResolver::activateVariable(std::string const& _name)
+void NameAndTypeResolver::activateVariable(string const& _name)
 {
 	solAssert(m_currentScope, "");
 	// Scoped local variables are invisible before activation.
@@ -185,64 +174,54 @@ void NameAndTypeResolver::activateVariable(std::string const& _name)
 		m_currentScope->activateVariable(_name);
 }
 
-std::vector<Declaration const*> NameAndTypeResolver::resolveName(ASTString const& _name, ASTNode const* _scope) const
+vector<Declaration const*> NameAndTypeResolver::resolveName(ASTString const& _name, ASTNode const* _scope) const
 {
 	auto iterator = m_scopes.find(_scope);
 	if (iterator == end(m_scopes))
-		return std::vector<Declaration const*>({});
-	return iterator->second->resolveName(_name);
+		return vector<Declaration const*>({});
+	return iterator->second->resolveName(_name, false);
 }
 
-std::vector<Declaration const*> NameAndTypeResolver::nameFromCurrentScope(ASTString const& _name, bool _includeInvisibles) const
+vector<Declaration const*> NameAndTypeResolver::nameFromCurrentScope(ASTString const& _name, bool _includeInvisibles) const
 {
-	ResolvingSettings settings;
-	settings.recursive = true;
-	settings.alsoInvisible = _includeInvisibles;
-	return m_currentScope->resolveName(_name, std::move(settings));
+	return m_currentScope->resolveName(_name, true, _includeInvisibles);
 }
 
-Declaration const* NameAndTypeResolver::pathFromCurrentScope(std::vector<ASTString> const& _path) const
-{
-	if (auto declarations = pathFromCurrentScopeWithAllDeclarations(_path); !declarations.empty())
-		return declarations.back();
-
-	return nullptr;
-}
-
-std::vector<Declaration const*> NameAndTypeResolver::pathFromCurrentScopeWithAllDeclarations(
-	std::vector<ASTString> const& _path,
-	bool _includeInvisibles
-) const
+Declaration const* NameAndTypeResolver::pathFromCurrentScope(vector<ASTString> const& _path) const
 {
 	solAssert(!_path.empty(), "");
-	std::vector<Declaration const*> pathDeclarations;
-
-	ResolvingSettings settings;
-	settings.recursive = true;
-	settings.alsoInvisible = _includeInvisibles;
-	settings.onlyVisibleAsUnqualifiedNames = true;
-	std::vector<Declaration const*> candidates = m_currentScope->resolveName(_path.front(), settings);
-
-	// inside the loop, use default settings, except for alsoInvisible
-	settings.recursive = false;
-	settings.onlyVisibleAsUnqualifiedNames = false;
-
+	vector<Declaration const*> candidates = m_currentScope->resolveName(_path.front(), true);
 	for (size_t i = 1; i < _path.size() && candidates.size() == 1; i++)
 	{
 		if (!m_scopes.count(candidates.front()))
-			return {};
-
-		pathDeclarations.push_back(candidates.front());
-
-		candidates = m_scopes.at(candidates.front())->resolveName(_path[i], settings);
+			return nullptr;
+		candidates = m_scopes.at(candidates.front())->resolveName(_path[i], false);
 	}
 	if (candidates.size() == 1)
-	{
-		pathDeclarations.push_back(candidates.front());
-		return pathDeclarations;
-	}
+		return candidates.front();
 	else
-		return {};
+		return nullptr;
+}
+
+void NameAndTypeResolver::warnVariablesNamedLikeInstructions() const
+{
+	for (auto const& instruction: evmasm::c_instructions)
+	{
+		string const instructionName{boost::algorithm::to_lower_copy(instruction.first)};
+		auto declarations = nameFromCurrentScope(instructionName, true);
+		for (Declaration const* const declaration: declarations)
+		{
+			solAssert(!!declaration, "");
+			if (dynamic_cast<MagicVariableDeclaration const* const>(declaration))
+				// Don't warn the user for what the user did not.
+				continue;
+			m_errorReporter.warning(
+				8261_error,
+				declaration->location(),
+				"Variable is shadowed in inline assembly by an instruction of the same name"
+			);
+		}
+	}
 }
 
 void NameAndTypeResolver::warnHomonymDeclarations() const
@@ -314,16 +293,12 @@ bool NameAndTypeResolver::resolveNamesAndTypesInternal(ASTNode& _node, bool _res
 			if (!resolveNamesAndTypesInternal(*baseContract, true))
 				success = false;
 
-		if (StorageLayoutSpecifier* storageLayoutSpecifier = contract->storageLayoutSpecifier())
-			if (!resolveNamesAndTypesInternal(*storageLayoutSpecifier, true))
-				success = false;
-
 		setScope(contract);
 
 		if (success)
 		{
 			linearizeBaseContracts(*contract);
-			std::vector<ContractDefinition const*> properBases(
+			vector<ContractDefinition const*> properBases(
 				++contract->annotation().linearizedBaseContracts.begin(),
 				contract->annotation().linearizedBaseContracts.end()
 			);
@@ -423,7 +398,7 @@ void NameAndTypeResolver::linearizeBaseContracts(ContractDefinition& _contract)
 {
 	// order in the lists is from derived to base
 	// list of lists to linearize, the last element is the list of direct bases
-	std::list<std::list<ContractDefinition const*>> input(1, std::list<ContractDefinition const*>{});
+	list<list<ContractDefinition const*>> input(1, list<ContractDefinition const*>{});
 	for (ASTPointer<InheritanceSpecifier> const& baseSpecifier: _contract.baseContracts())
 	{
 		IdentifierPath const& baseName = baseSpecifier->name();
@@ -433,25 +408,26 @@ void NameAndTypeResolver::linearizeBaseContracts(ContractDefinition& _contract)
 		// "push_front" has the effect that bases mentioned later can overwrite members of bases
 		// mentioned earlier
 		input.back().push_front(base);
-		std::vector<ContractDefinition const*> const& basesBases = base->annotation().linearizedBaseContracts;
+		vector<ContractDefinition const*> const& basesBases = base->annotation().linearizedBaseContracts;
 		if (basesBases.empty())
 			m_errorReporter.fatalTypeError(2449_error, baseName.location(), "Definition of base has to precede definition of derived contract");
-		input.push_front(std::list<ContractDefinition const*>(basesBases.begin(), basesBases.end()));
+		input.push_front(list<ContractDefinition const*>(basesBases.begin(), basesBases.end()));
 	}
 	input.back().push_front(&_contract);
-	std::vector<ContractDefinition const*> result = cThreeMerge(input);
+	vector<ContractDefinition const*> result = cThreeMerge(input);
 	if (result.empty())
 		m_errorReporter.fatalTypeError(5005_error, _contract.location(), "Linearization of inheritance graph impossible");
 	_contract.annotation().linearizedBaseContracts = result;
+	_contract.annotation().contractDependencies.insert(result.begin() + 1, result.end());
 }
 
 template <class T>
-std::vector<T const*> NameAndTypeResolver::cThreeMerge(std::list<std::list<T const*>>& _toMerge)
+vector<T const*> NameAndTypeResolver::cThreeMerge(list<list<T const*>>& _toMerge)
 {
 	// returns true iff _candidate appears only as last element of the lists
 	auto appearsOnlyAtHead = [&](T const* _candidate) -> bool
 	{
-		for (std::list<T const*> const& bases: _toMerge)
+		for (list<T const*> const& bases: _toMerge)
 		{
 			solAssert(!bases.empty(), "");
 			if (find(++bases.begin(), bases.end(), _candidate) != bases.end())
@@ -462,7 +438,7 @@ std::vector<T const*> NameAndTypeResolver::cThreeMerge(std::list<std::list<T con
 	// returns the next candidate to append to the linearized list or nullptr on failure
 	auto nextCandidate = [&]() -> T const*
 	{
-		for (std::list<T const*> const& bases: _toMerge)
+		for (list<T const*> const& bases: _toMerge)
 		{
 			solAssert(!bases.empty(), "");
 			if (appearsOnlyAtHead(bases.front()))
@@ -483,26 +459,26 @@ std::vector<T const*> NameAndTypeResolver::cThreeMerge(std::list<std::list<T con
 		}
 	};
 
-	_toMerge.remove_if([](std::list<T const*> const& _bases) { return _bases.empty(); });
-	std::vector<T const*> result;
+	_toMerge.remove_if([](list<T const*> const& _bases) { return _bases.empty(); });
+	vector<T const*> result;
 	while (!_toMerge.empty())
 	{
 		T const* candidate = nextCandidate();
 		if (!candidate)
-			return std::vector<T const*>();
+			return vector<T const*>();
 		result.push_back(candidate);
 		removeCandidate(candidate);
 	}
 	return result;
 }
 
-	std::string NameAndTypeResolver::similarNameSuggestions(ASTString const& _name) const
+string NameAndTypeResolver::similarNameSuggestions(ASTString const& _name) const
 {
 	return util::quotedAlternativesList(m_currentScope->similarNames(_name));
 }
 
 DeclarationRegistrationHelper::DeclarationRegistrationHelper(
-	std::map<ASTNode const*, std::shared_ptr<DeclarationContainer>>& _scopes,
+	map<ASTNode const*, shared_ptr<DeclarationContainer>>& _scopes,
 	ASTNode& _astRoot,
 	ErrorReporter& _errorReporter,
 	GlobalContext& _globalContext,
@@ -520,7 +496,7 @@ DeclarationRegistrationHelper::DeclarationRegistrationHelper(
 bool DeclarationRegistrationHelper::registerDeclaration(
 	DeclarationContainer& _container,
 	Declaration const& _declaration,
-	std::string const* _name,
+	string const* _name,
 	SourceLocation const* _errorLocation,
 	bool _inactive,
 	ErrorReporter& _errorReporter
@@ -529,13 +505,13 @@ bool DeclarationRegistrationHelper::registerDeclaration(
 	if (!_errorLocation)
 		_errorLocation = &_declaration.location();
 
-	std::string name = _name ? *_name : _declaration.name();
+	string name = _name ? *_name : _declaration.name();
 
 	// We use "invisible" for both inactive variables in blocks and for members invisible in contracts.
 	// They cannot both be true at the same time.
 	solAssert(!(_inactive && !_declaration.isVisibleInContract()), "");
 
-	static std::set<std::string> illegalNames{"_", "super", "this"};
+	static set<string> illegalNames{"_", "super", "this"};
 
 	if (illegalNames.count(name))
 	{
@@ -568,9 +544,9 @@ bool DeclarationRegistrationHelper::registerDeclaration(
 		Declaration const* conflictingDeclaration = _container.conflictingDeclaration(_declaration, _name);
 		solAssert(conflictingDeclaration, "");
 		bool const comparable =
-			_errorLocation->sourceName &&
-			conflictingDeclaration->location().sourceName &&
-			*_errorLocation->sourceName == *conflictingDeclaration->location().sourceName;
+			_errorLocation->source &&
+			conflictingDeclaration->location().source &&
+			_errorLocation->source->name() == conflictingDeclaration->location().source->name();
 		if (comparable && _errorLocation->start < conflictingDeclaration->location().start)
 		{
 			firstDeclarationLocation = *_errorLocation;
@@ -598,7 +574,7 @@ bool DeclarationRegistrationHelper::visit(SourceUnit& _sourceUnit)
 {
 	if (!m_scopes[&_sourceUnit])
 		// By importing, it is possible that the container already exists.
-		m_scopes[&_sourceUnit] = std::make_shared<DeclarationContainer>(m_currentScope, m_scopes[m_currentScope].get());
+		m_scopes[&_sourceUnit] = make_shared<DeclarationContainer>(m_currentScope, m_scopes[m_currentScope].get());
 	return ASTVisitor::visit(_sourceUnit);
 }
 
@@ -612,10 +588,9 @@ bool DeclarationRegistrationHelper::visit(ImportDirective& _import)
 	SourceUnit const* importee = _import.annotation().sourceUnit;
 	solAssert(!!importee, "");
 	if (!m_scopes[importee])
-		m_scopes[importee] = std::make_shared<DeclarationContainer>(nullptr, m_scopes[nullptr].get());
+		m_scopes[importee] = make_shared<DeclarationContainer>(nullptr, m_scopes[nullptr].get());
 	m_scopes[&_import] = m_scopes[importee];
-	ASTVisitor::visit(_import);
-	return false; // Do not recurse into child nodes (Identifier for symbolAliases)
+	return ASTVisitor::visit(_import);
 }
 
 bool DeclarationRegistrationHelper::visit(ContractDefinition& _contract)
@@ -656,31 +631,13 @@ bool DeclarationRegistrationHelper::visitNode(ASTNode& _node)
 
 	if (auto* declaration = dynamic_cast<Declaration*>(&_node))
 		registerDeclaration(*declaration);
-
-	if (auto* annotation = dynamic_cast<TypeDeclarationAnnotation*>(&_node.annotation()))
-	{
-		std::string canonicalName = dynamic_cast<Declaration const&>(_node).name();
-		solAssert(!canonicalName.empty(), "");
-
-		for (
-			ASTNode const* scope = m_currentScope;
-			scope != nullptr;
-			scope = m_scopes[scope]->enclosingNode()
-		)
-			if (auto decl = dynamic_cast<Declaration const*>(scope))
-			{
-				solAssert(!decl->name().empty(), "");
-				canonicalName = decl->name() + "." + canonicalName;
-			}
-
-		annotation->canonicalName = canonicalName;
-	}
-
 	if (dynamic_cast<ScopeOpener const*>(&_node))
 		enterNewSubScope(_node);
 
 	if (auto* variableScope = dynamic_cast<VariableScope*>(&_node))
 		m_currentFunction = variableScope;
+	if (auto* annotation = dynamic_cast<TypeDeclarationAnnotation*>(&_node.annotation()))
+		annotation->canonicalName = currentCanonicalName();
 
 	return true;
 }
@@ -700,10 +657,7 @@ void DeclarationRegistrationHelper::enterNewSubScope(ASTNode& _subScope)
 		solAssert(dynamic_cast<SourceUnit const*>(&_subScope), "Unexpected scope type.");
 	else
 	{
-		bool newlyAdded = m_scopes.emplace(
-			&_subScope,
-			std::make_shared<DeclarationContainer>(m_currentScope, m_scopes[m_currentScope].get())
-		).second;
+		bool newlyAdded = m_scopes.emplace(&_subScope, make_shared<DeclarationContainer>(m_currentScope, m_scopes[m_currentScope].get())).second;
 		solAssert(newlyAdded, "Unable to add new scope.");
 	}
 	m_currentScope = &_subScope;
@@ -720,37 +674,33 @@ void DeclarationRegistrationHelper::registerDeclaration(Declaration& _declaratio
 	solAssert(m_currentScope && m_scopes.count(m_currentScope), "No current scope.");
 	solAssert(m_currentScope == _declaration.scope(), "Unexpected current scope.");
 
-	// Functions defined inside quantifiers should be visible in the scope containing the quantifier
-	// TODO: Turn it into a more generic mechanism in the same vein as Scopable and ScopeOpener if
-	// it turns out we need more special-casing here.
-	auto const* quantifier = dynamic_cast<ForAllQuantifier const*>(m_currentScope);
-	auto const* functionDefinition = dynamic_cast<FunctionDefinition const*>(&_declaration);
-	if (quantifier && functionDefinition)
-	{
-		solAssert(quantifier->scope());
-		solAssert(
-			// forall quantifiers cannot be used in block scope so the declaration is always active.
-			!dynamic_cast<Block const*>(quantifier->scope()) &&
-			!dynamic_cast<ForStatement const*>(quantifier->scope())
-		);
+	// Register declaration as inactive if we are in block scope.
+	bool inactive =
+		(dynamic_cast<Block const*>(m_currentScope) || dynamic_cast<ForStatement const*>(m_currentScope));
 
-		// NOTE: We're registering the function outside of its scope(). This will only affect
-		// name lookups. A more general alternative would be to modify Scoper to simply assign it
-		// that scope in the first place, but this would complicate the AST traversal here, which
-		// currently assumes that scopes follow ScopeOpener nesting.
-		registerDeclaration(*m_scopes.at(quantifier->scope()), _declaration, nullptr, nullptr, false /* inactive */, m_errorReporter);
-	}
-	else
-	{
-		// Register declaration as inactive if we are in block scope.
-		bool inactive =
-			(dynamic_cast<Block const*>(m_currentScope) || dynamic_cast<ForStatement const*>(m_currentScope));
-
-		registerDeclaration(*m_scopes[m_currentScope], _declaration, nullptr, nullptr, inactive, m_errorReporter);
-	}
+	registerDeclaration(*m_scopes[m_currentScope], _declaration, nullptr, nullptr, inactive, m_errorReporter);
 
 	solAssert(_declaration.annotation().scope == m_currentScope, "");
 	solAssert(_declaration.annotation().contract == m_currentContract, "");
+}
+
+string DeclarationRegistrationHelper::currentCanonicalName() const
+{
+	string ret;
+	for (
+		ASTNode const* scope = m_currentScope;
+		scope != nullptr;
+		scope = m_scopes[scope]->enclosingNode()
+	)
+	{
+		if (auto decl = dynamic_cast<Declaration const*>(scope))
+		{
+			if (!ret.empty())
+				ret = "." + ret;
+			ret = decl->name() + ret;
+		}
+	}
+	return ret;
 }
 
 }

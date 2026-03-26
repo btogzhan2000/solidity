@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	function f(bytes32 _x) public pure {
 		require(_x == "test");
@@ -6,8 +8,5 @@ contract C {
 		assert(_x == z);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (143-158): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (176-191): CHC: Assertion violation happens here.\nCounterexample:\n\n_x = 52647538817385212172903286807934654968315727694643370704309751478220717293568\n\nTransaction trace:\nC.constructor()\nC.f(52647538817385212172903286807934654968315727694643370704309751478220717293568)

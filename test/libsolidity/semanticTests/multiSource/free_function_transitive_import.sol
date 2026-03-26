@@ -20,5 +20,9 @@ contract E is D {
     return f();
   }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // i() -> 1337

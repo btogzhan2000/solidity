@@ -29,5 +29,8 @@ contract Test {
         return s.v;
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // f() -> 0x202

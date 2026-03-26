@@ -24,13 +24,13 @@
 
 #pragma once
 
+#include <libsolutil/Common.h>
 #include <libevmasm/AssemblyItem.h>
 
-#include <libsolutil/Common.h>
-
-#include <memory>
-#include <unordered_set>
 #include <vector>
+#include <map>
+#include <memory>
+#include <set>
 
 namespace solidity::langutil
 {
@@ -61,14 +61,8 @@ public:
 		/// Storage modification sequence, only used for storage and memory operations.
 		unsigned sequenceNumber = 0;
 		/// Behaves as if this was a tuple of (item->type(), item->data(), arguments, sequenceNumber).
-		bool operator==(Expression const& _other) const;
-
-		struct ExpressionHash
-		{
-			std::size_t operator()(Expression const& _expression) const;
-		};
+		bool operator<(Expression const& _other) const;
 	};
-
 
 	/// Retrieves the id of the expression equivalence class resulting from the given item applied to the
 	/// given classes, might also create a new one.
@@ -92,7 +86,7 @@ public:
 	void forceEqual(Id _id, AssemblyItem const& _item, Ids const& _arguments, bool _copyItem = true);
 
 	/// @returns the id of a new class which is different to all other classes.
-	Id newClass(langutil::DebugData::ConstPtr _debugData);
+	Id newClass(langutil::SourceLocation const& _location);
 
 	/// @returns true if the values of the given classes are known to be different (on every input).
 	/// @note that this function might still return false for some different inputs.
@@ -128,7 +122,7 @@ private:
 	/// Expression equivalence class representatives - we only store one item of an equivalence.
 	std::vector<Expression> m_representatives;
 	/// All expression ever encountered.
-	std::unordered_set<Expression, Expression::ExpressionHash> m_expressions;
+	std::set<Expression> m_expressions;
 	std::vector<std::shared_ptr<AssemblyItem>> m_spareAssemblyItems;
 };
 

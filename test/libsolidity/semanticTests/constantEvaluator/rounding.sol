@@ -9,5 +9,7 @@ contract C {
         return (x.length, c, y.length, -d);
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // f() -> 2, 2, 2, 2

@@ -7,5 +7,8 @@ contract C
 		return (encoded.length, encoded[0], encoded[1]);
 	}
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> 2, 0x5c00000000000000000000000000000000000000000000000000000000000000, 0x5c00000000000000000000000000000000000000000000000000000000000000

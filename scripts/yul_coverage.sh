@@ -83,8 +83,7 @@ for arg in "$@"; do
   esac
 done
 
-function show_output_if
-{
+show_output_if() {
   local VAR=${1}
   if [ -n "${VAR}" ]; then
     echo "${SOL_FILE}"
@@ -103,26 +102,25 @@ if [ ! -f "${SOLC}" ]; then
   exit 1
 fi
 
-function test_file
-{
+test_file() {
   local SOL_FILE
   local OUTPUT
   SOL_FILE=${1}
 
   if OUTPUT=$("${SOLC}" --ir "${SOL_FILE}" 2>&1); then
     SUCCESS+=("${SOL_FILE}")
-    show_output_if "${SHOW_SUCCESSFUL}"
+    show_output_if ${SHOW_SUCCESSFUL}
   else
     FAILED+=("${SOL_FILE}")
     if [[ ${OUTPUT} == *"UnimplementedFeatureError"* ]]; then
       UNIMPLEMENTED_FEATURE_ERRORS+=("${SOL_FILE}")
-      show_output_if "${SHOW_UNIMPLEMENTED_FEATURE_ERRORS}"
+      show_output_if ${SHOW_UNIMPLEMENTED_FEATURE_ERRORS}
     elif [[ ${OUTPUT} == *"InternalCompilerError"* ]]; then
       INTERNAL_COMPILER_ERRORS+=("${SOL_FILE}")
-      show_output_if "${SHOW_INTERNAL_COMPILER_ERRORS}"
+      show_output_if ${SHOW_INTERNAL_COMPILER_ERRORS}
     else
       OTHER_ERRORS+=("${SOL_FILE}")
-      show_output_if "${SHOW_OTHER_ERRORS}"
+      show_output_if ${SHOW_OTHER_ERRORS}
     fi
   fi
 }

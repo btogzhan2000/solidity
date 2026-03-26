@@ -28,6 +28,7 @@
 #include <liblangutil/EVMVersion.h>
 #include <libyul/optimiser/ASTWalker.h>
 
+#include <boost/noncopyable.hpp>
 #include <list>
 #include <map>
 
@@ -84,8 +85,6 @@ private:
 	void endVisit(IdentifierPath const& _path) override;
 	bool visit(InlineAssembly const& _inlineAssembly) override;
 	bool visit(Return const& _return) override;
-	bool visit(UsingForDirective const& _usingFor) override;
-	bool visit(BinaryOperation const& _binaryOperation) override;
 
 	void operator()(yul::FunctionDefinition const& _function) override;
 	void operator()(yul::Identifier const& _identifier) override;
@@ -94,18 +93,17 @@ private:
 	void resolveInheritDoc(StructuredDocumentation const& _documentation, StructurallyDocumentedAnnotation& _annotation);
 
 	/// Checks if the name contains a '.'.
-	void validateYulIdentifierName(yul::YulName _name, langutil::SourceLocation const& _location);
+	void validateYulIdentifierName(yul::YulString _name, langutil::SourceLocation const& _location);
 
 	langutil::ErrorReporter& m_errorReporter;
 	NameAndTypeResolver& m_resolver;
 	langutil::EVMVersion m_evmVersion;
-	/// Stack of function definitions.
-	std::vector<FunctionDefinition const*> m_functionDefinitions;
+	/// Stack of return parameters.
+	std::vector<ParameterList const*> m_returnParameters;
 	bool const m_resolveInsideCode;
 
 	InlineAssemblyAnnotation* m_yulAnnotation = nullptr;
 	bool m_yulInsideFunction = false;
-	bool m_typeContext = false;
 };
 
 }

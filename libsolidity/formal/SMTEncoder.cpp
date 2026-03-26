@@ -30,42 +30,56 @@
 #include <libsmtutil/SMTPortfolio.h>
 #include <libsmtutil/Helpers.h>
 
-#include <liblangutil/CharStreamProvider.h>
+#include <boost/range/adaptors.hpp>
+#include <boost/range/adaptor/reversed.hpp>
 
-#include <libsolutil/Algorithms.h>
-#include <libsolutil/FunctionSelector.h>
-
-#include <range/v3/view.hpp>
-
-#include <limits>
-#include <deque>
-
+using namespace std;
 using namespace solidity;
 using namespace solidity::util;
 using namespace solidity::langutil;
 using namespace solidity::frontend;
-using namespace std::string_literals;
 
-SMTEncoder::SMTEncoder(
-	smt::EncodingContext& _context,
-	ModelCheckerSettings _settings,
-	UniqueErrorReporter& _errorReporter,
-	UniqueErrorReporter& _unsupportedErrorReporter,
-	ErrorReporter& _provedSafeReporter,
-	langutil::CharStreamProvider const& _charStreamProvider
-):
-	m_errorReporter(_errorReporter),
-	m_unsupportedErrors(_unsupportedErrorReporter),
-	m_provedSafeReporter(_provedSafeReporter),
-	m_context(_context),
-	m_settings(std::move(_settings)),
-	m_charStreamProvider(_charStreamProvider)
+SMTEncoder::SMTEncoder(smt::EncodingContext& _context):
+	m_errorReporter(m_smtErrors),
+	m_context(_context)
 {
 }
 
-void SMTEncoder::resetSourceAnalysis()
+bool SMTEncoder::analyze(SourceUnit const& _source)
 {
-	m_freeFunctions.clear();
+	set<SourceUnit const*, smt::EncodingContext::IdCompare> sources;
+	sources.insert(&_source);
+	for (auto const& source: _source.referencedSourceUnits(true))
+		sources.insert(source);
+
+	bool analysis = true;
+	for (auto source: sources)
+		for (auto node: source->nodes())
+			if (auto function = dynamic_pointer_cast<FunctionDefinition>(node))
+			{
+				m_errorReporter.warning(
+					6660_error,
+					function->location(),
+					"Model checker analysis was not possible because file level functions are not supported."
+				);
+				analysis = false;
+			}
+			else if (auto var = dynamic_pointer_cast<VariableDeclaration>(node))
+			{
+				m_errorReporter.warning(
+					8195_error,
+					var->location(),
+					"Model checker analysis was not possible because file level constants are not supported."
+				);
+				analysis = false;
+			}
+
+	if (!analysis)
+		return false;
+
+	m_context.state().prepareForSourceUnit(_source);
+
+	return true;
 }
 
 bool SMTEncoder::visit(ContractDefinition const& _contract)
@@ -74,8 +88,8 @@ bool SMTEncoder::visit(ContractDefinition const& _contract)
 
 	for (auto const& node: _contract.subNodes())
 		if (
-			!std::dynamic_pointer_cast<FunctionDefinition>(node) &&
-			!std::dynamic_pointer_cast<VariableDeclaration>(node)
+			!dynamic_pointer_cast<FunctionDefinition>(node) &&
+			!dynamic_pointer_cast<VariableDeclaration>(node)
 		)
 			node->accept(*this);
 
@@ -98,7 +112,7 @@ bool SMTEncoder::visit(ContractDefinition const& _contract)
 	// the constructor.
 	// Constructors are visited as part of the constructor
 	// hierarchy inlining.
-	for (auto const* function: contractFunctionsWithoutVirtual(_contract) + allFreeFunctions())
+	for (auto const* function: contractFunctions(_contract))
 		if (!function->isConstructor())
 			function->accept(*this);
 
@@ -120,12 +134,6 @@ void SMTEncoder::endVisit(ContractDefinition const& _contract)
 		m_context.popSolver();
 }
 
-bool SMTEncoder::visit(ImportDirective const&)
-{
-	// do not visit because the identifier therein will confuse us.
-	return false;
-}
-
 void SMTEncoder::endVisit(VariableDeclaration const& _varDecl)
 {
 	// State variables are handled by the constructor.
@@ -140,8 +148,6 @@ bool SMTEncoder::visit(ModifierDefinition const&)
 
 bool SMTEncoder::visit(FunctionDefinition const& _function)
 {
-	solAssert(m_currentContract, "");
-
 	m_modifierDepthStack.push_back(-1);
 
 	initializeLocalVariables(_function);
@@ -182,12 +188,7 @@ void SMTEncoder::visitFunctionOrModifier()
 		if (dynamic_cast<ContractDefinition const*>(refDecl))
 			visitFunctionOrModifier();
 		else if (auto modifier = resolveModifierInvocation(*modifierInvocation, m_currentContract))
-		{
-			m_scopes.push_back(modifier);
 			inlineModifierInvocation(modifierInvocation.get(), modifier);
-			solAssert(m_scopes.back() == modifier, "");
-			m_scopes.pop_back();
-		}
 		else
 			solAssert(false, "");
 	}
@@ -200,7 +201,7 @@ void SMTEncoder::inlineModifierInvocation(ModifierInvocation const* _invocation,
 	solAssert(_invocation, "");
 	_invocation->accept(*this);
 
-	std::vector<smtutil::Expression> args;
+	vector<smtutil::Expression> args;
 	if (auto const* arguments = _invocation->arguments())
 	{
 		auto const& modifierParams = _definition->parameters();
@@ -278,8 +279,6 @@ bool SMTEncoder::visit(PlaceholderStatement const&)
 
 void SMTEncoder::endVisit(FunctionDefinition const&)
 {
-	solAssert(m_currentContract, "");
-
 	popCallStack();
 	solAssert(m_modifierDepthStack.back() == -1, "");
 	m_modifierDepthStack.pop_back();
@@ -313,24 +312,24 @@ bool SMTEncoder::visit(InlineAssembly const& _inlineAsm)
 	{
 		AssignedExternalsCollector(InlineAssembly const& _inlineAsm): externalReferences(_inlineAsm.annotation().externalReferences)
 		{
-			this->operator()(_inlineAsm.operations().root());
+			this->operator()(_inlineAsm.operations());
 		}
 
-		std::map<yul::Identifier const*, InlineAssemblyAnnotation::ExternalIdentifierInfo> const& externalReferences;
-		std::set<VariableDeclaration const*> assignedVars;
+		map<yul::Identifier const*, InlineAssemblyAnnotation::ExternalIdentifierInfo> const& externalReferences;
+		set<VariableDeclaration const*> assignedVars;
 
 		using yul::ASTWalker::operator();
 		void operator()(yul::Assignment const& _assignment)
 		{
 			auto const& vars = _assignment.variableNames;
 			for (auto const& identifier: vars)
-				if (auto externalInfo = util::valueOrNullptr(externalReferences, &identifier))
+				if (auto externalInfo = valueOrNullptr(externalReferences, &identifier))
 					if (auto varDecl = dynamic_cast<VariableDeclaration const*>(externalInfo->declaration))
 						assignedVars.insert(varDecl);
 		}
 	};
 
-	yul::SideEffectsCollector sideEffectsCollector(_inlineAsm.dialect(), _inlineAsm.operations().root());
+	yul::SideEffectsCollector sideEffectsCollector(_inlineAsm.dialect(), _inlineAsm.operations());
 	if (sideEffectsCollector.invalidatesMemory())
 		resetMemoryVariables();
 	if (sideEffectsCollector.invalidatesStorage())
@@ -344,7 +343,7 @@ bool SMTEncoder::visit(InlineAssembly const& _inlineAsm)
 		m_context.resetVariable(*var);
 	}
 
-	m_unsupportedErrors.warning(
+	m_errorReporter.warning(
 		7737_error,
 		_inlineAsm.location(),
 		"Inline assembly may cause SMTChecker to produce spurious warnings (false positives)."
@@ -370,10 +369,32 @@ void SMTEncoder::endVisit(VariableDeclarationStatement const& _varDecl)
 
 bool SMTEncoder::visit(Assignment const& _assignment)
 {
-	// RHS must be visited before LHS; as opposed to what Assignment::accept does
-	_assignment.rightHandSide().accept(*this);
-	_assignment.leftHandSide().accept(*this);
-	return false;
+	auto const& left = _assignment.leftHandSide();
+	auto const& right = _assignment.rightHandSide();
+
+	if (auto const* memberAccess = isEmptyPush(left))
+	{
+		right.accept(*this);
+		left.accept(*this);
+
+		auto const& memberExpr = memberAccess->expression();
+		auto& symbArray = dynamic_cast<smt::SymbolicArrayVariable&>(*m_context.expression(memberExpr));
+		smtutil::Expression oldElements = symbArray.elements();
+		smtutil::Expression length = symbArray.length();
+		symbArray.increaseIndex();
+		m_context.addAssertion(symbArray.elements() == smtutil::Expression::store(
+			oldElements,
+			length - 1,
+			expr(right)
+		));
+		m_context.addAssertion(symbArray.length() == length);
+
+		arrayPushPopAssign(memberExpr, symbArray.currentValue());
+		defineExpr(_assignment, expr(left));
+		return false;
+	}
+
+	return true;
 }
 
 void SMTEncoder::endVisit(Assignment const& _assignment)
@@ -383,7 +404,10 @@ void SMTEncoder::endVisit(Assignment const& _assignment)
 	Token op = _assignment.assignmentOperator();
 	solAssert(TokenTraits::isAssignmentOp(op), "");
 
-	if (!isSupportedType(*_assignment.annotation().type))
+	if (isEmptyPush(_assignment.leftHandSide()))
+		return;
+
+	if (!smt::isSupportedType(*_assignment.annotation().type))
 	{
 		// Give it a new index anyway to keep the SSA scheme sound.
 
@@ -416,36 +440,43 @@ void SMTEncoder::endVisit(Assignment const& _assignment)
 
 void SMTEncoder::endVisit(TupleExpression const& _tuple)
 {
-	if (_tuple.annotation().type->category() == Type::Category::Function)
-		return;
-
-	if (_tuple.annotation().type->category() == Type::Category::TypeType)
-		return;
-
 	createExpr(_tuple);
 
 	if (_tuple.isInlineArray())
 	{
 		// Add constraints for the length and values as it is known.
-		auto symbArray = std::dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(_tuple));
-		smtAssert(symbArray, "Inline array must be represented with SymbolicArrayVariable");
-		auto originalType = symbArray->originalType();
-		auto arrayType = dynamic_cast<ArrayType const*>(originalType);
-		smtAssert(arrayType, "Type of inline array must be ArrayType");
-		addArrayLiteralAssertions(*symbArray, applyMap(_tuple.components(), [&](auto const& c) { return expr(*c, arrayType->baseType()); }));
+		auto symbArray = dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(_tuple));
+		solAssert(symbArray, "");
+
+		addArrayLiteralAssertions(*symbArray, applyMap(_tuple.components(), [&](auto const& c) { return expr(*c); }));
 	}
+	else if (_tuple.components().size() == 1)
+		defineExpr(_tuple, expr(*_tuple.components().front()));
 	else
 	{
-		auto values = applyMap(_tuple.components(), [this](auto const& component) -> std::optional<smtutil::Expression> {
-			if (component)
+		solAssert(_tuple.annotation().type->category() == Type::Category::Tuple, "");
+		auto const& symbTuple = dynamic_pointer_cast<smt::SymbolicTupleVariable>(m_context.expression(_tuple));
+		solAssert(symbTuple, "");
+		auto const& symbComponents = symbTuple->components();
+		auto const* tuple = dynamic_cast<TupleExpression const*>(innermostTuple(_tuple));
+		solAssert(tuple, "");
+		auto const& tupleComponents = tuple->components();
+		solAssert(symbComponents.size() == tupleComponents.size(), "");
+		for (unsigned i = 0; i < symbComponents.size(); ++i)
+		{
+			auto tComponent = tupleComponents.at(i);
+			if (tComponent)
 			{
-				if (!m_context.knownExpression(*component))
-						createExpr(*component);
-				return expr(*component);
+				if (auto varDecl = identifierToVariable(*tComponent))
+					m_context.addAssertion(symbTuple->component(i) == currentValue(*varDecl));
+				else
+				{
+					if (!m_context.knownExpression(*tComponent))
+						createExpr(*tComponent);
+					m_context.addAssertion(symbTuple->component(i) == expr(*tComponent));
+				}
 			}
-			return {};
-		});
-		defineExpr(_tuple, values);
+		}
 	}
 }
 
@@ -456,67 +487,91 @@ void SMTEncoder::endVisit(UnaryOperation const& _op)
 	if (_op.annotation().type->category() == Type::Category::RationalNumber)
 		return;
 
-	if (TokenTraits::isBitOp(_op.getOperator()) && !*_op.annotation().userDefinedFunction)
+	if (TokenTraits::isBitOp(_op.getOperator()))
 		return bitwiseNotOperation(_op);
 
 	createExpr(_op);
 
-	// User-defined operators are essentially function calls.
-	if (*_op.annotation().userDefinedFunction)
-		return;
-
-	auto const& subExpr = innermostTuple(_op.subExpression());
+	auto const* subExpr = innermostTuple(_op.subExpression());
 	auto type = _op.annotation().type;
 	switch (_op.getOperator())
 	{
 	case Token::Not: // !
 	{
 		solAssert(smt::isBool(*type), "");
-		defineExpr(_op, !expr(subExpr));
+		defineExpr(_op, !expr(*subExpr));
 		break;
 	}
 	case Token::Inc: // ++ (pre- or postfix)
 	case Token::Dec: // -- (pre- or postfix)
 	{
 		solAssert(smt::isInteger(*type) || smt::isFixedPoint(*type), "");
-		solAssert(subExpr.annotation().willBeWrittenTo, "");
-		auto innerValue = expr(subExpr);
-		auto newValue = arithmeticOperation(
-			_op.getOperator() == Token::Inc ? Token::Add : Token::Sub,
-			innerValue,
-			smtutil::Expression(size_t(1)),
-			_op.annotation().type,
-			_op
-		).first;
-		defineExpr(_op, _op.isPrefixOperation() ? newValue : innerValue);
-		assignment(subExpr, newValue);
+		solAssert(subExpr->annotation().willBeWrittenTo, "");
+		auto computeNewValue = [&](auto currentValue) {
+			return arithmeticOperation(
+				_op.getOperator() == Token::Inc ? Token::Add : Token::Sub,
+				currentValue,
+				smtutil::Expression(size_t(1)),
+				_op.annotation().type,
+				_op
+			).first;
+		};
+		if (auto identifier = dynamic_cast<Identifier const*>(subExpr))
+		{
+			auto decl = identifierToVariable(*identifier);
+			solAssert(decl, "");
+			auto innerValue = currentValue(*decl);
+			auto newValue = computeNewValue(innerValue);
+			defineExpr(_op, _op.isPrefixOperation() ? newValue : innerValue);
+			assignment(*decl, newValue);
+		}
+		else if (
+			dynamic_cast<IndexAccess const*>(subExpr) ||
+			dynamic_cast<MemberAccess const*>(subExpr)
+		)
+		{
+			auto innerValue = expr(*subExpr);
+			auto newValue = computeNewValue(innerValue);
+			defineExpr(_op, _op.isPrefixOperation() ? newValue : innerValue);
+			indexOrMemberAssignment(*subExpr, newValue);
+		}
+		else if (isEmptyPush(*subExpr))
+		{
+			auto innerValue = expr(*subExpr);
+			auto newValue = computeNewValue(innerValue);
+			defineExpr(_op, _op.isPrefixOperation() ? newValue : innerValue);
+			arrayPushPopAssign(*subExpr, newValue);
+		}
+		else
+			solAssert(false, "");
+
 		break;
 	}
 	case Token::Sub: // -
 	{
-		defineExpr(_op, 0 - expr(subExpr));
+		defineExpr(_op, 0 - expr(*subExpr));
 		break;
 	}
 	case Token::Delete:
 	{
-		if (auto decl = identifierToVariable(subExpr))
+		if (auto decl = identifierToVariable(*subExpr))
 		{
 			m_context.newValue(*decl);
 			m_context.setZeroValue(*decl);
 		}
 		else
 		{
-			solAssert(m_context.knownExpression(subExpr), "");
-			auto const& symbVar = m_context.expression(subExpr);
+			solAssert(m_context.knownExpression(*subExpr), "");
+			auto const& symbVar = m_context.expression(*subExpr);
 			symbVar->increaseIndex();
 			m_context.setZeroValue(*symbVar);
 			if (
-				dynamic_cast<IndexAccess const*>(&subExpr) ||
-				dynamic_cast<MemberAccess const*>(&subExpr)
+				dynamic_cast<IndexAccess const*>(subExpr) ||
+				dynamic_cast<MemberAccess const*>(subExpr)
 			)
-				indexOrMemberAssignment(subExpr, symbVar->currentValue());
+				indexOrMemberAssignment(*subExpr, symbVar->currentValue());
 			// Empty push added a zero value anyway, so no need to delete extra.
-			else if (!isEmptyPush(subExpr))
+			else if (!isEmptyPush(*subExpr))
 				solAssert(false, "");
 		}
 		break;
@@ -535,7 +590,7 @@ bool SMTEncoder::visit(BinaryOperation const& _op)
 {
 	if (shortcutRationalNumber(_op))
 		return false;
-	if (TokenTraits::isBooleanOp(_op.getOperator()) && !*_op.annotation().userDefinedFunction)
+	if (TokenTraits::isBooleanOp(_op.getOperator()))
 	{
 		booleanOperation(_op);
 		return false;
@@ -548,14 +603,10 @@ void SMTEncoder::endVisit(BinaryOperation const& _op)
 	/// If _op is const evaluated the RationalNumber shortcut was taken.
 	if (isConstant(_op))
 		return;
-	if (TokenTraits::isBooleanOp(_op.getOperator()) && !*_op.annotation().userDefinedFunction)
+	if (TokenTraits::isBooleanOp(_op.getOperator()))
 		return;
 
 	createExpr(_op);
-
-	// User-defined operators are essentially function calls.
-	if (*_op.annotation().userDefinedFunction)
-		return;
 
 	if (TokenTraits::isArithmeticOp(_op.getOperator()))
 		arithmeticOperation(_op);
@@ -572,10 +623,12 @@ bool SMTEncoder::visit(Conditional const& _op)
 	_op.condition().accept(*this);
 
 	auto indicesEndTrue = visitBranch(&_op.trueExpression(), expr(_op.condition())).first;
+	auto touchedVars = touchedVariables(_op.trueExpression());
 
 	auto indicesEndFalse = visitBranch(&_op.falseExpression(), !expr(_op.condition())).first;
+	touchedVars += touchedVariables(_op.falseExpression());
 
-	mergeVariables(expr(_op.condition()), indicesEndTrue, indicesEndFalse);
+	mergeVariables(touchedVars, expr(_op.condition()), indicesEndTrue, indicesEndFalse);
 
 	defineExpr(_op, smtutil::Expression::ite(
 		expr(_op.condition()),
@@ -584,36 +637,6 @@ bool SMTEncoder::visit(Conditional const& _op)
 	));
 
 	return false;
-}
-
-bool SMTEncoder::visit(FunctionCall const& _funCall)
-{
-	auto functionCallKind = *_funCall.annotation().kind;
-	if (functionCallKind != FunctionCallKind::FunctionCall)
-		return true;
-
-	FunctionType const& funType = dynamic_cast<FunctionType const&>(*_funCall.expression().annotation().type);
-	// We do not want to visit the TypeTypes in the second argument of `abi.decode`.
-	// Those types are checked/used in SymbolicState::buildABIFunctions.
-	if (funType.kind() == FunctionType::Kind::ABIDecode)
-	{
-		if (auto arg = _funCall.arguments().front())
-			arg->accept(*this);
-		return false;
-	}
-
-	// We do not really need to visit the expression in a wrap/unwrap no-op call,
-	// so we just ignore the function call expression to avoid "unsupported" warnings.
-	else if (
-		funType.kind() == FunctionType::Kind::Wrap ||
-		funType.kind() == FunctionType::Kind::Unwrap
-	)
-	{
-		if (auto arg = _funCall.arguments().front())
-			arg->accept(*this);
-		return false;
-	}
-	return true;
 }
 
 void SMTEncoder::endVisit(FunctionCall const& _funCall)
@@ -652,23 +675,18 @@ void SMTEncoder::endVisit(FunctionCall const& _funCall)
 		visitGasLeft(_funCall);
 		break;
 	case FunctionType::Kind::External:
-		if (publicGetter(_funCall.expression()))
+		if (isPublicGetter(_funCall.expression()))
 			visitPublicGetter(_funCall);
-		break;
-	case FunctionType::Kind::BytesConcat:
-		visitBytesConcat(_funCall);
 		break;
 	case FunctionType::Kind::ABIDecode:
 	case FunctionType::Kind::ABIEncode:
 	case FunctionType::Kind::ABIEncodePacked:
 	case FunctionType::Kind::ABIEncodeWithSelector:
-	case FunctionType::Kind::ABIEncodeCall:
 	case FunctionType::Kind::ABIEncodeWithSignature:
 		visitABIFunction(_funCall);
 		break;
 	case FunctionType::Kind::Internal:
 	case FunctionType::Kind::BareStaticCall:
-	case FunctionType::Kind::BareCall:
 		break;
 	case FunctionType::Kind::KECCAK256:
 	case FunctionType::Kind::ECRecover:
@@ -677,18 +695,11 @@ void SMTEncoder::endVisit(FunctionCall const& _funCall)
 		visitCryptoFunction(_funCall);
 		break;
 	case FunctionType::Kind::BlockHash:
-		defineExpr(_funCall, state().blockhash(expr(*_funCall.arguments().at(0))));
-		break;
-	case FunctionType::Kind::BlobHash:
-		visitBlobHash(_funCall);
+		defineExpr(_funCall, m_context.state().blockhash(expr(*_funCall.arguments().at(0))));
 		break;
 	case FunctionType::Kind::AddMod:
 	case FunctionType::Kind::MulMod:
 		visitAddMulMod(_funCall);
-		break;
-	case FunctionType::Kind::Unwrap:
-	case FunctionType::Kind::Wrap:
-		visitWrapUnwrap(_funCall);
 		break;
 	case FunctionType::Kind::Send:
 	case FunctionType::Kind::Transfer:
@@ -698,39 +709,32 @@ void SMTEncoder::endVisit(FunctionCall const& _funCall)
 		auto const& value = args.front();
 		solAssert(value, "");
 
-		smtutil::Expression thisBalance = state().balance();
+		smtutil::Expression thisBalance = m_context.state().balance();
 		setSymbolicUnknownValue(thisBalance, TypeProvider::uint256(), m_context);
 
-		state().transfer(state().thisAddress(), expr(address), expr(*value));
+		m_context.state().transfer(m_context.state().thisAddress(), expr(address), expr(*value));
 		break;
 	}
 	case FunctionType::Kind::ArrayPush:
+	case FunctionType::Kind::ByteArrayPush:
 		arrayPush(_funCall);
 		break;
 	case FunctionType::Kind::ArrayPop:
 		arrayPop(_funCall);
 		break;
 	case FunctionType::Kind::Event:
-	case FunctionType::Kind::Error:
 		// This can be safely ignored.
 		break;
 	case FunctionType::Kind::ObjectCreation:
 		visitObjectCreation(_funCall);
 		return;
-	case FunctionType::Kind::Creation:
-		if (!m_settings.engine.chc || !m_settings.externalCalls.isTrusted())
-			m_unsupportedErrors.warning(
-				8729_error,
-				_funCall.location(),
-				"Contract deployment is only supported in the trusted mode for external calls"
-				" with the CHC engine."
-			);
-		break;
 	case FunctionType::Kind::DelegateCall:
+	case FunctionType::Kind::BareCall:
 	case FunctionType::Kind::BareCallCode:
 	case FunctionType::Kind::BareDelegateCall:
+	case FunctionType::Kind::Creation:
 	default:
-		m_unsupportedErrors.warning(
+		m_errorReporter.warning(
 			4588_error,
 			_funCall.location(),
 			"Assertion checker does not yet implement this type of function call."
@@ -756,6 +760,7 @@ void SMTEncoder::initContract(ContractDefinition const& _contract)
 	m_context.pushSolver();
 	createStateVariables(_contract);
 	clearIndices(m_currentContract, nullptr);
+	m_variableUsage.setCurrentContract(_contract);
 	m_checked = true;
 }
 
@@ -789,56 +794,40 @@ void SMTEncoder::visitRequire(FunctionCall const& _funCall)
 	addPathImpliedExpression(expr(*args.front()));
 }
 
-void SMTEncoder::visitBytesConcat(FunctionCall const& _funCall)
-{
-	auto const& args = _funCall.sortedArguments();
-
-	// bytes.concat call with no arguments returns an empty array
-	if (args.size() == 0)
-	{
-		defineExpr(_funCall, smt::zeroValue(TypeProvider::bytesMemory()));
-		return;
-	}
-
-	// bytes.concat with single argument of type bytes memory
-	if (args.size() == 1 && args.front()->annotation().type->category() == frontend::Type::Category::Array)
-	{
-		defineExpr(_funCall, expr(*args.front(), TypeProvider::bytesMemory()));
-		return;
-	}
-
-	auto const& [name, inTypes, outType] = state().bytesConcatFunctionTypes(&_funCall);
-	solAssert(inTypes.size() == args.size(), "");
-
-	auto symbFunction = state().bytesConcatFunction(&_funCall);
-	auto out = createSelectExpressionForFunction(symbFunction, args, inTypes, args.size());
-
-	defineExpr(_funCall, out);
-}
-
 void SMTEncoder::visitABIFunction(FunctionCall const& _funCall)
 {
-	auto symbFunction = state().abiFunction(&_funCall);
-	auto const& [name, inTypes, outTypes] = state().abiFunctionTypes(&_funCall);
+	auto symbFunction = m_context.state().abiFunction(&_funCall);
+	auto const& [name, inTypes, outTypes] = m_context.state().abiFunctionTypes(&_funCall);
 
 	auto const& funType = dynamic_cast<FunctionType const&>(*_funCall.expression().annotation().type);
 	auto kind = funType.kind();
 	auto const& args = _funCall.sortedArguments();
 	auto argsActualLength = kind == FunctionType::Kind::ABIDecode ? 1 : args.size();
 
+	vector<smtutil::Expression> symbArgs;
 	solAssert(inTypes.size() == argsActualLength, "");
-	if (argsActualLength == 0)
+	for (unsigned i = 0; i < argsActualLength; ++i)
+		if (args.at(i))
+			symbArgs.emplace_back(expr(*args.at(i), inTypes.at(i)));
+
+	optional<smtutil::Expression> arg;
+	if (inTypes.size() == 1)
+		arg = expr(*args.at(0), inTypes.at(0));
+	else
 	{
-		defineExpr(_funCall, smt::zeroValue(TypeProvider::bytesMemory()));
-		return;
+		auto inputSort = dynamic_cast<smtutil::ArraySort&>(*symbFunction.sort).domain;
+		arg = smtutil::Expression::tuple_constructor(
+			smtutil::Expression(make_shared<smtutil::SortSort>(inputSort), ""),
+			symbArgs
+		);
 	}
 
-	auto out = createSelectExpressionForFunction(symbFunction, args, inTypes, argsActualLength);
+	auto out = smtutil::Expression::select(symbFunction, *arg);
 	if (outTypes.size() == 1)
 		defineExpr(_funCall, out);
 	else
 	{
-		auto symbTuple = std::dynamic_pointer_cast<smt::SymbolicTupleVariable>(m_context.expression(_funCall));
+		auto symbTuple = dynamic_pointer_cast<smt::SymbolicTupleVariable>(m_context.expression(_funCall));
 		solAssert(symbTuple, "");
 		solAssert(symbTuple->components().size() == outTypes.size(), "");
 		solAssert(out.sort->kind == smtutil::Kind::Tuple, "");
@@ -853,24 +842,24 @@ void SMTEncoder::visitCryptoFunction(FunctionCall const& _funCall)
 {
 	auto const& funType = dynamic_cast<FunctionType const&>(*_funCall.expression().annotation().type);
 	auto kind = funType.kind();
-	auto arg0 = expr(*_funCall.arguments().at(0), TypeProvider::bytesStorage());
-	std::optional<smtutil::Expression> result;
+	auto arg0 = expr(*_funCall.arguments().at(0));
+	optional<smtutil::Expression> result;
 	if (kind == FunctionType::Kind::KECCAK256)
-		result = smtutil::Expression::select(state().cryptoFunction("keccak256"), arg0);
+		result = smtutil::Expression::select(m_context.state().cryptoFunction("keccak256"), arg0);
 	else if (kind == FunctionType::Kind::SHA256)
-		result = smtutil::Expression::select(state().cryptoFunction("sha256"), arg0);
+		result = smtutil::Expression::select(m_context.state().cryptoFunction("sha256"), arg0);
 	else if (kind == FunctionType::Kind::RIPEMD160)
-		result = smtutil::Expression::select(state().cryptoFunction("ripemd160"), arg0);
+		result = smtutil::Expression::select(m_context.state().cryptoFunction("ripemd160"), arg0);
 	else if (kind == FunctionType::Kind::ECRecover)
 	{
-		auto e = state().cryptoFunction("ecrecover");
-		auto arg0 = expr(*_funCall.arguments().at(0), TypeProvider::fixedBytes(32));
-		auto arg1 = expr(*_funCall.arguments().at(1), TypeProvider::uint(8));
-		auto arg2 = expr(*_funCall.arguments().at(2), TypeProvider::fixedBytes(32));
-		auto arg3 = expr(*_funCall.arguments().at(3), TypeProvider::fixedBytes(32));
+		auto e = m_context.state().cryptoFunction("ecrecover");
+		auto arg0 = expr(*_funCall.arguments().at(0));
+		auto arg1 = expr(*_funCall.arguments().at(1));
+		auto arg2 = expr(*_funCall.arguments().at(2));
+		auto arg3 = expr(*_funCall.arguments().at(3));
 		auto inputSort = dynamic_cast<smtutil::ArraySort&>(*e.sort).domain;
 		auto ecrecoverInput = smtutil::Expression::tuple_constructor(
-			smtutil::Expression(std::make_shared<smtutil::SortSort>(inputSort), ""),
+			smtutil::Expression(make_shared<smtutil::SortSort>(inputSort), ""),
 			{arg0, arg1, arg2, arg3}
 		);
 		result = smtutil::Expression::select(e, ecrecoverInput);
@@ -883,7 +872,7 @@ void SMTEncoder::visitCryptoFunction(FunctionCall const& _funCall)
 
 void SMTEncoder::visitGasLeft(FunctionCall const& _funCall)
 {
-	std::string gasLeft = "gasleft";
+	string gasLeft = "gasleft()";
 	// We increase the variable index since gasleft changes
 	// inside a tx.
 	defineGlobalVariable(gasLeft, _funCall, true);
@@ -893,18 +882,6 @@ void SMTEncoder::visitGasLeft(FunctionCall const& _funCall)
 	m_context.setUnknownValue(*symbolicVar);
 	if (index > 0)
 		m_context.addAssertion(symbolicVar->currentValue() <= symbolicVar->valueAtIndex(index - 1));
-}
-
-void SMTEncoder::visitBlobHash(FunctionCall const& _funCall)
-{
-	constexpr unsigned BLOB_TRANSACTION_LIMIT = 9; // Since pectra
-	auto indexExpr = expr(*_funCall.arguments().at(0));
-	auto valueExpr = smtutil::Expression::ite(
-		indexExpr >= BLOB_TRANSACTION_LIMIT,
-		smtutil::Expression(u256(0)),
-		state().blobhash(indexExpr)
-	);
-	defineExpr(_funCall, std::move(valueExpr));
 }
 
 void SMTEncoder::visitAddMulMod(FunctionCall const& _funCall)
@@ -925,15 +902,6 @@ void SMTEncoder::visitAddMulMod(FunctionCall const& _funCall)
 		defineExpr(_funCall, divModWithSlacks(x * y, k, intType).second);
 }
 
-void SMTEncoder::visitWrapUnwrap(FunctionCall const& _funCall)
-{
-	auto const& args = _funCall.arguments();
-	smtAssert(args.size() == 1, "Expected exactly one argument to wrap/unwrap");
-	auto const& funType = dynamic_cast<FunctionType const&>(*_funCall.expression().annotation().type);
-	auto const* argType = funType.parameterTypes().front();
-	defineExpr(_funCall, expr(*args.front(), argType));
-}
-
 void SMTEncoder::visitObjectCreation(FunctionCall const& _funCall)
 {
 	auto const& args = _funCall.arguments();
@@ -943,7 +911,8 @@ void SMTEncoder::visitObjectCreation(FunctionCall const& _funCall)
 
 	smtutil::Expression arraySize = expr(*args.front());
 	setSymbolicUnknownValue(arraySize, TypeProvider::uint256(), m_context);
-	auto symbArray = std::dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(_funCall));
+
+	auto symbArray = dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(_funCall));
 	solAssert(symbArray, "");
 	smt::setSymbolicZeroValue(*symbArray, m_context);
 	auto zeroElements = symbArray->elements();
@@ -957,7 +926,21 @@ void SMTEncoder::endVisit(Identifier const& _identifier)
 	if (auto decl = identifierToVariable(_identifier))
 	{
 		if (decl->isConstant())
-			defineExpr(_identifier, constantExpr(_identifier, *decl));
+		{
+			if (RationalNumberType const* rationalType = isConstant(_identifier))
+			{
+				if (rationalType->isNegative())
+					defineExpr(_identifier, smtutil::Expression(u2s(rationalType->literalValue(nullptr))));
+				else
+					defineExpr(_identifier, smtutil::Expression(rationalType->literalValue(nullptr)));
+			}
+			else
+			{
+				solAssert(decl->value(), "");
+				decl->value()->accept(*this);
+				defineExpr(_identifier, expr(*decl->value()));
+			}
+		}
 		else
 			defineExpr(_identifier, currentValue(*decl));
 	}
@@ -967,17 +950,11 @@ void SMTEncoder::endVisit(Identifier const& _identifier)
 		defineGlobalVariable(_identifier.name(), _identifier);
 	else if (_identifier.name() == "this")
 	{
-		defineExpr(_identifier, state().thisAddress());
+		defineExpr(_identifier, m_context.state().thisAddress());
 		m_uninterpretedTerms.insert(&_identifier);
 	}
 	// Ignore type identifiers
 	else if (dynamic_cast<TypeType const*>(_identifier.annotation().type))
-		return;
-	// Ignore module identifiers
-	else if (dynamic_cast<ModuleType const*>(_identifier.annotation().type))
-		return;
-	// Ignore user defined value type identifiers
-	else if (dynamic_cast<UserDefinedValueType const*>(_identifier.annotation().type))
 		return;
 	// Ignore the builtin abi, it is handled in FunctionCall.
 	// TODO: ignore MagicType in general (abi, block, msg, tx, type)
@@ -1005,21 +982,21 @@ void SMTEncoder::endVisit(ElementaryTypeNameExpression const& _typeName)
 namespace // helpers for SMTEncoder::visitPublicGetter
 {
 
-bool isReturnedFromStructGetter(Type const* _type)
+bool isReturnedFromStructGetter(TypePointer _type)
 {
 	// So far it seems that only Mappings and ordinary Arrays are not returned.
 	auto category = _type->category();
 	if (category == Type::Category::Mapping)
 		return false;
 	if (category == Type::Category::Array)
-		return dynamic_cast<ArrayType const&>(*_type).isByteArrayOrString();
+		return dynamic_cast<ArrayType const&>(*_type).isByteArray();
 	// default
 	return true;
 }
 
-std::vector<std::string> structGetterReturnedMembers(StructType const& _structType)
+vector<string> structGetterReturnedMembers(StructType const& _structType)
 {
-	std::vector<std::string> returnedMembers;
+	vector<string> returnedMembers;
 	for (auto const& member: _structType.nativeMembers(nullptr))
 		if (isReturnedFromStructGetter(member.type))
 			returnedMembers.push_back(member.name);
@@ -1030,87 +1007,68 @@ std::vector<std::string> structGetterReturnedMembers(StructType const& _structTy
 
 void SMTEncoder::visitPublicGetter(FunctionCall const& _funCall)
 {
-	auto var = publicGetter(_funCall.expression());
-	solAssert(var && var->isStateVariable(), "");
+	MemberAccess const& access = dynamic_cast<MemberAccess const&>(_funCall.expression());
+	auto var = dynamic_cast<VariableDeclaration const*>(access.annotation().referencedDeclaration);
+	solAssert(var, "");
 	solAssert(m_context.knownExpression(_funCall), "");
-	auto paramExpectedTypes = replaceUserTypes(FunctionType(*var).parameterTypes());
+	auto paramExpectedTypes = FunctionType(*var).parameterTypes();
 	auto actualArguments = _funCall.arguments();
 	solAssert(actualArguments.size() == paramExpectedTypes.size(), "");
-	std::deque<smtutil::Expression> symbArguments;
+	vector<smtutil::Expression> symbArguments;
 	for (unsigned i = 0; i < paramExpectedTypes.size(); ++i)
 		symbArguments.push_back(expr(*actualArguments[i], paramExpectedTypes[i]));
 
-	// See FunctionType::FunctionType(VariableDeclaration const& _varDecl)
-	// to understand the return types of public getters.
-	Type const* type = var->type();
-	smtutil::Expression currentExpr = currentValue(*var);
-	while (true)
+	TypePointer type = var->type();
+	if (
+		type->isValueType() ||
+		(type->category() == Type::Category::Array && dynamic_cast<ArrayType const&>(*type).isByteArray())
+	)
 	{
-		if (
-			type->isValueType() ||
-			(type->category() == Type::Category::Array && dynamic_cast<ArrayType const&>(*type).isByteArrayOrString())
-		)
-		{
-			solAssert(symbArguments.empty(), "");
-			defineExpr(_funCall, currentExpr);
-			return;
-		}
-		switch (type->category())
-		{
-			case Type::Category::Array:
-			case Type::Category::Mapping:
-			{
-				solAssert(!symbArguments.empty(), "");
-				// For nested arrays/mappings, each argument in the call is an index to the next layer.
-				// We mirror this with `select` after unpacking the SMT-LIB array expression.
-				currentExpr = smtutil::Expression::select(smtutil::Expression::tuple_get(currentExpr, 0), symbArguments.front());
-				symbArguments.pop_front();
-				if (auto arrayType = dynamic_cast<ArrayType const*>(type))
-					type = arrayType->baseType();
-				else if (auto mappingType = dynamic_cast<MappingType const*>(type))
-					type = mappingType->valueType();
-				else
-					solAssert(false, "");
-				break;
-			}
-			case Type::Category::Struct:
-			{
-				solAssert(symbArguments.empty(), "");
-				smt::SymbolicStructVariable structVar(dynamic_cast<StructType const*>(type), "struct_temp_" + std::to_string(_funCall.id()), m_context);
-				m_context.addAssertion(structVar.currentValue() == currentExpr);
-				auto returnedMembers = structGetterReturnedMembers(dynamic_cast<StructType const&>(*structVar.type()));
-				solAssert(!returnedMembers.empty(), "");
-				auto returnedValues = applyMap(returnedMembers, [&](std::string const& memberName) -> std::optional<smtutil::Expression> { return structVar.member(memberName); });
-				defineExpr(_funCall, returnedValues);
-				return;
-			}
-			default:
-			{
-				// Unsupported cases, do nothing and the getter will be abstracted.
-				return;
-			}
-		}
+		solAssert(symbArguments.empty(), "");
+		defineExpr(_funCall, currentValue(*var));
+		return;
 	}
-}
-
-bool SMTEncoder::shouldEncode(ContractDefinition const& _contract) const
-{
-	return _contract.canBeDeployed();
-}
-
-bool SMTEncoder::shouldAnalyzeVerificationTargetsFor(SourceUnit const& _source) const
-{
-	return m_settings.contracts.isDefault() ||
-		m_settings.contracts.has(*_source.annotation().path);
-}
-
-bool SMTEncoder::shouldAnalyzeVerificationTargetsFor(ContractDefinition const& _contract) const
-{
-	if (!shouldEncode(_contract))
-		return false;
-
-	return m_settings.contracts.isDefault() ||
-		m_settings.contracts.has(_contract.sourceUnitName(), _contract.name());
+	switch (type->category())
+	{
+		case Type::Category::Array:
+		case Type::Category::Mapping:
+		{
+			// For nested arrays/mappings, each argument in the call is an index to the next layer.
+			// We mirror this with `select` after unpacking the SMT-LIB array expression.
+			smtutil::Expression exprVal = currentValue(*var);
+			for (auto const& arg: symbArguments)
+			{
+				exprVal = smtutil::Expression::select(
+					smtutil::Expression::tuple_get(exprVal, 0),
+					arg
+				);
+			}
+			defineExpr(_funCall, exprVal);
+			break;
+		}
+		case Type::Category::Struct:
+		{
+			auto returnedMembers = structGetterReturnedMembers(dynamic_cast<StructType const&>(*type));
+			solAssert(!returnedMembers.empty(), "");
+			auto structVar = dynamic_pointer_cast<smt::SymbolicStructVariable>(m_context.variable(*var));
+			solAssert(structVar, "");
+			auto returnedValues = applyMap(returnedMembers, [&](string const& memberName) { return structVar->member(memberName); });
+			if (returnedValues.size() == 1)
+				defineExpr(_funCall, returnedValues.front());
+			else
+			{
+				auto symbTuple = dynamic_pointer_cast<smt::SymbolicTupleVariable>(m_context.expression(_funCall));
+				solAssert(symbTuple, "");
+				symbTuple->increaseIndex(); // Increasing the index explicitly since we cannot use defineExpr in this case.
+				auto const& symbComponents = symbTuple->components();
+				solAssert(symbComponents.size() == returnedValues.size(), "");
+				for (unsigned i = 0; i < symbComponents.size(); ++i)
+					m_context.addAssertion(symbTuple->component(i) == returnedValues.at(i));
+			}
+			break;
+		}
+		default: {} // Unsupported cases, do nothing and the getter will be abstracted.
+	}
 }
 
 void SMTEncoder::visitTypeConversion(FunctionCall const& _funCall)
@@ -1130,25 +1088,14 @@ void SMTEncoder::visitTypeConversion(FunctionCall const& _funCall)
 		return;
 	}
 
-	ArrayType const* arrayType = dynamic_cast<ArrayType const*>(argType);
-	if (auto sliceType = dynamic_cast<ArraySliceType const*>(argType))
-		arrayType = &sliceType->arrayType();
-
-	if (arrayType && arrayType->isByteArrayOrString() && smt::isFixedBytes(*funCallType))
-	{
-		auto array = std::dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(*argument));
-		bytesToFixedBytesAssertions(*array, _funCall);
-		return;
-	}
-
 	// TODO Simplify this whole thing for 0.8.0 where weird casts are disallowed.
 
 	unsigned argSize = argType->storageBytes();
 	unsigned castSize = funCallType->storageBytes();
 	bool castIsSigned = smt::isNumber(*funCallType) && smt::isSigned(funCallType);
 	bool argIsSigned = smt::isNumber(*argType) && smt::isSigned(argType);
-	std::optional<smtutil::Expression> symbMin;
-	std::optional<smtutil::Expression> symbMax;
+	optional<smtutil::Expression> symbMin;
+	optional<smtutil::Expression> symbMax;
 	if (smt::isNumber(*funCallType))
 	{
 		symbMin = smt::minValue(funCallType);
@@ -1232,14 +1179,6 @@ void SMTEncoder::visitTypeConversion(FunctionCall const& _funCall)
 	{
 		solAssert(smt::isNumber(*funCallType), "");
 
-		RationalNumberType const* rationalType = isConstant(*argument);
-		if (rationalType)
-		{
-			// The TypeChecker guarantees that a constant fits in the cast size.
-			defineExpr(_funCall, symbArg);
-			return;
-		}
-
 		auto const* fixedCast = dynamic_cast<FixedBytesType const*>(funCallType);
 		auto const* fixedArg = dynamic_cast<FixedBytesType const*>(argType);
 		if (fixedCast && fixedArg)
@@ -1264,7 +1203,7 @@ void SMTEncoder::visitTypeConversion(FunctionCall const& _funCall)
 void SMTEncoder::visitFunctionIdentifier(Identifier const& _identifier)
 {
 	auto const& fType = dynamic_cast<FunctionType const&>(*_identifier.annotation().type);
-	if (replaceUserTypes(fType.returnParameterTypes()).size() == 1)
+	if (fType.returnParameterTypes().size() == 1)
 	{
 		defineGlobalVariable(fType.identifier(), _identifier);
 		m_context.createExpression(_identifier, m_context.globalSymbol(fType.identifier()));
@@ -1277,15 +1216,7 @@ void SMTEncoder::visitStructConstructorCall(FunctionCall const& _funCall)
 	if (smt::isNonRecursiveStruct(*_funCall.annotation().type))
 	{
 		auto& structSymbolicVar = dynamic_cast<smt::SymbolicStructVariable&>(*m_context.expression(_funCall));
-		auto structType = dynamic_cast<StructType const*>(structSymbolicVar.type());
-		solAssert(structType, "");
-		auto const& structMembers = structType->structDefinition().members();
-		solAssert(structMembers.size() == _funCall.sortedArguments().size(), "");
-		auto args = _funCall.sortedArguments();
-		structSymbolicVar.assignAllMembers(applyMap(
-			ranges::views::zip(args, structMembers),
-			[this] (auto const& argMemberPair) { return expr(*argMemberPair.first, argMemberPair.second->type()); }
-		));
+		structSymbolicVar.assignAllMembers(applyMap(_funCall.sortedArguments(), [this](auto const& arg) { return expr(*arg); }));
 	}
 
 }
@@ -1303,7 +1234,7 @@ void SMTEncoder::endVisit(Literal const& _literal)
 		createExpr(_literal);
 
 		// Add constraints for the length and values as it is known.
-		auto symbArray = std::dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(_literal));
+		auto symbArray = dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(_literal));
 		solAssert(symbArray, "");
 
 		addArrayLiteralAssertions(
@@ -1317,50 +1248,12 @@ void SMTEncoder::endVisit(Literal const& _literal)
 
 void SMTEncoder::addArrayLiteralAssertions(
 	smt::SymbolicArrayVariable& _symArray,
-	std::vector<smtutil::Expression> const& _elementValues
+	vector<smtutil::Expression> const& _elementValues
 )
 {
 	m_context.addAssertion(_symArray.length() == _elementValues.size());
-
-	// Assert to the solver that _elementValues are exactly the elements at the beginning of the array.
-	// Since we create new symbolic representation for every array literal in the source file, we want to ensure that
-	// representations of two equal literals are also equal. For this reason we always start from constant-zero array.
-	// This ensures SMT-LIB arrays (which are infinite) are also equal beyond the length of the Solidity array literal.
-	auto type = _symArray.type();
-	smtAssert(type);
-	auto valueType = [&]() {
-		if (auto const* arrayType = dynamic_cast<ArrayType const*>(type))
-			return arrayType->baseType();
-		if (smt::isStringLiteral(*type))
-			return TypeProvider::stringMemory()->baseType();
-		smtAssert(false);
-	}();
-	auto tupleSort = std::dynamic_pointer_cast<smtutil::TupleSort>(smt::smtSort(*type));
-	auto sortSort = std::make_shared<smtutil::SortSort>(tupleSort->components.front());
-	smtutil::Expression arrayExpr = smtutil::Expression::const_array(smtutil::Expression(sortSort), smt::zeroValue(valueType));
-	smtAssert(arrayExpr.sort->kind == smtutil::Kind::Array);
 	for (size_t i = 0; i < _elementValues.size(); i++)
-		arrayExpr = smtutil::Expression::store(arrayExpr, smtutil::Expression(i), _elementValues[i]);
-	m_context.addAssertion(_symArray.elements() == arrayExpr);
-}
-
-void SMTEncoder::bytesToFixedBytesAssertions(
-	smt::SymbolicArrayVariable& _symArray,
-	Expression const& _fixedBytes
-)
-{
-	auto const& fixed = dynamic_cast<FixedBytesType const&>(*_fixedBytes.annotation().type);
-	auto intType = TypeProvider::uint256();
-	std::string suffix = std::to_string(_fixedBytes.id()) + "_" + std::to_string(m_context.newUniqueId());
-	smt::SymbolicIntVariable k(intType, intType, "k_" + suffix, m_context);
-	m_context.addAssertion(k.currentValue() == 0);
-	size_t n = fixed.numBytes();
-	for (size_t i = 0; i < n; i++)
-	{
-		auto kPrev = k.currentValue();
-		m_context.addAssertion((smtutil::Expression::select(_symArray.elements(), i) * (u256(1) << ((n - i - 1) * 8))) + kPrev == k.increaseIndex());
-	}
-	m_context.addAssertion(expr(_fixedBytes) == k.currentValue());
+		m_context.addAssertion(smtutil::Expression::select(_symArray.elements(), i) == _elementValues[i]);
 }
 
 void SMTEncoder::endVisit(Return const& _return)
@@ -1370,7 +1263,7 @@ void SMTEncoder::endVisit(Return const& _return)
 		auto returnParams = m_callStack.back().first->returnParameters();
 		if (returnParams.size() > 1)
 		{
-			auto const& symbTuple = std::dynamic_pointer_cast<smt::SymbolicTupleVariable>(m_context.expression(*_return.expression()));
+			auto const& symbTuple = dynamic_pointer_cast<smt::SymbolicTupleVariable>(m_context.expression(*_return.expression()));
 			solAssert(symbTuple, "");
 			solAssert(symbTuple->components().size() == returnParams.size(), "");
 
@@ -1389,89 +1282,59 @@ void SMTEncoder::endVisit(Return const& _return)
 
 bool SMTEncoder::visit(MemberAccess const& _memberAccess)
 {
-	createExpr(_memberAccess);
-
 	auto const& accessType = _memberAccess.annotation().type;
 	if (accessType->category() == Type::Category::Function)
-	{
-		auto const* functionType = dynamic_cast<FunctionType const*>(_memberAccess.annotation().type);
-		if (functionType && functionType->hasDeclaration())
-			defineExpr(
-				_memberAccess,
-				util::selectorFromSignatureU32(functionType->richIdentifier())
-			);
-
 		return true;
-	}
 
-	Expression const& memberExpr = innermostTuple(_memberAccess.expression());
+	createExpr(_memberAccess);
 
-	auto const& exprType = memberExpr.annotation().type;
+	auto const& exprType = _memberAccess.expression().annotation().type;
 	solAssert(exprType, "");
-
 	if (exprType->category() == Type::Category::Magic)
 	{
-		if (auto const* identifier = dynamic_cast<Identifier const*>(&memberExpr))
+		if (auto const* identifier = dynamic_cast<Identifier const*>(&_memberAccess.expression()))
 		{
 			auto const& name = identifier->name();
 			solAssert(name == "block" || name == "msg" || name == "tx", "");
-			auto memberName = _memberAccess.memberName();
-
-			// TODO remove this for 0.9.0
-			if (name == "block" && memberName == "difficulty")
-				memberName = "prevrandao";
-
-			defineExpr(_memberAccess, state().txMember(name + "." + memberName));
+			defineExpr(_memberAccess, m_context.state().txMember(name + "." + _memberAccess.memberName()));
 		}
-		else if (auto magicType = dynamic_cast<MagicType const*>(exprType))
+		else if (auto magicType = dynamic_cast<MagicType const*>(exprType); magicType->kind() == MagicType::Kind::MetaType)
 		{
-			if (magicType->kind() == MagicType::Kind::Block)
-				defineExpr(_memberAccess, state().txMember("block." + _memberAccess.memberName()));
-			else if (magicType->kind() == MagicType::Kind::Message)
-				defineExpr(_memberAccess, state().txMember("msg." + _memberAccess.memberName()));
-			else if (magicType->kind() == MagicType::Kind::Transaction)
-				defineExpr(_memberAccess, state().txMember("tx." + _memberAccess.memberName()));
-			else if (magicType->kind() == MagicType::Kind::MetaType)
+			auto const& memberName = _memberAccess.memberName();
+			if (memberName == "min" || memberName == "max")
 			{
-				auto const& memberName = _memberAccess.memberName();
-				if (memberName == "min" || memberName == "max")
-				{
-					if (IntegerType const* integerType = dynamic_cast<IntegerType const*>(magicType->typeArgument()))
-						defineExpr(_memberAccess, memberName == "min" ? integerType->minValue() : integerType->maxValue());
-					else if (EnumType const* enumType = dynamic_cast<EnumType const*>(magicType->typeArgument()))
-						defineExpr(_memberAccess, memberName == "min" ? enumType->minValue() : enumType->maxValue());
-				}
-				else if (memberName == "interfaceId")
-				{
-					ContractDefinition const& contract = dynamic_cast<ContractType const&>(*magicType->typeArgument()).contractDefinition();
-					defineExpr(_memberAccess, contract.interfaceId());
-				}
-				else
-					// NOTE: supporting name, creationCode, runtimeCode would be easy enough, but the bytes/string they return are not
-					//       at all usable in the SMT checker currently
-					m_unsupportedErrors.warning(
-						7507_error,
-						_memberAccess.location(),
-						"Assertion checker does not yet support this expression."
-					);
-
+				IntegerType const& integerType = dynamic_cast<IntegerType const&>(*magicType->typeArgument());
+				defineExpr(_memberAccess, memberName == "min" ? integerType.minValue() : integerType.maxValue());
 			}
+			else if (memberName == "interfaceId")
+			{
+				ContractDefinition const& contract = dynamic_cast<ContractType const&>(*magicType->typeArgument()).contractDefinition();
+				defineExpr(_memberAccess, contract.interfaceId());
+			}
+			else
+				// NOTE: supporting name, creationCode, runtimeCode would be easy enough, but the bytes/string they return are not
+				//       at all usable in the SMT checker currently
+				m_errorReporter.warning(
+					7507_error,
+					_memberAccess.location(),
+					"Assertion checker does not yet support this expression."
+				);
 		}
 		else
-			solAssert(false, "");
+			solUnimplementedAssert(false, "");
 
 		return false;
 	}
 	else if (smt::isNonRecursiveStruct(*exprType))
 	{
-		memberExpr.accept(*this);
-		auto const& symbStruct = std::dynamic_pointer_cast<smt::SymbolicStructVariable>(m_context.expression(memberExpr));
+		_memberAccess.expression().accept(*this);
+		auto const& symbStruct = dynamic_pointer_cast<smt::SymbolicStructVariable>(m_context.expression(_memberAccess.expression()));
 		defineExpr(_memberAccess, symbStruct->member(_memberAccess.memberName()));
 		return false;
 	}
 	else if (exprType->category() == Type::Category::TypeType)
 	{
-		auto const* decl = expressionToDeclaration(memberExpr);
+		auto const* decl = expressionToDeclaration(_memberAccess.expression());
 		if (dynamic_cast<EnumDefinition const*>(decl))
 		{
 			auto enumType = dynamic_cast<EnumType const*>(accessType);
@@ -1484,20 +1347,17 @@ bool SMTEncoder::visit(MemberAccess const& _memberAccess)
 		{
 			if (auto const* var = dynamic_cast<VariableDeclaration const*>(_memberAccess.annotation().referencedDeclaration))
 			{
-				if (var->isConstant())
-					defineExpr(_memberAccess, constantExpr(_memberAccess, *var));
-				else
-					defineExpr(_memberAccess, currentValue(*var));
+				defineExpr(_memberAccess, currentValue(*var));
 				return false;
 			}
 		}
 	}
 	else if (exprType->category() == Type::Category::Address)
 	{
-		memberExpr.accept(*this);
+		_memberAccess.expression().accept(*this);
 		if (_memberAccess.memberName() == "balance")
 		{
-			defineExpr(_memberAccess, state().balance(expr(memberExpr)));
+			defineExpr(_memberAccess, m_context.state().balance(expr(_memberAccess.expression())));
 			setSymbolicUnknownValue(*m_context.expression(_memberAccess), m_context);
 			m_uninterpretedTerms.insert(&_memberAccess);
 			return false;
@@ -1505,10 +1365,10 @@ bool SMTEncoder::visit(MemberAccess const& _memberAccess)
 	}
 	else if (exprType->category() == Type::Category::Array)
 	{
-		memberExpr.accept(*this);
+		_memberAccess.expression().accept(*this);
 		if (_memberAccess.memberName() == "length")
 		{
-			auto symbArray = std::dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(memberExpr));
+			auto symbArray = dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(_memberAccess.expression()));
 			solAssert(symbArray, "");
 			defineExpr(_memberAccess, symbArray->length());
 			m_uninterpretedTerms.insert(&_memberAccess);
@@ -1530,21 +1390,12 @@ bool SMTEncoder::visit(MemberAccess const& _memberAccess)
 		defineExpr(_memberAccess, functionType->externalIdentifier());
 		return false;
 	}
-	else if (exprType->category() == Type::Category::Module)
-	{
-		if (auto const* var = dynamic_cast<VariableDeclaration const*>(_memberAccess.annotation().referencedDeclaration))
-		{
-			solAssert(var->isConstant(), "");
-			defineExpr(_memberAccess, constantExpr(_memberAccess, *var));
-			return false;
-		}
-	}
-
-	m_unsupportedErrors.warning(
-		7650_error,
-		_memberAccess.location(),
-		"Assertion checker does not yet support this expression."
-	);
+	else
+		m_errorReporter.warning(
+			7650_error,
+			_memberAccess.location(),
+			"Assertion checker does not yet support this expression."
+		);
 
 	return true;
 }
@@ -1555,9 +1406,6 @@ void SMTEncoder::endVisit(IndexAccess const& _indexAccess)
 
 	if (_indexAccess.annotation().type->category() == Type::Category::TypeType)
 		return;
-
-	makeOutOfBoundsVerificationTarget(_indexAccess);
-
 	if (auto const* type = dynamic_cast<FixedBytesType const*>(_indexAccess.baseExpression().annotation().type))
 	{
 		smtutil::Expression base = expr(_indexAccess.baseExpression());
@@ -1591,15 +1439,12 @@ void SMTEncoder::endVisit(IndexAccess const& _indexAccess)
 		return;
 	}
 
-	std::shared_ptr<smt::SymbolicVariable> array;
+	shared_ptr<smt::SymbolicVariable> array;
 	if (auto const* id = dynamic_cast<Identifier const*>(&_indexAccess.baseExpression()))
 	{
 		auto varDecl = identifierToVariable(*id);
 		solAssert(varDecl, "");
 		array = m_context.variable(*varDecl);
-
-		if (varDecl && varDecl->isConstant())
-			m_context.addAssertion(currentValue(*varDecl) == expr(*id));
 	}
 	else
 	{
@@ -1607,10 +1452,9 @@ void SMTEncoder::endVisit(IndexAccess const& _indexAccess)
 		array = m_context.expression(_indexAccess.baseExpression());
 	}
 
-	auto arrayVar = std::dynamic_pointer_cast<smt::SymbolicArrayVariable>(array);
+	auto arrayVar = dynamic_pointer_cast<smt::SymbolicArrayVariable>(array);
 	solAssert(arrayVar, "");
-
-	Type const* baseType = _indexAccess.baseExpression().annotation().type;
+	TypePointer baseType = _indexAccess.baseExpression().annotation().type;
 	defineExpr(_indexAccess, smtutil::Expression::select(
 		arrayVar->elements(),
 		expr(*_indexAccess.indexExpression(), keyType(baseType))
@@ -1636,6 +1480,22 @@ void SMTEncoder::arrayAssignment()
 
 void SMTEncoder::indexOrMemberAssignment(Expression const& _expr, smtutil::Expression const& _rightHandSide)
 {
+	if (auto const* memberAccess = dynamic_cast<MemberAccess const*>(&_expr))
+	{
+		if (dynamic_cast<ContractDefinition const*>(expressionToDeclaration(memberAccess->expression())))
+		{
+			if (auto const* var = dynamic_cast<VariableDeclaration const*>(memberAccess->annotation().referencedDeclaration))
+			{
+				if (var->hasReferenceOrMappingType())
+					resetReferences(*var);
+
+				assignment(*var, _rightHandSide);
+				defineExpr(_expr, currentValue(*var));
+				return;
+			}
+		}
+	}
+
 	auto toStore = _rightHandSide;
 	auto const* lastExpr = &_expr;
 	while (true)
@@ -1646,12 +1506,12 @@ void SMTEncoder::indexOrMemberAssignment(Expression const& _expr, smtutil::Expre
 			if (dynamic_cast<Identifier const*>(&base))
 				base.accept(*this);
 
-			Type const* baseType = base.annotation().type;
+			TypePointer baseType = base.annotation().type;
 			auto indexExpr = expr(*indexAccess->indexExpression(), keyType(baseType));
-			auto symbArray = std::dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(base));
+			auto symbArray = dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(base));
 			solAssert(symbArray, "");
 			toStore = smtutil::Expression::tuple_constructor(
-				smtutil::Expression(std::make_shared<smtutil::SortSort>(smt::smtSort(*baseType)), baseType->toString(true)),
+				smtutil::Expression(make_shared<smtutil::SortSort>(smt::smtSort(*baseType)), baseType->toString(true)),
 				{smtutil::Expression::store(symbArray->elements(), indexExpr, toStore), symbArray->length()}
 			);
 			defineExpr(*indexAccess, smtutil::Expression::select(
@@ -1671,23 +1531,15 @@ void SMTEncoder::indexOrMemberAssignment(Expression const& _expr, smtutil::Expre
 				structType && structType->recursive()
 			)
 			{
-				m_unsupportedErrors.warning(
+				m_errorReporter.warning(
 					4375_error,
 					memberAccess->location(),
 					"Assertion checker does not support recursive structs."
 				);
 				return;
 			}
-			if (auto varDecl = identifierToVariable(*memberAccess))
-			{
-				if (varDecl->hasReferenceOrMappingType())
-					resetReferences(*varDecl);
 
-				assignment(*varDecl, toStore);
-				break;
-			}
-
-			auto symbStruct = std::dynamic_pointer_cast<smt::SymbolicStructVariable>(m_context.expression(base));
+			auto symbStruct = dynamic_pointer_cast<smt::SymbolicStructVariable>(m_context.expression(base));
 			solAssert(symbStruct, "");
 			symbStruct->assignMember(memberAccess->memberName(), toStore);
 			toStore = symbStruct->currentValue();
@@ -1725,7 +1577,7 @@ void SMTEncoder::arrayPush(FunctionCall const& _funCall)
 {
 	auto memberAccess = dynamic_cast<MemberAccess const*>(&_funCall.expression());
 	solAssert(memberAccess, "");
-	auto symbArray = std::dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(memberAccess->expression()));
+	auto symbArray = dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(memberAccess->expression()));
 	solAssert(symbArray, "");
 	auto oldLength = symbArray->length();
 	m_context.addAssertion(oldLength >= 0);
@@ -1750,16 +1602,16 @@ void SMTEncoder::arrayPush(FunctionCall const& _funCall)
 	m_context.addAssertion(symbArray->length() == oldLength + 1);
 
 	if (arguments.empty())
-		defineExpr(_funCall, element);
+		defineExpr(_funCall, smtutil::Expression::select(symbArray->elements(), oldLength));
 
-	assignment(memberAccess->expression(), symbArray->currentValue());
+	arrayPushPopAssign(memberAccess->expression(), symbArray->currentValue());
 }
 
 void SMTEncoder::arrayPop(FunctionCall const& _funCall)
 {
-	auto memberAccess = dynamic_cast<MemberAccess const*>(cleanExpression(_funCall.expression()));
+	auto memberAccess = dynamic_cast<MemberAccess const*>(&_funCall.expression());
 	solAssert(memberAccess, "");
-	auto symbArray = std::dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(memberAccess->expression()));
+	auto symbArray = dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(memberAccess->expression()));
 	solAssert(symbArray, "");
 
 	makeArrayPopVerificationTarget(_funCall);
@@ -1776,16 +1628,63 @@ void SMTEncoder::arrayPop(FunctionCall const& _funCall)
 	);
 	m_context.addAssertion(symbArray->length() == newLength);
 
-	assignment(memberAccess->expression(), symbArray->currentValue());
+	arrayPushPopAssign(memberAccess->expression(), symbArray->currentValue());
 }
 
-void SMTEncoder::defineGlobalVariable(std::string const& _name, Expression const& _expr, bool _increaseIndex)
+void SMTEncoder::arrayPushPopAssign(Expression const& _expr, smtutil::Expression const& _array)
+{
+	Expression const* expr = innermostTuple(_expr);
+
+	if (auto const* id = dynamic_cast<Identifier const*>(expr))
+	{
+		auto varDecl = identifierToVariable(*id);
+		solAssert(varDecl, "");
+		if (varDecl->hasReferenceOrMappingType())
+			resetReferences(*varDecl);
+		m_context.addAssertion(m_context.newValue(*varDecl) == _array);
+		m_context.expression(*id)->increaseIndex();
+		defineExpr(*id,currentValue(*varDecl));
+	}
+	else if (
+		dynamic_cast<IndexAccess const*>(expr) ||
+		dynamic_cast<MemberAccess const*>(expr)
+	)
+		indexOrMemberAssignment(_expr, _array);
+	else if (auto const* funCall = dynamic_cast<FunctionCall const*>(expr))
+	{
+		FunctionType const& funType = dynamic_cast<FunctionType const&>(*funCall->expression().annotation().type);
+		// Push cannot occur on an expression that is itself a ByteArrayPush, i.e., bytes.push().push() is not possible.
+		solAssert(funType.kind() != FunctionType::Kind::ByteArrayPush, "");
+		if (funType.kind() == FunctionType::Kind::ArrayPush)
+		{
+			auto memberAccess = dynamic_cast<MemberAccess const*>(&funCall->expression());
+			solAssert(memberAccess, "");
+			auto symbArray = dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(memberAccess->expression()));
+			solAssert(symbArray, "");
+
+			auto oldLength = symbArray->length();
+			auto store = smtutil::Expression::store(
+				symbArray->elements(),
+				symbArray->length() - 1,
+				_array
+			);
+			symbArray->increaseIndex();
+			m_context.addAssertion(symbArray->elements() == store);
+			m_context.addAssertion(symbArray->length() == oldLength);
+			arrayPushPopAssign(memberAccess->expression(), symbArray->currentValue());
+		}
+	}
+	else
+		solAssert(false, "");
+}
+
+void SMTEncoder::defineGlobalVariable(string const& _name, Expression const& _expr, bool _increaseIndex)
 {
 	if (!m_context.knownGlobalSymbol(_name))
 	{
 		bool abstract = m_context.createGlobalSymbol(_name, _expr);
 		if (abstract)
-			m_unsupportedErrors.warning(
+			m_errorReporter.warning(
 				1695_error,
 				_expr.location(),
 				"Assertion checker does not yet support this global variable."
@@ -1795,7 +1694,7 @@ void SMTEncoder::defineGlobalVariable(std::string const& _name, Expression const
 		m_context.globalSymbol(_name)->increaseIndex();
 	// The default behavior is not to increase the index since
 	// most of the global values stay the same throughout a tx.
-	if (isSupportedType(*_expr.annotation().type))
+	if (smt::isSupportedType(*_expr.annotation().type))
 		defineExpr(_expr, m_context.globalSymbol(_name)->currentValue());
 }
 
@@ -1836,7 +1735,7 @@ void SMTEncoder::arithmeticOperation(BinaryOperation const& _op)
 		break;
 	}
 	default:
-		m_unsupportedErrors.warning(
+		m_errorReporter.warning(
 			5188_error,
 			_op.location(),
 			"Assertion checker does not yet implement this operator."
@@ -1844,15 +1743,15 @@ void SMTEncoder::arithmeticOperation(BinaryOperation const& _op)
 	}
 }
 
-std::pair<smtutil::Expression, smtutil::Expression> SMTEncoder::arithmeticOperation(
+pair<smtutil::Expression, smtutil::Expression> SMTEncoder::arithmeticOperation(
 	Token _op,
 	smtutil::Expression const& _left,
 	smtutil::Expression const& _right,
-	Type const* _commonType,
+	TypePointer const& _commonType,
 	Expression const& _operation
 )
 {
-	static std::set<Token> validOperators{
+	static set<Token> validOperators{
 		Token::Add,
 		Token::Sub,
 		Token::Mul,
@@ -1899,7 +1798,7 @@ std::pair<smtutil::Expression, smtutil::Expression> SMTEncoder::arithmeticOperat
 		// - RHS is -1
 		// the result is then -(type.min), which wraps back to type.min
 		smtutil::Expression maxLeft = _left == smt::minValue(*intType);
-		smtutil::Expression minusOneRight = _right == std::numeric_limits<size_t >::max();
+		smtutil::Expression minusOneRight = _right == numeric_limits<size_t >::max();
 		smtutil::Expression wrap = smtutil::Expression::ite(maxLeft && minusOneRight, smt::minValue(*intType), valueUnbounded);
 		return {wrap, valueUnbounded};
 	}
@@ -1908,7 +1807,7 @@ std::pair<smtutil::Expression, smtutil::Expression> SMTEncoder::arithmeticOperat
 	auto symbMax = smt::maxValue(*intType);
 
 	smtutil::Expression intValueRange = (0 - symbMin) + symbMax + 1;
-	std::string suffix = std::to_string(_operation.id()) + "_" + std::to_string(m_context.newUniqueId());
+	string suffix = to_string(_operation.id()) + "_" + to_string(m_context.newUniqueId());
 	smt::SymbolicIntVariable k(intType, intType, "k_" + suffix, m_context);
 	smt::SymbolicIntVariable m(intType, intType, "m_" + suffix, m_context);
 
@@ -1939,10 +1838,10 @@ smtutil::Expression SMTEncoder::bitwiseOperation(
 	Token _op,
 	smtutil::Expression const& _left,
 	smtutil::Expression const& _right,
-	Type const* _commonType
+	TypePointer const& _commonType
 )
 {
-	static std::set<Token> validOperators{
+	static set<Token> validOperators{
 		Token::BitAnd,
 		Token::BitOr,
 		Token::BitXor,
@@ -1958,7 +1857,7 @@ smtutil::Expression SMTEncoder::bitwiseOperation(
 	auto bvLeft = smtutil::Expression::int2bv(_left, bvSize);
 	auto bvRight = smtutil::Expression::int2bv(_right, bvSize);
 
-	std::optional<smtutil::Expression> result;
+	optional<smtutil::Expression> result;
 	switch (_op)
 	{
 		case Token::BitAnd:
@@ -1991,18 +1890,17 @@ smtutil::Expression SMTEncoder::bitwiseOperation(
 
 void SMTEncoder::compareOperation(BinaryOperation const& _op)
 {
-	auto commonType = _op.annotation().commonType;
+	auto const& commonType = _op.annotation().commonType;
 	solAssert(commonType, "");
-
-	if (isSupportedType(*commonType))
+	if (smt::isSupportedType(*commonType))
 	{
 		smtutil::Expression left(expr(_op.leftExpression(), commonType));
 		smtutil::Expression right(expr(_op.rightExpression(), commonType));
 		Token op = _op.getOperator();
-		std::shared_ptr<smtutil::Expression> value;
+		shared_ptr<smtutil::Expression> value;
 		if (smt::isNumber(*commonType))
 		{
-			value = std::make_shared<smtutil::Expression>(
+			value = make_shared<smtutil::Expression>(
 				op == Token::Equal ? (left == right) :
 				op == Token::NotEqual ? (left != right) :
 				op == Token::LessThan ? (left < right) :
@@ -2014,7 +1912,7 @@ void SMTEncoder::compareOperation(BinaryOperation const& _op)
 		else // Bool
 		{
 			solUnimplementedAssert(smt::isBool(*commonType), "Operation not yet supported");
-			value = std::make_shared<smtutil::Expression>(
+			value = make_shared<smtutil::Expression>(
 				op == Token::Equal ? (left == right) :
 				/*op == Token::NotEqual*/ (left != right)
 			);
@@ -2023,7 +1921,7 @@ void SMTEncoder::compareOperation(BinaryOperation const& _op)
 		defineExpr(_op, *value);
 	}
 	else
-		m_unsupportedErrors.warning(
+		m_errorReporter.warning(
 			7229_error,
 			_op.location(),
 			"Assertion checker does not yet implement the type " + _op.annotation().commonType->toString() + " for comparisons"
@@ -2040,13 +1938,13 @@ void SMTEncoder::booleanOperation(BinaryOperation const& _op)
 	if (_op.getOperator() == Token::And)
 	{
 		auto indicesAfterSecond = visitBranch(&_op.rightExpression(), expr(_op.leftExpression())).first;
-		mergeVariables(!expr(_op.leftExpression()), copyVariableIndices(), indicesAfterSecond);
+		mergeVariables(touchedVariables(_op.rightExpression()), !expr(_op.leftExpression()), copyVariableIndices(), indicesAfterSecond);
 		defineExpr(_op, expr(_op.leftExpression()) && expr(_op.rightExpression()));
 	}
 	else
 	{
 		auto indicesAfterSecond = visitBranch(&_op.rightExpression(), !expr(_op.leftExpression())).first;
-		mergeVariables(expr(_op.leftExpression()), copyVariableIndices(), indicesAfterSecond);
+		mergeVariables(touchedVariables(_op.rightExpression()), expr(_op.leftExpression()), copyVariableIndices(), indicesAfterSecond);
 		defineExpr(_op, expr(_op.leftExpression()) || expr(_op.rightExpression()));
 	}
 }
@@ -2076,17 +1974,14 @@ void SMTEncoder::bitwiseNotOperation(UnaryOperation const& _op)
 	defineExpr(_op, smtutil::Expression::bv2int(~bvOperand, isSigned));
 }
 
-std::pair<smtutil::Expression, smtutil::Expression> SMTEncoder::divModWithSlacks(
+pair<smtutil::Expression, smtutil::Expression> SMTEncoder::divModWithSlacks(
 	smtutil::Expression _left,
 	smtutil::Expression _right,
 	IntegerType const& _type
 )
 {
-	if (m_settings.divModNoSlacks)
-		return {_left / _right, _left % _right};
-
 	IntegerType const* intType = &_type;
-	std::string suffix = "div_mod_" + std::to_string(m_context.newUniqueId());
+	string suffix = "div_mod_" + to_string(m_context.newUniqueId());
 	smt::SymbolicIntVariable dSymb(intType, intType, "d_" + suffix, m_context);
 	smt::SymbolicIntVariable rSymb(intType, intType, "r_" + suffix, m_context);
 	auto d = dSymb.currentValue();
@@ -2109,15 +2004,10 @@ std::pair<smtutil::Expression, smtutil::Expression> SMTEncoder::divModWithSlacks
 	return {divResult, modResult};
 }
 
-void SMTEncoder::assignment(Expression const& _left, smtutil::Expression const& _right)
-{
-	assignment(_left, _right, _left.annotation().type);
-}
-
 void SMTEncoder::assignment(
 	Expression const& _left,
 	smtutil::Expression const& _right,
-	Type const* _type
+	TypePointer const& _type
 )
 {
 	solAssert(
@@ -2125,71 +2015,37 @@ void SMTEncoder::assignment(
 		"Tuple assignments should be handled by tupleAssignment."
 	);
 
-	Expression const* left = cleanExpression(_left);
+	Expression const* left = innermostTuple(_left);
 
-	if (!isSupportedType(*_type))
+	if (!smt::isSupportedType(*_type))
 	{
 		// Give it a new index anyway to keep the SSA scheme sound.
 		if (auto varDecl = identifierToVariable(*left))
 			m_context.newValue(*varDecl);
 	}
 	else if (auto varDecl = identifierToVariable(*left))
-	{
-		if (varDecl->hasReferenceOrMappingType())
-			resetReferences(*varDecl);
 		assignment(*varDecl, _right);
-	}
 	else if (
 		dynamic_cast<IndexAccess const*>(left) ||
 		dynamic_cast<MemberAccess const*>(left)
 	)
 		indexOrMemberAssignment(*left, _right);
-	else if (auto const* funCall = dynamic_cast<FunctionCall const*>(left))
-	{
-		if (auto funType = dynamic_cast<FunctionType const*>(funCall->expression().annotation().type))
-		{
-			if (funType->kind() == FunctionType::Kind::ArrayPush)
-			{
-				auto memberAccess = dynamic_cast<MemberAccess const*>(&funCall->expression());
-				solAssert(memberAccess, "");
-				auto symbArray = std::dynamic_pointer_cast<smt::SymbolicArrayVariable>(m_context.expression(memberAccess->expression()));
-				solAssert(symbArray, "");
-
-				auto oldLength = symbArray->length();
-				auto store = smtutil::Expression::store(
-					symbArray->elements(),
-					symbArray->length() - 1,
-					_right
-				);
-				symbArray->increaseIndex();
-				m_context.addAssertion(symbArray->elements() == store);
-				m_context.addAssertion(symbArray->length() == oldLength);
-				assignment(memberAccess->expression(), symbArray->currentValue());
-			}
-			else if (funType->kind() == FunctionType::Kind::Internal)
-			{
-				for (auto type: replaceUserTypes(funType->returnParameterTypes()))
-					if (type->category() == Type::Category::Mapping || dynamic_cast<ReferenceType const*>(type))
-						resetReferences(type);
-			}
-		}
-	}
 	else
 		solAssert(false, "");
 }
 
 void SMTEncoder::tupleAssignment(Expression const& _left, Expression const& _right)
 {
-	auto lTuple = dynamic_cast<TupleExpression const*>(&innermostTuple(_left));
+	auto lTuple = dynamic_cast<TupleExpression const*>(innermostTuple(_left));
 	solAssert(lTuple, "");
-	Expression const& right = innermostTuple(_right);
+	Expression const* right = innermostTuple(_right);
 
 	auto const& lComponents = lTuple->components();
 
 	// If both sides are tuple expressions, we individually and potentially
 	// recursively assign each pair of components.
 	// This is because of potential type conversion.
-	if (auto rTuple = dynamic_cast<TupleExpression const*>(&right))
+	if (auto rTuple = dynamic_cast<TupleExpression const*>(right))
 	{
 		auto const& rComponents = rTuple->components();
 		solAssert(lComponents.size() == rComponents.size(), "");
@@ -2210,13 +2066,13 @@ void SMTEncoder::tupleAssignment(Expression const& _left, Expression const& _rig
 	}
 	else
 	{
-		auto rType = dynamic_cast<TupleType const*>(right.annotation().type);
+		auto rType = dynamic_cast<TupleType const*>(right->annotation().type);
 		solAssert(rType, "");
 
 		auto const& rComponents = rType->components();
 		solAssert(lComponents.size() == rComponents.size(), "");
 
-		auto symbRight = expr(right);
+		auto symbRight = expr(*right);
 		solAssert(symbRight.sort->kind == smtutil::Kind::Tuple, "");
 
 		for (unsigned i = 0; i < lComponents.size(); ++i)
@@ -2227,14 +2083,14 @@ void SMTEncoder::tupleAssignment(Expression const& _left, Expression const& _rig
 
 smtutil::Expression SMTEncoder::compoundAssignment(Assignment const& _assignment)
 {
-	static std::map<Token, Token> const compoundToArithmetic{
+	static map<Token, Token> const compoundToArithmetic{
 		{Token::AssignAdd, Token::Add},
 		{Token::AssignSub, Token::Sub},
 		{Token::AssignMul, Token::Mul},
 		{Token::AssignDiv, Token::Div},
 		{Token::AssignMod, Token::Mod}
 	};
-	static std::map<Token, Token> const compoundToBitwise{
+	static map<Token, Token> const compoundToBitwise{
 		{Token::AssignBitAnd, Token::BitAnd},
 		{Token::AssignBitOr, Token::BitOr},
 		{Token::AssignBitXor, Token::BitXor},
@@ -2265,12 +2121,12 @@ smtutil::Expression SMTEncoder::compoundAssignment(Assignment const& _assignment
 	return values.first;
 }
 
-void SMTEncoder::expressionToTupleAssignment(std::vector<std::shared_ptr<VariableDeclaration>> const& _variables, Expression const& _rhs)
+void SMTEncoder::expressionToTupleAssignment(vector<shared_ptr<VariableDeclaration>> const& _variables, Expression const& _rhs)
 {
 	auto symbolicVar = m_context.expression(_rhs);
 	if (_variables.size() > 1)
 	{
-		auto symbTuple = std::dynamic_pointer_cast<smt::SymbolicTupleVariable>(symbolicVar);
+		auto symbTuple = dynamic_pointer_cast<smt::SymbolicTupleVariable>(symbolicVar);
 		solAssert(symbTuple, "");
 		auto const& symbComponents = symbTuple->components();
 		solAssert(symbComponents.size() == _variables.size(), "");
@@ -2308,7 +2164,7 @@ void SMTEncoder::assignment(VariableDeclaration const& _variable, Expression con
 
 void SMTEncoder::assignment(VariableDeclaration const& _variable, smtutil::Expression const& _value)
 {
-	Type const* type = _variable.type();
+	TypePointer type = _variable.type();
 	if (type->category() == Type::Category::Mapping)
 		arrayAssignment();
 	assignment(*m_context.variable(_variable), _value);
@@ -2319,7 +2175,7 @@ void SMTEncoder::assignment(smt::SymbolicVariable& _symVar, smtutil::Expression 
 	m_context.addAssertion(_symVar.increaseIndex() == _value);
 }
 
-std::pair<SMTEncoder::VariableIndices, smtutil::Expression> SMTEncoder::visitBranch(
+pair<SMTEncoder::VariableIndices, smtutil::Expression> SMTEncoder::visitBranch(
 	ASTNode const* _statement,
 	smtutil::Expression _condition
 )
@@ -2327,7 +2183,7 @@ std::pair<SMTEncoder::VariableIndices, smtutil::Expression> SMTEncoder::visitBra
 	return visitBranch(_statement, &_condition);
 }
 
-std::pair<SMTEncoder::VariableIndices, smtutil::Expression> SMTEncoder::visitBranch(
+pair<SMTEncoder::VariableIndices, smtutil::Expression> SMTEncoder::visitBranch(
 	ASTNode const* _statement,
 	smtutil::Expression const* _condition
 )
@@ -2344,7 +2200,7 @@ std::pair<SMTEncoder::VariableIndices, smtutil::Expression> SMTEncoder::visitBra
 	return {indicesAfterBranch, pathConditionOnExit};
 }
 
-void SMTEncoder::initializeFunctionCallParameters(CallableDeclaration const& _function, std::vector<smtutil::Expression> const& _callArgs)
+void SMTEncoder::initializeFunctionCallParameters(CallableDeclaration const& _function, vector<smtutil::Expression> const& _callArgs)
 {
 	auto const& funParams = _function.parameters();
 	solAssert(funParams.size() == _callArgs.size(), "");
@@ -2356,7 +2212,7 @@ void SMTEncoder::initializeFunctionCallParameters(CallableDeclaration const& _fu
 				m_arrayAssignmentHappened = true;
 		}
 
-	std::vector<VariableDeclaration const*> localVars;
+	vector<VariableDeclaration const*> localVars;
 	if (auto const* fun = dynamic_cast<FunctionDefinition const*>(&_function))
 		localVars = localVariablesIncludingModifiers(*fun, m_currentContract);
 	else
@@ -2453,11 +2309,6 @@ void SMTEncoder::resetStorageVariables()
 	});
 }
 
-void SMTEncoder::resetBalances()
-{
-	state().newBalances();
-}
-
 void SMTEncoder::resetReferences(VariableDeclaration const& _varDecl)
 {
 	m_context.resetVariables([&](VariableDeclaration const& _var) {
@@ -2472,72 +2323,88 @@ void SMTEncoder::resetReferences(VariableDeclaration const& _varDecl)
 	});
 }
 
-void SMTEncoder::resetReferences(Type const* _type)
+void SMTEncoder::resetReferences(TypePointer _type)
 {
 	m_context.resetVariables([&](VariableDeclaration const& _var) {
 		return sameTypeOrSubtype(_var.type(), _type);
 	});
 }
 
-bool SMTEncoder::sameTypeOrSubtype(Type const* _a, Type const* _b)
+bool SMTEncoder::sameTypeOrSubtype(TypePointer _a, TypePointer _b)
 {
-	bool foundSame = false;
-
-	solidity::util::BreadthFirstSearch<Type const*> bfs{{_a}};
-	bfs.run([&](auto _type, auto&& _addChild) {
-		if (*typeWithoutPointer(_b) == *typeWithoutPointer(_type))
+	TypePointer prefix = _a;
+	while (
+		prefix->category() == Type::Category::Mapping ||
+		prefix->category() == Type::Category::Array
+	)
+	{
+		if (*typeWithoutPointer(_b) == *typeWithoutPointer(prefix))
+			return true;
+		if (prefix->category() == Type::Category::Mapping)
 		{
-			foundSame = true;
-			bfs.abort();
+			auto mapPrefix = dynamic_cast<MappingType const*>(prefix);
+			solAssert(mapPrefix, "");
+			prefix = mapPrefix->valueType();
 		}
-		if (auto const* mapType = dynamic_cast<MappingType const*>(_type))
-			_addChild(mapType->valueType());
-		else if (auto const* arrayType = dynamic_cast<ArrayType const*>(_type))
-			_addChild(arrayType->baseType());
-		else if (auto const* structType = dynamic_cast<StructType const*>(_type))
-			for (auto const& member: structType->nativeMembers(nullptr))
-				_addChild(member.type);
-	});
-
-	return foundSame;
+		else
+		{
+			auto arrayPrefix = dynamic_cast<ArrayType const*>(prefix);
+			solAssert(arrayPrefix, "");
+			prefix = arrayPrefix->baseType();
+		}
+	}
+	return false;
 }
 
-bool SMTEncoder::isSupportedType(Type const& _type) const
-{
-	return smt::isSupportedType(*underlyingType(&_type));
-}
-
-Type const* SMTEncoder::typeWithoutPointer(Type const* _type)
+TypePointer SMTEncoder::typeWithoutPointer(TypePointer const& _type)
 {
 	if (auto refType = dynamic_cast<ReferenceType const*>(_type))
 		return TypeProvider::withLocationIfReference(refType->location(), _type);
 	return _type;
 }
 
-void SMTEncoder::mergeVariables(smtutil::Expression const& _condition, VariableIndices const& _indicesEndTrue, VariableIndices const& _indicesEndFalse)
+void SMTEncoder::mergeVariables(set<VariableDeclaration const*> const& _variables, smtutil::Expression const& _condition, VariableIndices const& _indicesEndTrue, VariableIndices const& _indicesEndFalse)
 {
-	for (auto const& entry: _indicesEndTrue)
+	auto cmp = [] (VariableDeclaration const* var1, VariableDeclaration const* var2) {
+		return var1->id() < var2->id();
+	};
+	set<VariableDeclaration const*, decltype(cmp)> sortedVars(begin(_variables), end(_variables), cmp);
+
+	/// Knowledge about references is erased if a reference is assigned,
+	/// so those also need their SSA's merged.
+	/// This does not cause scope harm since the symbolic variables
+	/// are kept alive.
+	for (auto const& var: _indicesEndTrue)
 	{
-		VariableDeclaration const* var = entry.first;
-		auto trueIndex = entry.second;
-		if (_indicesEndFalse.count(var) && _indicesEndFalse.at(var) != trueIndex)
-		{
-			m_context.addAssertion(m_context.newValue(*var) == smtutil::Expression::ite(
-				_condition,
-				valueAtIndex(*var, trueIndex),
-				valueAtIndex(*var, _indicesEndFalse.at(var)))
-			);
-		}
+		solAssert(_indicesEndFalse.count(var.first), "");
+		if (
+			_indicesEndFalse.at(var.first) != var.second &&
+			!sortedVars.count(var.first)
+		)
+			sortedVars.insert(var.first);
+	}
+
+	for (auto const* decl: sortedVars)
+	{
+		solAssert(_indicesEndTrue.count(decl) && _indicesEndFalse.count(decl), "");
+		auto trueIndex = static_cast<unsigned>(_indicesEndTrue.at(decl));
+		auto falseIndex = static_cast<unsigned>(_indicesEndFalse.at(decl));
+		solAssert(trueIndex != falseIndex, "");
+		m_context.addAssertion(m_context.newValue(*decl) == smtutil::Expression::ite(
+			_condition,
+			valueAtIndex(*decl, trueIndex),
+			valueAtIndex(*decl, falseIndex))
+		);
 	}
 }
 
-smtutil::Expression SMTEncoder::currentValue(VariableDeclaration const& _decl) const
+smtutil::Expression SMTEncoder::currentValue(VariableDeclaration const& _decl)
 {
 	solAssert(m_context.knownVariable(_decl), "");
 	return m_context.variable(_decl)->currentValue();
 }
 
-smtutil::Expression SMTEncoder::valueAtIndex(VariableDeclaration const& _decl, unsigned _index) const
+smtutil::Expression SMTEncoder::valueAtIndex(VariableDeclaration const& _decl, unsigned _index)
 {
 	solAssert(m_context.knownVariable(_decl), "");
 	return m_context.variable(_decl)->valueAtIndex(_index);
@@ -2550,7 +2417,7 @@ bool SMTEncoder::createVariable(VariableDeclaration const& _varDecl)
 	bool abstract = m_context.createVariable(_varDecl);
 	if (abstract)
 	{
-		m_unsupportedErrors.warning(
+		m_errorReporter.warning(
 			8115_error,
 			_varDecl.location(),
 			"Assertion checker does not yet support the type of this variable."
@@ -2560,22 +2427,22 @@ bool SMTEncoder::createVariable(VariableDeclaration const& _varDecl)
 	return true;
 }
 
-smtutil::Expression SMTEncoder::expr(Expression const& _e, Type const* _targetType)
+smtutil::Expression SMTEncoder::expr(Expression const& _e, TypePointer _targetType)
 {
 	if (!m_context.knownExpression(_e))
 	{
-		m_unsupportedErrors.warning(6031_error, _e.location(), "Internal error: Expression undefined for SMT solver." );
+		m_errorReporter.warning(6031_error, _e.location(), "Internal error: Expression undefined for SMT solver." );
 		createExpr(_e);
 	}
 
-	return m_context.expression(_e)->currentValue(underlyingType(_targetType));
+	return m_context.expression(_e)->currentValue(_targetType);
 }
 
 void SMTEncoder::createExpr(Expression const& _e)
 {
 	bool abstract = m_context.createExpression(_e);
 	if (abstract)
-		m_unsupportedErrors.warning(
+		m_errorReporter.warning(
 			8364_error,
 			_e.location(),
 			"Assertion checker does not yet implement type " + _e.annotation().type->toString()
@@ -2584,37 +2451,19 @@ void SMTEncoder::createExpr(Expression const& _e)
 
 void SMTEncoder::defineExpr(Expression const& _e, smtutil::Expression _value)
 {
-	auto type = _e.annotation().type;
 	createExpr(_e);
 	solAssert(_value.sort->kind != smtutil::Kind::Function, "Equality operator applied to type that is not fully supported");
-	if (!smt::isInaccessibleDynamic(*type))
-		m_context.addAssertion(expr(_e) == _value);
+	m_context.addAssertion(expr(_e) == _value);
 
-	if (m_checked && smt::isNumber(*type))
+	if (
+		auto type = _e.annotation().type;
+		m_checked && smt::isNumber(*type)
+	)
 		m_context.addAssertion(smtutil::Expression::implies(
 			currentPathConditions(),
 			smt::symbolicUnknownConstraints(expr(_e), type)
 		));
-}
 
-void SMTEncoder::defineExpr(Expression const& _e, std::vector<std::optional<smtutil::Expression>> const& _values)
-{
-	if (_values.size() == 1 && _values.front())
-	{
-		defineExpr(_e, *_values.front());
-		return;
-	}
-	auto const& symbTuple = std::dynamic_pointer_cast<smt::SymbolicTupleVariable>(m_context.expression(_e));
-	solAssert(symbTuple, "");
-	symbTuple->increaseIndex();
-	auto const& symbComponents = symbTuple->components();
-	solAssert(symbComponents.size() == _values.size(), "");
-	auto tupleType = dynamic_cast<TupleType const*>(_e.annotation().type);
-	solAssert(tupleType, "");
-	solAssert(tupleType->components().size() == symbComponents.size(), "");
-	for (unsigned i = 0; i < symbComponents.size(); ++i)
-		if (_values[i] && !smt::isInaccessibleDynamic(*tupleType->components()[i]))
-			m_context.addAssertion(symbTuple->component(i) == *_values[i]);
 }
 
 void SMTEncoder::popPathCondition()
@@ -2643,18 +2492,18 @@ smtutil::Expression SMTEncoder::currentPathConditions()
 	return m_pathConditions.back();
 }
 
-SecondarySourceLocation SMTEncoder::callStackMessage(std::vector<CallStackEntry> const& _callStack)
+SecondarySourceLocation SMTEncoder::callStackMessage(vector<CallStackEntry> const& _callStack)
 {
 	SecondarySourceLocation callStackLocation;
 	solAssert(!_callStack.empty(), "");
 	callStackLocation.append("Callstack:", SourceLocation());
-	for (auto const& call: _callStack | ranges::views::reverse)
+	for (auto const& call: _callStack | boost::adaptors::reversed)
 		if (call.second)
 			callStackLocation.append("", call.second->location());
 	return callStackLocation;
 }
 
-std::pair<CallableDeclaration const*, ASTNode const*> SMTEncoder::popCallStack()
+pair<CallableDeclaration const*, ASTNode const*> SMTEncoder::popCallStack()
 {
 	solAssert(!m_callStack.empty(), "");
 	auto lastCalled = m_callStack.back();
@@ -2685,14 +2534,6 @@ bool SMTEncoder::visitedFunction(FunctionDefinition const* _funDef)
 	return false;
 }
 
-ContractDefinition const* SMTEncoder::currentScopeContract()
-{
-	for (auto&& f: m_callStack | ranges::views::reverse | ranges::views::keys)
-		if (auto fun = dynamic_cast<FunctionDefinition const*>(f))
-			return fun->annotation().contract;
-	return nullptr;
-}
-
 SMTEncoder::VariableIndices SMTEncoder::copyVariableIndices()
 {
 	VariableIndices indices;
@@ -2704,7 +2545,7 @@ SMTEncoder::VariableIndices SMTEncoder::copyVariableIndices()
 void SMTEncoder::resetVariableIndices(VariableIndices const& _indices)
 {
 	for (auto const& var: _indices)
-		m_context.variable(*var.first)->setIndex(var.second);
+		m_context.variable(*var.first)->setIndex(static_cast<unsigned>(var.second));
 }
 
 void SMTEncoder::clearIndices(ContractDefinition const* _contract, FunctionDefinition const* _function)
@@ -2719,7 +2560,7 @@ void SMTEncoder::clearIndices(ContractDefinition const* _contract, FunctionDefin
 		for (auto const& var: localVariablesIncludingModifiers(*_function, _contract))
 			m_context.variable(*var)->resetIndex();
 	}
-	state().reset();
+	m_context.state().reset();
 }
 
 Expression const* SMTEncoder::leftmostBase(IndexAccess const& _indexAccess)
@@ -2730,7 +2571,7 @@ Expression const* SMTEncoder::leftmostBase(IndexAccess const& _indexAccess)
 	return base;
 }
 
-Type const* SMTEncoder::keyType(Type const* _type)
+TypePointer SMTEncoder::keyType(TypePointer _type)
 {
 	if (auto const* mappingType = dynamic_cast<MappingType const*>(_type))
 		return mappingType->keyType();
@@ -2743,11 +2584,11 @@ Type const* SMTEncoder::keyType(Type const* _type)
 		solAssert(false, "");
 }
 
-Expression const& SMTEncoder::innermostTuple(Expression const& _expr)
+Expression const* SMTEncoder::innermostTuple(Expression const& _expr)
 {
 	auto const* tuple = dynamic_cast<TupleExpression const*>(&_expr);
 	if (!tuple || tuple->isInlineArray())
-		return _expr;
+		return &_expr;
 
 	Expression const* expr = tuple;
 	while (tuple && !tuple->isInlineArray() && tuple->components().size() == 1)
@@ -2756,60 +2597,15 @@ Expression const& SMTEncoder::innermostTuple(Expression const& _expr)
 		tuple = dynamic_cast<TupleExpression const*>(expr);
 	}
 	solAssert(expr, "");
-	return *expr;
-}
-
-Type const* SMTEncoder::underlyingType(Type const* _type)
-{
-	if (auto userType = dynamic_cast<UserDefinedValueType const*>(_type))
-		_type = &userType->underlyingType();
-	return _type;
-}
-
-TypePointers SMTEncoder::replaceUserTypes(TypePointers const& _types)
-{
-	return applyMap(_types, [](auto _type) {
-		if (auto userType = dynamic_cast<UserDefinedValueType const*>(_type))
-			return &userType->underlyingType();
-		return _type;
-	});
-}
-
-std::pair<Expression const*, FunctionCallOptions const*> SMTEncoder::functionCallExpression(FunctionCall const& _funCall)
-{
-	Expression const* callExpr = &innermostTuple(_funCall.expression());
-	auto const* callOptions = dynamic_cast<FunctionCallOptions const*>(callExpr);
-	if (callOptions)
-		callExpr = &callOptions->expression();
-
-	return {callExpr, callOptions};
-}
-
-Expression const* SMTEncoder::cleanExpression(Expression const& _expr)
-{
-	auto const* expr = &_expr;
-	if (auto const* tuple = dynamic_cast<TupleExpression const*>(expr))
-		return cleanExpression(innermostTuple(*tuple));
-	if (auto const* functionCall = dynamic_cast<FunctionCall const*>(expr))
-		if (*functionCall->annotation().kind == FunctionCallKind::TypeConversion)
-		{
-			auto typeType = dynamic_cast<TypeType const*>(functionCall->expression().annotation().type);
-			solAssert(typeType, "");
-			if (auto const* arrayType = dynamic_cast<ArrayType const*>(typeType->actualType()))
-				if (arrayType->isByteArrayOrString())
-				{
-					// this is a cast to `bytes`
-					solAssert(functionCall->arguments().size() == 1, "");
-					Expression const& arg = *functionCall->arguments()[0];
-					if (
-						auto const* argArrayType = dynamic_cast<ArrayType const*>(arg.annotation().type);
-						argArrayType && argArrayType->isByteArrayOrString()
-					)
-						return cleanExpression(arg);
-				}
-		}
-	solAssert(expr, "");
 	return expr;
+}
+
+set<VariableDeclaration const*> SMTEncoder::touchedVariables(ASTNode const& _node)
+{
+	vector<CallableDeclaration const*> callStack;
+	for (auto const& call: m_callStack)
+		callStack.push_back(call.first);
+	return m_variableUsage.touchedVariables(_node, callStack);
 }
 
 Declaration const* SMTEncoder::expressionToDeclaration(Expression const& _expr) const
@@ -2831,17 +2627,6 @@ VariableDeclaration const* SMTEncoder::identifierToVariable(Expression const& _e
 			solAssert(m_context.knownVariable(*varDecl), "");
 			return varDecl;
 		}
-	// But we are interested in "contract.var", because that is the same as just "var".
-	if (auto const* memberAccess = dynamic_cast<MemberAccess const*>(&_expr))
-		if (dynamic_cast<ContractDefinition const*>(expressionToDeclaration(
-			*cleanExpression(memberAccess->expression())
-		)))
-			if (auto const* varDecl = dynamic_cast<VariableDeclaration const*>(memberAccess->annotation().referencedDeclaration))
-			{
-				solAssert(m_context.knownVariable(*varDecl), "");
-				return varDecl;
-			}
-
 	return nullptr;
 }
 
@@ -2853,31 +2638,22 @@ MemberAccess const* SMTEncoder::isEmptyPush(Expression const& _expr) const
 	)
 	{
 		auto const& funType = dynamic_cast<FunctionType const&>(*funCall->expression().annotation().type);
-		if (funType.kind() == FunctionType::Kind::ArrayPush)
+		if (funType.kind() == FunctionType::Kind::ArrayPush || funType.kind() == FunctionType::Kind::ByteArrayPush)
 			return &dynamic_cast<MemberAccess const&>(funCall->expression());
 	}
 	return nullptr;
 }
 
-smtutil::Expression SMTEncoder::contractAddressValue(FunctionCall const& _f)
-{
-	FunctionType const& funType = dynamic_cast<FunctionType const&>(*_f.expression().annotation().type);
-	if (funType.kind() == FunctionType::Kind::Internal)
-		return state().thisAddress();
-	auto [funExpr, funOptions] = functionCallExpression(_f);
-	if (MemberAccess const* callBase = dynamic_cast<MemberAccess const*>(funExpr))
-		return expr(callBase->expression());
-	smtAssert(false, "Unexpected function call type encountered while getting contract address!");
+bool SMTEncoder::isPublicGetter(Expression const& _expr) {
+	if (!isTrustedExternalCall(&_expr))
+		return false;
+	auto varDecl = dynamic_cast<VariableDeclaration const*>(
+		dynamic_cast<MemberAccess const&>(_expr).annotation().referencedDeclaration
+	);
+	return varDecl != nullptr;
 }
 
-VariableDeclaration const* SMTEncoder::publicGetter(Expression const& _expr) const {
-	if (auto memberAccess = dynamic_cast<MemberAccess const*>(&_expr))
-		if (auto variableDeclaration = dynamic_cast<VariableDeclaration const*>(memberAccess->annotation().referencedDeclaration))
-			return variableDeclaration->isStateVariable() ? variableDeclaration : nullptr;
-	return nullptr;
-}
-
-bool SMTEncoder::isExternalCallToThis(Expression const* _expr) {
+bool SMTEncoder::isTrustedExternalCall(Expression const* _expr) {
 	auto memberAccess = dynamic_cast<MemberAccess const*>(_expr);
 	if (!memberAccess)
 		return false;
@@ -2890,9 +2666,9 @@ bool SMTEncoder::isExternalCallToThis(Expression const* _expr) {
 	;
 }
 
-std::string SMTEncoder::extraComment()
+string SMTEncoder::extraComment()
 {
-	std::string extra;
+	string extra;
 	if (m_arrayAssignmentHappened)
 		extra +=
 			"\nNote that array aliasing is not supported,"
@@ -2902,44 +2678,44 @@ std::string SMTEncoder::extraComment()
 	return extra;
 }
 
-FunctionDefinition const* SMTEncoder::functionCallToDefinition(
-	FunctionCall const& _funCall,
-	ContractDefinition const* _scopeContract,
-	ContractDefinition const* _contextContract
-)
+pair<FunctionDefinition const*, ContractDefinition const*> SMTEncoder::functionCallToDefinition(FunctionCall const& _funCall, ContractDefinition const* _contract)
 {
 	if (*_funCall.annotation().kind != FunctionCallKind::FunctionCall)
 		return {};
 
-	auto [calledExpr, callOptions] = functionCallExpression(_funCall);
-
+	Expression const* calledExpr = &_funCall.expression();
 	if (TupleExpression const* fun = dynamic_cast<TupleExpression const*>(calledExpr))
 	{
 		solAssert(fun->components().size() == 1, "");
-		calledExpr = &innermostTuple(*calledExpr);
+		calledExpr = innermostTuple(*calledExpr);
 	}
 
-	auto resolveVirtual = [&](auto const* _ref) -> FunctionDefinition const* {
+	auto resolveVirtual = [&](auto const* _ref) -> pair<FunctionDefinition const*, ContractDefinition const*> {
 		VirtualLookup lookup = *_ref->annotation().requiredLookup;
-		solAssert(_contextContract || lookup == VirtualLookup::Static, "No contract context provided for function lookup resolution!");
+		solAssert(_contract || lookup == VirtualLookup::Static, "No contract context provided for function lookup resolution!");
 		auto funDef = dynamic_cast<FunctionDefinition const*>(_ref->annotation().referencedDeclaration);
 		if (!funDef)
-			return funDef;
+			return {funDef, _contract};
+		ContractDefinition const* contextContract = nullptr;
 		switch (lookup)
 		{
 		case VirtualLookup::Virtual:
-			return &(funDef->resolveVirtual(*_contextContract));
+			funDef = &funDef->resolveVirtual(*_contract);
+			contextContract = _contract;
+			break;
 		case VirtualLookup::Super:
 		{
-			solAssert(_scopeContract, "");
-			auto super = _scopeContract->superContract(*_contextContract);
+			auto super = _contract->superContract(*_contract);
 			solAssert(super, "Super contract not available.");
-			return &funDef->resolveVirtual(*_contextContract, super);
+			funDef = &funDef->resolveVirtual(*_contract, super);
+			contextContract = super;
+			break;
 		}
 		case VirtualLookup::Static:
-			return funDef;
+			contextContract = funDef->annotation().contract;
+			break;
 		}
-		solAssert(false, "");
+		return {funDef, contextContract};
 	};
 
 	if (Identifier const* fun = dynamic_cast<Identifier const*>(calledExpr))
@@ -2950,28 +2726,26 @@ FunctionDefinition const* SMTEncoder::functionCallToDefinition(
 	return {};
 }
 
-std::vector<VariableDeclaration const*> SMTEncoder::stateVariablesIncludingInheritedAndPrivate(ContractDefinition const& _contract)
+vector<VariableDeclaration const*> SMTEncoder::stateVariablesIncludingInheritedAndPrivate(ContractDefinition const& _contract)
 {
 	return fold(
 		_contract.annotation().linearizedBaseContracts,
-		std::vector<VariableDeclaration const*>{},
+		vector<VariableDeclaration const*>{},
 		[](auto&& _acc, auto _contract) { return _acc + _contract->stateVariables(); }
 	);
 }
 
-std::vector<VariableDeclaration const*> SMTEncoder::stateVariablesIncludingInheritedAndPrivate(FunctionDefinition const& _function)
+vector<VariableDeclaration const*> SMTEncoder::stateVariablesIncludingInheritedAndPrivate(FunctionDefinition const& _function)
 {
-	if (auto contract = dynamic_cast<ContractDefinition const*>(_function.scope()))
-		return stateVariablesIncludingInheritedAndPrivate(*contract);
-	return {};
+	return stateVariablesIncludingInheritedAndPrivate(dynamic_cast<ContractDefinition const&>(*_function.scope()));
 }
 
-std::vector<VariableDeclaration const*> SMTEncoder::localVariablesIncludingModifiers(FunctionDefinition const& _function, ContractDefinition const* _contract)
+vector<VariableDeclaration const*> SMTEncoder::localVariablesIncludingModifiers(FunctionDefinition const& _function, ContractDefinition const* _contract)
 {
 	return _function.localVariables() + tryCatchVariables(_function) + modifiersVariables(_function, _contract);
 }
 
-std::vector<VariableDeclaration const*> SMTEncoder::tryCatchVariables(FunctionDefinition const& _function)
+vector<VariableDeclaration const*> SMTEncoder::tryCatchVariables(FunctionDefinition const& _function)
 {
 	struct TryCatchVarsVisitor : public ASTConstVisitor
 	{
@@ -2987,23 +2761,23 @@ std::vector<VariableDeclaration const*> SMTEncoder::tryCatchVariables(FunctionDe
 			return true;
 		}
 
-		std::vector<VariableDeclaration const*> vars;
+		vector<VariableDeclaration const*> vars;
 	} tryCatchVarsVisitor;
 	_function.accept(tryCatchVarsVisitor);
 	return tryCatchVarsVisitor.vars;
 }
 
-std::vector<VariableDeclaration const*> SMTEncoder::modifiersVariables(FunctionDefinition const& _function, ContractDefinition const* _contract)
+vector<VariableDeclaration const*> SMTEncoder::modifiersVariables(FunctionDefinition const& _function, ContractDefinition const* _contract)
 {
 	struct BlockVars: ASTConstVisitor
 	{
 		BlockVars(Block const& _block) { _block.accept(*this); }
 		void endVisit(VariableDeclaration const& _var) { vars.push_back(&_var); }
-		std::vector<VariableDeclaration const*> vars;
+		vector<VariableDeclaration const*> vars;
 	};
 
-	std::vector<VariableDeclaration const*> vars;
-	std::set<ModifierDefinition const*> visited;
+	vector<VariableDeclaration const*> vars;
+	set<ModifierDefinition const*> visited;
 	for (auto invok: _function.modifiers())
 	{
 		if (!invok)
@@ -3036,12 +2810,11 @@ ModifierDefinition const* SMTEncoder::resolveModifierInvocation(ModifierInvocati
 	return modifier;
 }
 
-std::set<FunctionDefinition const*, ASTNode::CompareByID> const& SMTEncoder::contractFunctions(ContractDefinition const& _contract)
+vector<FunctionDefinition const*> const& SMTEncoder::contractFunctions(ContractDefinition const& _contract)
 {
 	if (!m_contractFunctions.count(&_contract))
 	{
-		auto const& functions = _contract.definedFunctions();
-		std::set<FunctionDefinition const*, ASTNode::CompareByID> resolvedFunctions(begin(functions), end(functions));
+		vector<FunctionDefinition const *> resolvedFunctions = _contract.definedFunctions();
 		for (auto const* base: _contract.annotation().linearizedBaseContracts)
 		{
 			if (base == &_contract)
@@ -3063,32 +2836,25 @@ std::set<FunctionDefinition const*, ASTNode::CompareByID> const& SMTEncoder::con
 						break;
 					}
 				if (!overridden)
-					resolvedFunctions.insert(baseFunction);
+					resolvedFunctions.push_back(baseFunction);
 			}
 		}
-		m_contractFunctions.emplace(&_contract, std::move(resolvedFunctions));
+		m_contractFunctions.emplace(&_contract, move(resolvedFunctions));
 	}
 	return m_contractFunctions.at(&_contract);
 }
 
-std::set<FunctionDefinition const*, ASTNode::CompareByID> const& SMTEncoder::contractFunctionsWithoutVirtual(ContractDefinition const& _contract)
+SourceUnit const* SMTEncoder::sourceUnitContaining(Scopable const& _scopable)
 {
-	if (!m_contractFunctionsWithoutVirtual.count(&_contract))
-	{
-		auto allFunctions = contractFunctions(_contract);
-		for (auto const* base: _contract.annotation().linearizedBaseContracts)
-			for (auto const* baseFun: base->definedFunctions())
-				allFunctions.insert(baseFun);
-
-		m_contractFunctionsWithoutVirtual.emplace(&_contract, std::move(allFunctions));
-
-	}
-	return m_contractFunctionsWithoutVirtual.at(&_contract);
+	for (auto const* s = &_scopable; s; s = dynamic_cast<Scopable const*>(s->scope()))
+		if (auto const* source = dynamic_cast<SourceUnit const*>(s->scope()))
+			return source;
+	solAssert(false, "");
 }
 
-std::map<ContractDefinition const*, std::vector<ASTPointer<frontend::Expression>>> SMTEncoder::baseArguments(ContractDefinition const& _contract)
+map<ContractDefinition const*, vector<ASTPointer<frontend::Expression>>> SMTEncoder::baseArguments(ContractDefinition const& _contract)
 {
-	std::map<ContractDefinition const*, std::vector<ASTPointer<Expression>>> baseArgs;
+	map<ContractDefinition const*, vector<ASTPointer<Expression>>> baseArgs;
 
 	for (auto contract: _contract.annotation().linearizedBaseContracts)
 	{
@@ -3122,16 +2888,18 @@ RationalNumberType const* SMTEncoder::isConstant(Expression const& _expr)
 	if (auto type = dynamic_cast<RationalNumberType const*>(_expr.annotation().type))
 		return type;
 
-	if (
-		auto typedValue = ConstantEvaluator::tryEvaluate(_expr);
-		std::holds_alternative<rational>(typedValue.value)
-	)
-		return TypeProvider::rationalNumber(std::get<rational>(typedValue.value));
+	// _expr may not be constant evaluable.
+	// In that case we ignore any warnings emitted by the constant evaluator,
+	// as it will return nullptr in case of failure.
+	ErrorList l;
+	ErrorReporter e(l);
+	if (auto t = ConstantEvaluator::evaluate(e, _expr))
+		return TypeProvider::rationalNumber(t->value);
 
 	return nullptr;
 }
 
-std::set<FunctionCall const*, ASTCompareByID<FunctionCall>> SMTEncoder::collectABICalls(ASTNode const* _node)
+set<FunctionCall const*> SMTEncoder::collectABICalls(ASTNode const* _node)
 {
 	struct ABIFunctions: public ASTConstVisitor
 	{
@@ -3144,7 +2912,6 @@ std::set<FunctionCall const*, ASTCompareByID<FunctionCall>> SMTEncoder::collectA
 				case FunctionType::Kind::ABIEncode:
 				case FunctionType::Kind::ABIEncodePacked:
 				case FunctionType::Kind::ABIEncodeWithSelector:
-				case FunctionType::Kind::ABIEncodeCall:
 				case FunctionType::Kind::ABIEncodeWithSignature:
 				case FunctionType::Kind::ABIDecode:
 					abiCalls.insert(&_funCall);
@@ -3153,171 +2920,65 @@ std::set<FunctionCall const*, ASTCompareByID<FunctionCall>> SMTEncoder::collectA
 				}
 		}
 
-		std::set<FunctionCall const*, ASTCompareByID<FunctionCall>> abiCalls;
+		set<FunctionCall const*> abiCalls;
 	};
 
 	return ABIFunctions(_node).abiCalls;
 }
 
-std::set<FunctionCall const*, ASTCompareByID<FunctionCall>> SMTEncoder::collectBytesConcatCalls(ASTNode const* _node)
+void SMTEncoder::createReturnedExpressions(FunctionCall const& _funCall, ContractDefinition const* _contract)
 {
-	struct BytesConcatFunctions: public ASTConstVisitor
-	{
-		BytesConcatFunctions(ASTNode const* _node) { _node->accept(*this); }
-		void endVisit(FunctionCall const& _funCall)
-		{
-			if (*_funCall.annotation().kind == FunctionCallKind::FunctionCall)
-				switch (dynamic_cast<FunctionType const&>(*_funCall.expression().annotation().type).kind())
-				{
-				case FunctionType::Kind::BytesConcat:
-					bytesConcatCalls.insert(&_funCall);
-					break;
-				default: {}
-				}
-		}
-
-		std::set<FunctionCall const*, ASTCompareByID<FunctionCall>> bytesConcatCalls;
-	};
-
-	return BytesConcatFunctions(_node).bytesConcatCalls;
-}
-
-std::set<SourceUnit const*, ASTNode::CompareByID> SMTEncoder::sourceDependencies(SourceUnit const& _source)
-{
-	std::set<SourceUnit const*, ASTNode::CompareByID> sources;
-	sources.insert(&_source);
-	for (auto const& source: _source.referencedSourceUnits(true))
-		sources.insert(source);
-	return sources;
-}
-
-void SMTEncoder::createReturnedExpressions(FunctionDefinition const* _funDef, Expression const& _callStackExpr)
-{
-	if (!_funDef)
+	auto [funDef, contextContract] = functionCallToDefinition(_funCall, _contract);
+	if (!funDef)
 		return;
 
-	auto const& returnParams = _funDef->returnParameters();
+	auto const& returnParams = funDef->returnParameters();
 	for (auto param: returnParams)
 		createVariable(*param);
-	auto returnValues = applyMap(returnParams, [this](auto const& param) -> std::optional<smtutil::Expression> {
-		solAssert(param && m_context.knownVariable(*param), "");
-		return currentValue(*param);
-	});
-	defineExpr(_callStackExpr, returnValues);
+
+	if (returnParams.size() > 1)
+	{
+		auto const& symbTuple = dynamic_pointer_cast<smt::SymbolicTupleVariable>(m_context.expression(_funCall));
+		solAssert(symbTuple, "");
+		auto const& symbComponents = symbTuple->components();
+		solAssert(symbComponents.size() == returnParams.size(), "");
+		for (unsigned i = 0; i < symbComponents.size(); ++i)
+		{
+			auto param = returnParams.at(i);
+			solAssert(param, "");
+			solAssert(m_context.knownVariable(*param), "");
+			m_context.addAssertion(symbTuple->component(i) == currentValue(*param));
+		}
+	}
+	else if (returnParams.size() == 1)
+		defineExpr(_funCall, currentValue(*returnParams.front()));
 }
 
-std::vector<smtutil::Expression> SMTEncoder::symbolicArguments(
-	std::vector<ASTPointer<VariableDeclaration>> const& _funParameters,
-	std::vector<Expression const*> const& _arguments,
-	std::optional<Expression const*> _boundArgumentCall
-)
+vector<smtutil::Expression> SMTEncoder::symbolicArguments(FunctionCall const& _funCall, ContractDefinition const* _contract)
 {
-	std::vector<smtutil::Expression> args;
+	auto [funDef, contextContract] = functionCallToDefinition(_funCall, _contract);
+	solAssert(funDef, "");
+
+	vector<smtutil::Expression> args;
+	Expression const* calledExpr = &_funCall.expression();
+	auto funType = dynamic_cast<FunctionType const*>(calledExpr->annotation().type);
+	solAssert(funType, "");
+
+	vector<ASTPointer<Expression const>> arguments = _funCall.sortedArguments();
+	auto functionParams = funDef->parameters();
 	unsigned firstParam = 0;
-	if (_boundArgumentCall)
+	if (funType->bound())
 	{
-		Expression const& calledExpr = innermostTuple(*_boundArgumentCall.value());
-		auto const& attachedFunction = dynamic_cast<MemberAccess const*>(&calledExpr);
-		solAssert(attachedFunction, "");
-		args.push_back(expr(attachedFunction->expression(), _funParameters.front()->type()));
+		calledExpr = innermostTuple(*calledExpr);
+		auto const& boundFunction = dynamic_cast<MemberAccess const*>(calledExpr);
+		solAssert(boundFunction, "");
+		args.push_back(expr(boundFunction->expression(), functionParams.front()->type()));
 		firstParam = 1;
 	}
 
-	solAssert((_arguments.size() + firstParam) == _funParameters.size(), "");
-
-	for (unsigned i = 0; i < _arguments.size(); ++i)
-		args.push_back(expr(*_arguments.at(i), _funParameters.at(i + firstParam)->type()));
+	solAssert((arguments.size() + firstParam) == functionParams.size(), "");
+	for (unsigned i = 0; i < arguments.size(); ++i)
+		args.push_back(expr(*arguments.at(i), functionParams.at(i + firstParam)->type()));
 
 	return args;
-}
-
-smtutil::Expression SMTEncoder::constantExpr(Expression const& _expr, VariableDeclaration const& _var)
-{
-	if (RationalNumberType const* rationalType = isConstant(_expr))
-	{
-		if (rationalType->isNegative())
-			return smtutil::Expression(u2s(rationalType->literalValue(nullptr)));
-		else
-			return smtutil::Expression(rationalType->literalValue(nullptr));
-	}
-	else
-	{
-		solAssert(_var.value(), "");
-		_var.value()->accept(*this);
-		return expr(*_var.value(), _expr.annotation().type);
-	}
-	solAssert(false, "");
-}
-
-void SMTEncoder::collectFreeFunctions(std::set<SourceUnit const*, ASTNode::CompareByID> const& _sources)
-{
-	for (auto source: _sources)
-		for (auto node: source->nodes())
-			if (auto function = dynamic_cast<FunctionDefinition const*>(node.get()))
-				m_freeFunctions.insert(function);
-			else if (
-				auto contract = dynamic_cast<ContractDefinition const*>(node.get());
-				contract && contract->isLibrary()
-			)
-				for (auto function: contract->definedFunctions())
-					// We need to add public library functions too because they can be called
-					// internally by internal library functions that are considered free functions.
-					m_freeFunctions.insert(function);
-}
-
-void SMTEncoder::createFreeConstants(std::set<SourceUnit const*, ASTNode::CompareByID> const& _sources)
-{
-	for (auto source: _sources)
-		for (auto node: source->nodes())
-			if (auto var = dynamic_cast<VariableDeclaration const*>(node.get()))
-				createVariable(*var);
-			else if (
-				auto contract = dynamic_cast<ContractDefinition const*>(node.get());
-				contract && contract->isLibrary()
-			)
-				for (auto var: contract->stateVariables())
-				{
-					solAssert(var->isConstant(), "");
-					createVariable(*var);
-				}
-}
-
-void SMTEncoder::createStateVariables(std::set<SourceUnit const*, ASTNode::CompareByID> const& _sources)
-{
-	for (auto const& source: _sources)
-		for (auto const& node: source->nodes())
-			if (auto contract = dynamic_cast<ContractDefinition const*>(node.get()))
-				createStateVariables(*contract);
-}
-
-smt::SymbolicState& SMTEncoder::state()
-{
-	return m_context.state();
-}
-
-smtutil::Expression SMTEncoder::createSelectExpressionForFunction(
-	smtutil::Expression symbFunction,
-	std::vector<frontend::ASTPointer<frontend::Expression const>> const& args,
-	frontend::TypePointers const& inTypes,
-	unsigned long argsActualLength
-)
-{
-	solAssert(argsActualLength <= args.size() && inTypes.size() == argsActualLength);
-	if (inTypes.size() == 1)
-	{
-		smtutil::Expression arg = expr(*args.at(0), inTypes.at(0));
-		return smtutil::Expression::select(symbFunction, arg);
-	}
-
-	std::vector<smtutil::Expression> symbArgs;
-	for (unsigned i = 0; i < argsActualLength; ++i)
-		if (args.at(i))
-			symbArgs.emplace_back(expr(*args.at(i), inTypes.at(i)));
-
-	auto inputSort = dynamic_cast<smtutil::ArraySort&>(*symbFunction.sort).domain;
-	smtutil::Expression arg = smtutil::Expression::tuple_constructor(
-		smtutil::Expression(std::make_shared<smtutil::SortSort>(inputSort), ""),
-		symbArgs
-	);
-	return smtutil::Expression::select(symbFunction, arg);
 }

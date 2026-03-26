@@ -4,7 +4,7 @@ contract C {
     }
 }
 // ====
-// bytecodeFormat: legacy
+// compileViaYul: also
 // ----
 // f() -> true
 // f() -> true

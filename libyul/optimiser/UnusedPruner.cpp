@@ -1,4 +1,4 @@
-/*
+/*(
 	This file is part of solidity.
 
 	solidity is free software: you can redistribute it and/or modify
@@ -21,7 +21,6 @@
 #include <libyul/optimiser/UnusedPruner.h>
 
 #include <libyul/optimiser/CallGraphGenerator.h>
-#include <libyul/optimiser/FunctionGrouper.h>
 #include <libyul/optimiser/NameCollector.h>
 #include <libyul/optimiser/Semantics.h>
 #include <libyul/optimiser/OptimizerUtilities.h>
@@ -30,21 +29,16 @@
 #include <libyul/Dialect.h>
 #include <libyul/SideEffects.h>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::yul;
-
-void UnusedPruner::run(OptimiserStepContext& _context, Block& _ast)
-{
-	UnusedPruner::runUntilStabilisedOnFullAST(_context.dialect, _ast, _context.reservedIdentifiers);
-	FunctionGrouper::run(_context, _ast);
-}
 
 UnusedPruner::UnusedPruner(
 	Dialect const& _dialect,
 	Block& _ast,
 	bool _allowMSizeOptimization,
-	std::map<FunctionHandle, SideEffects> const* _functionSideEffects,
-	std::set<YulName> const& _externallyUsedFunctions
+	map<YulString, SideEffects> const* _functionSideEffects,
+	set<YulString> const& _externallyUsedFunctions
 ):
 	m_dialect(_dialect),
 	m_allowMSizeOptimization(_allowMSizeOptimization),
@@ -55,19 +49,33 @@ UnusedPruner::UnusedPruner(
 		++m_references[f];
 }
 
+UnusedPruner::UnusedPruner(
+	Dialect const& _dialect,
+	FunctionDefinition& _function,
+	bool _allowMSizeOptimization,
+	set<YulString> const& _externallyUsedFunctions
+):
+	m_dialect(_dialect),
+	m_allowMSizeOptimization(_allowMSizeOptimization)
+{
+	m_references = ReferencesCounter::countReferences(_function);
+	for (auto const& f: _externallyUsedFunctions)
+		++m_references[f];
+}
+
 void UnusedPruner::operator()(Block& _block)
 {
 	for (auto&& statement: _block.statements)
-		if (std::holds_alternative<FunctionDefinition>(statement))
+		if (holds_alternative<FunctionDefinition>(statement))
 		{
 			FunctionDefinition& funDef = std::get<FunctionDefinition>(statement);
 			if (!used(funDef.name))
 			{
 				subtractReferences(ReferencesCounter::countReferences(funDef.body));
-				statement = Block{std::move(funDef.debugData), {}};
+				statement = Block{std::move(funDef.location), {}};
 			}
 		}
-		else if (std::holds_alternative<VariableDeclaration>(statement))
+		else if (holds_alternative<VariableDeclaration>(statement))
 		{
 			VariableDeclaration& varDecl = std::get<VariableDeclaration>(statement);
 			// Multi-variable declarations are special. We can only remove it
@@ -78,29 +86,28 @@ void UnusedPruner::operator()(Block& _block)
 			if (std::none_of(
 				varDecl.variables.begin(),
 				varDecl.variables.end(),
-				[&](NameWithDebugData const& _typedName) { return used(_typedName.name); }
+				[&](TypedName const& _typedName) { return used(_typedName.name); }
 			))
 			{
-				std::optional<BuiltinHandle> discardFunctionHandle = m_dialect.discardFunctionHandle();
 				if (!varDecl.value)
-					statement = Block{std::move(varDecl.debugData), {}};
+					statement = Block{std::move(varDecl.location), {}};
 				else if (
 					SideEffectsCollector(m_dialect, *varDecl.value, m_functionSideEffects).
 					canBeRemoved(m_allowMSizeOptimization)
 				)
 				{
 					subtractReferences(ReferencesCounter::countReferences(*varDecl.value));
-					statement = Block{std::move(varDecl.debugData), {}};
+					statement = Block{std::move(varDecl.location), {}};
 				}
-				else if (varDecl.variables.size() == 1 && discardFunctionHandle)
-					statement = ExpressionStatement{varDecl.debugData, FunctionCall{
-						varDecl.debugData,
-						BuiltinName{varDecl.debugData, *discardFunctionHandle},
+				else if (varDecl.variables.size() == 1 && m_dialect.discardFunction(varDecl.variables.front().type))
+					statement = ExpressionStatement{varDecl.location, FunctionCall{
+						varDecl.location,
+						{varDecl.location, m_dialect.discardFunction(varDecl.variables.front().type)->name},
 						{*std::move(varDecl.value)}
 					}};
 			}
 		}
-		else if (std::holds_alternative<ExpressionStatement>(statement))
+		else if (holds_alternative<ExpressionStatement>(statement))
 		{
 			ExpressionStatement& exprStmt = std::get<ExpressionStatement>(statement);
 			if (
@@ -109,7 +116,7 @@ void UnusedPruner::operator()(Block& _block)
 			)
 			{
 				subtractReferences(ReferencesCounter::countReferences(exprStmt.expression));
-				statement = Block{std::move(exprStmt.debugData), {}};
+				statement = Block{std::move(exprStmt.location), {}};
 			}
 		}
 
@@ -122,19 +129,15 @@ void UnusedPruner::runUntilStabilised(
 	Dialect const& _dialect,
 	Block& _ast,
 	bool _allowMSizeOptimization,
-	std::map<FunctionHandle, SideEffects> const* _functionSideEffects,
-	std::set<YulName> const& _externallyUsedFunctions
+	map<YulString, SideEffects> const* _functionSideEffects,
+	set<YulString> const& _externallyUsedFunctions
 )
 {
 	while (true)
 	{
 		UnusedPruner pruner(
-			_dialect,
-			_ast,
-			_allowMSizeOptimization,
-			_functionSideEffects,
-			_externallyUsedFunctions
-		);
+			_dialect, _ast, _allowMSizeOptimization, _functionSideEffects,
+							_externallyUsedFunctions);
 		pruner(_ast);
 		if (!pruner.shouldRunAgain())
 			return;
@@ -144,21 +147,37 @@ void UnusedPruner::runUntilStabilised(
 void UnusedPruner::runUntilStabilisedOnFullAST(
 	Dialect const& _dialect,
 	Block& _ast,
-	std::set<YulName> const& _externallyUsedFunctions
+	set<YulString> const& _externallyUsedFunctions
 )
 {
-	std::map<FunctionHandle, SideEffects> functionSideEffects =
+	map<YulString, SideEffects> functionSideEffects =
 		SideEffectsPropagator::sideEffects(_dialect, CallGraphGenerator::callGraph(_ast));
 	bool allowMSizeOptimization = !MSizeFinder::containsMSize(_dialect, _ast);
 	runUntilStabilised(_dialect, _ast, allowMSizeOptimization, &functionSideEffects, _externallyUsedFunctions);
 }
 
-bool UnusedPruner::used(YulName _name) const
+void UnusedPruner::runUntilStabilised(
+	Dialect const& _dialect,
+	FunctionDefinition& _function,
+	bool _allowMSizeOptimization,
+	set<YulString> const& _externallyUsedFunctions
+)
+{
+	while (true)
+	{
+		UnusedPruner pruner(_dialect, _function, _allowMSizeOptimization, _externallyUsedFunctions);
+		pruner(_function);
+		if (!pruner.shouldRunAgain())
+			return;
+	}
+}
+
+bool UnusedPruner::used(YulString _name) const
 {
 	return m_references.count(_name) && m_references.at(_name) > 0;
 }
 
-void UnusedPruner::subtractReferences(std::map<FunctionHandle, size_t> const& _subtrahend)
+void UnusedPruner::subtractReferences(map<YulString, size_t> const& _subtrahend)
 {
 	for (auto const& ref: _subtrahend)
 	{

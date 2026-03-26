@@ -1,4 +1,4 @@
-/*
+/*(
 	This file is part of solidity.
 
 	solidity is free software: you can redistribute it and/or modify
@@ -26,48 +26,46 @@
 #include <libyul/backends/evm/EVMCodeTransform.h>
 #include <libyul/backends/evm/NoOutputAssembly.h>
 
+#include <liblangutil/EVMVersion.h>
+
+using namespace std;
 using namespace solidity;
 using namespace solidity::yul;
 using namespace solidity::util;
 
 CompilabilityChecker::CompilabilityChecker(
+	Dialect const& _dialect,
 	Object const& _object,
 	bool _optimizeStackAllocation
 )
 {
-	yulAssert(_object.hasCode());
-	if (auto const* evmDialect = dynamic_cast<EVMDialect const*>(_object.dialect()))
+	if (auto const* evmDialect = dynamic_cast<EVMDialect const*>(&_dialect))
 	{
 		NoOutputEVMDialect noOutputDialect(*evmDialect);
 
-		yul::AsmAnalysisInfo analysisInfo = yul::AsmAnalyzer::analyzeStrictAssertCorrect(
-			noOutputDialect,
-			_object.code()->root(),
-			_object.summarizeStructure()
-		);
+		yul::AsmAnalysisInfo analysisInfo =
+			yul::AsmAnalyzer::analyzeStrictAssertCorrect(noOutputDialect, _object);
 
 		BuiltinContext builtinContext;
 		builtinContext.currentObject = &_object;
 		if (!_object.name.empty())
-			builtinContext.subIDs[_object.name] = {1};
+			builtinContext.subIDs[_object.name] = 1;
 		for (auto const& subNode: _object.subObjects)
-			builtinContext.subIDs[subNode->name] = {1};
-		NoOutputAssembly assembly{evmDialect->evmVersion()};
+			builtinContext.subIDs[subNode->name] = 1;
+		NoOutputAssembly assembly;
 		CodeTransform transform(
 			assembly,
 			analysisInfo,
-			_object.code()->root(),
+			*_object.code,
 			noOutputDialect,
 			builtinContext,
 			_optimizeStackAllocation
 		);
-		transform(_object.code()->root());
+		transform(*_object.code);
 
 		for (StackTooDeepError const& error: transform.stackErrors())
 		{
-			auto& unreachables = unreachableVariables[error.functionName];
-			if (!util::contains(unreachables, error.variable))
-				unreachables.emplace_back(error.variable);
+			unreachableVariables[error.functionName].emplace(error.variable);
 			int& deficit = stackDeficit[error.functionName];
 			deficit = std::max(error.depth, deficit);
 		}

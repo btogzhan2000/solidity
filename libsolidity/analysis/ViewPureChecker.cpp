@@ -18,9 +18,8 @@
 
 #include <libsolidity/analysis/ViewPureChecker.h>
 #include <libsolidity/ast/ExperimentalFeatures.h>
-#include <libyul/backends/evm/EVMDialect.h>
 #include <libyul/AST.h>
-#include <libyul/Utilities.h>
+#include <libyul/backends/evm/EVMDialect.h>
 #include <liblangutil/ErrorReporter.h>
 #include <libevmasm/SemanticInformation.h>
 
@@ -28,6 +27,7 @@
 #include <utility>
 #include <variant>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::langutil;
 using namespace solidity::frontend;
@@ -67,9 +67,9 @@ public:
 	void operator()(yul::FunctionCall const& _funCall)
 	{
 		if (yul::EVMDialect const* dialect = dynamic_cast<decltype(dialect)>(&m_dialect))
-			if (yul::BuiltinFunctionForEVM const* builtin = resolveBuiltinFunctionForEVM(_funCall.functionName, *dialect))
-				if (builtin->instruction)
-					checkInstruction(nativeLocationOf(_funCall), *builtin->instruction);
+			if (yul::BuiltinFunctionForEVM const* fun = dialect->builtin(_funCall.functionName.name))
+				if (fun->instruction)
+					checkInstruction(_funCall.location, *fun->instruction);
 
 		for (auto const& arg: _funCall.arguments)
 			std::visit(*this, arg);
@@ -132,11 +132,6 @@ bool ViewPureChecker::check()
 		source->accept(*this);
 
 	return !m_errors;
-}
-
-bool ViewPureChecker::visit(ImportDirective const&)
-{
-	return false;
 }
 
 bool ViewPureChecker::visit(FunctionDefinition const& _funDef)
@@ -227,7 +222,7 @@ void ViewPureChecker::endVisit(InlineAssembly const& _inlineAssembly)
 	AssemblyViewPureChecker{
 		_inlineAssembly.dialect(),
 		[&](StateMutability _mutability, SourceLocation const& _location) { reportMutability(_mutability, _location); }
-	}(_inlineAssembly.operations().root());
+	}(_inlineAssembly.operations());
 }
 
 void ViewPureChecker::reportMutability(
@@ -261,9 +256,10 @@ void ViewPureChecker::reportMutability(
 		m_errorReporter.typeError(
 			8961_error,
 			_location,
-			"Function cannot be declared as " +
+			"Function declared as " +
 			stateMutabilityToString(m_currentFunction->stateMutability()) +
-			" because this expression (potentially) modifies the state."
+			", but this expression (potentially) modifies the state and thus "
+			"requires non-payable (the default) or payable."
 		);
 		m_errors = true;
 	}
@@ -312,35 +308,15 @@ ViewPureChecker::MutabilityAndLocation const& ViewPureChecker::modifierMutabilit
 	{
 		MutabilityAndLocation bestMutabilityAndLocation{};
 		FunctionDefinition const* currentFunction = nullptr;
-		std::swap(bestMutabilityAndLocation, m_bestMutabilityAndLocation);
-		std::swap(currentFunction, m_currentFunction);
+		swap(bestMutabilityAndLocation, m_bestMutabilityAndLocation);
+		swap(currentFunction, m_currentFunction);
 
 		_modifier.accept(*this);
 
-		std::swap(bestMutabilityAndLocation, m_bestMutabilityAndLocation);
-		std::swap(currentFunction, m_currentFunction);
+		swap(bestMutabilityAndLocation, m_bestMutabilityAndLocation);
+		swap(currentFunction, m_currentFunction);
 	}
 	return m_inferredMutability.at(&_modifier);
-}
-
-void ViewPureChecker::reportFunctionCallMutability(StateMutability _mutability, langutil::SourceLocation const& _location)
-{
-	// We only require "nonpayable" to call a payable function.
-	if (_mutability == StateMutability::Payable)
-		_mutability = StateMutability::NonPayable;
-	reportMutability(_mutability, _location);
-}
-
-void ViewPureChecker::endVisit(BinaryOperation const& _binaryOperation)
-{
-	if (*_binaryOperation.annotation().userDefinedFunction != nullptr)
-		reportFunctionCallMutability((*_binaryOperation.annotation().userDefinedFunction)->stateMutability(), _binaryOperation.location());
-}
-
-void ViewPureChecker::endVisit(UnaryOperation const& _unaryOperation)
-{
-	if (*_unaryOperation.annotation().userDefinedFunction != nullptr)
-		reportFunctionCallMutability((*_unaryOperation.annotation().userDefinedFunction)->stateMutability(), _unaryOperation.location());
 }
 
 void ViewPureChecker::endVisit(FunctionCall const& _functionCall)
@@ -348,10 +324,11 @@ void ViewPureChecker::endVisit(FunctionCall const& _functionCall)
 	if (*_functionCall.annotation().kind != FunctionCallKind::FunctionCall)
 		return;
 
-	reportFunctionCallMutability(
-		dynamic_cast<FunctionType const&>(*_functionCall.expression().annotation().type).stateMutability(),
-		_functionCall.location()
-	);
+	StateMutability mutability = dynamic_cast<FunctionType const&>(*_functionCall.expression().annotation().type).stateMutability();
+	// We only require "nonpayable" to call a payble function.
+	if (mutability == StateMutability::Payable)
+		mutability = StateMutability::NonPayable;
+	reportMutability(mutability, _functionCall.location());
 }
 
 bool ViewPureChecker::visit(MemberAccess const& _memberAccess)
@@ -384,13 +361,12 @@ void ViewPureChecker::endVisit(MemberAccess const& _memberAccess)
 		break;
 	case Type::Category::Magic:
 	{
-		using MagicMember = std::pair<MagicType::Kind, std::string>;
-		std::set<MagicMember> static const pureMembers{
+		using MagicMember = pair<MagicType::Kind, string>;
+		set<MagicMember> static const pureMembers{
 			{MagicType::Kind::ABI, "decode"},
 			{MagicType::Kind::ABI, "encode"},
 			{MagicType::Kind::ABI, "encodePacked"},
 			{MagicType::Kind::ABI, "encodeWithSelector"},
-			{MagicType::Kind::ABI, "encodeCall"},
 			{MagicType::Kind::ABI, "encodeWithSignature"},
 			{MagicType::Kind::Message, "data"},
 			{MagicType::Kind::Message, "sig"},
@@ -401,7 +377,7 @@ void ViewPureChecker::endVisit(MemberAccess const& _memberAccess)
 			{MagicType::Kind::MetaType, "min"},
 			{MagicType::Kind::MetaType, "max"},
 		};
-		std::set<MagicMember> static const payableMembers{
+		set<MagicMember> static const payableMembers{
 			{MagicType::Kind::Message, "value"}
 		};
 

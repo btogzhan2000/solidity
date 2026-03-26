@@ -5,4 +5,3 @@ contract Test {
         mapping(uint => MyStructName1) x;
     }
 }
-// ----

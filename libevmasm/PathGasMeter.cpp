@@ -24,6 +24,7 @@
 #include <libevmasm/KnownState.h>
 #include <libevmasm/SemanticInformation.h>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::evmasm;
 
@@ -37,17 +38,17 @@ PathGasMeter::PathGasMeter(AssemblyItems const& _items, langutil::EVMVersion _ev
 
 GasMeter::GasConsumption PathGasMeter::estimateMax(
 	size_t _startIndex,
-	std::shared_ptr<KnownState> const& _state
+	shared_ptr<KnownState> const& _state
 )
 {
-	auto path = std::make_unique<GasPath>();
+	auto path = make_unique<GasPath>();
 	path->index = _startIndex;
 	path->state = _state->copy();
-	queue(std::move(path));
+	queue(move(path));
 
 	GasMeter::GasConsumption gas;
 	while (!m_queue.empty() && !gas.isInfinite)
-		gas = std::max(gas, handleQueueItem());
+		gas = max(gas, handleQueueItem());
 	return gas;
 }
 
@@ -59,17 +60,17 @@ void PathGasMeter::queue(std::unique_ptr<GasPath>&& _newPath)
 	)
 		return;
 	m_highestGasUsagePerJumpdest[_newPath->index] = _newPath->gas;
-	m_queue[_newPath->index] = std::move(_newPath);
+	m_queue[_newPath->index] = move(_newPath);
 }
 
 GasMeter::GasConsumption PathGasMeter::handleQueueItem()
 {
 	assertThrow(!m_queue.empty(), OptimizerException, "");
 
-	std::unique_ptr<GasPath> path = std::move(m_queue.rbegin()->second);
+	unique_ptr<GasPath> path = move(m_queue.rbegin()->second);
 	m_queue.erase(--m_queue.end());
 
-	std::shared_ptr<KnownState> state = path->state;
+	shared_ptr<KnownState> state = path->state;
 	GasMeter meter(state, m_evmVersion, path->largestMemoryAccess);
 	ExpressionClasses& classes = state->expressionClasses();
 	GasMeter::GasConsumption gas = path->gas;
@@ -81,7 +82,7 @@ GasMeter::GasConsumption PathGasMeter::handleQueueItem()
 		// return the current gas value.
 		return gas;
 
-	std::set<u256> jumpTags;
+	set<u256> jumpTags;
 	for (; index < m_items.size() && !gas.isInfinite; ++index)
 	{
 		bool branchStops = false;
@@ -120,7 +121,7 @@ GasMeter::GasConsumption PathGasMeter::handleQueueItem()
 
 		for (u256 const& tag: jumpTags)
 		{
-			auto newPath = std::make_unique<GasPath>();
+			auto newPath = make_unique<GasPath>();
 			newPath->index = m_items.size();
 			if (m_tagPositions.count(tag))
 				newPath->index = m_tagPositions.at(tag);
@@ -128,7 +129,7 @@ GasMeter::GasConsumption PathGasMeter::handleQueueItem()
 			newPath->largestMemoryAccess = meter.largestMemoryAccess();
 			newPath->state = state->copy();
 			newPath->visitedJumpdests = path->visitedJumpdests;
-			queue(std::move(newPath));
+			queue(move(newPath));
 		}
 
 		if (branchStops)

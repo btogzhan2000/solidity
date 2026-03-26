@@ -1,7 +1,8 @@
+pragma experimental SMTChecker;
+
 contract C
 {
-	function f(bool b, uint[] memory c) public pure {
-		require(c.length > 0);
+	function f(bool b, uint[] memory c) public {
 		c[0] = 0;
 		if (b)
 			c[0] = 1;
@@ -10,7 +11,5 @@ contract C
 		assert(c[0] > 0);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 5 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 2018: (47-168): Function state mutability can be restricted to pure

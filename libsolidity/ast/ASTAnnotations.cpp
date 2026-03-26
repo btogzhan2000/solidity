@@ -23,6 +23,7 @@
 
 #include <libsolidity/ast/ASTAnnotations.h>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::frontend;
 

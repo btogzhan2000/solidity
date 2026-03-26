@@ -9,12 +9,12 @@ ReservedKeywords:
 	| 'partial' | 'promise' | 'reference' | 'relocatable' | 'sealed' | 'sizeof' | 'static'
 	| 'supports' | 'switch' | 'typedef' | 'typeof' | 'var';
 
+Pragma: 'pragma' -> pushMode(PragmaMode);
 Abstract: 'abstract';
-Address: 'address';
 Anonymous: 'anonymous';
+Address: 'address';
 As: 'as';
 Assembly: 'assembly' -> pushMode(AssemblyBlockMode);
-At: 'at'; // not a real keyword
 Bool: 'bool';
 Break: 'break';
 Bytes: 'bytes';
@@ -29,12 +29,12 @@ Do: 'do';
 Else: 'else';
 Emit: 'emit';
 Enum: 'enum';
-Error: 'error'; // not a real keyword
 Event: 'event';
 External: 'external';
 Fallback: 'fallback';
 False: 'false';
 Fixed: 'fixed' | ('fixed' [1-9][0-9]* 'x' [1-9][0-9]*);
+From: 'from';
 /**
  * Bytes types of fixed length.
  */
@@ -44,9 +44,7 @@ FixedBytes:
 	'bytes17' | 'bytes18' | 'bytes19' | 'bytes20' | 'bytes21' | 'bytes22' | 'bytes23' | 'bytes24' |
 	'bytes25' | 'bytes26' | 'bytes27' | 'bytes28' | 'bytes29' | 'bytes30' | 'bytes31' | 'bytes32';
 For: 'for';
-From: 'from'; // not a real keyword
 Function: 'function';
-Global: 'global'; // not a real keyword
 Hex: 'hex';
 If: 'if';
 Immutable: 'immutable';
@@ -55,7 +53,6 @@ Indexed: 'indexed';
 Interface: 'interface';
 Internal: 'internal';
 Is: 'is';
-Layout: 'layout'; // not a real keyword
 Library: 'library';
 Mapping: 'mapping';
 Memory: 'memory';
@@ -64,17 +61,15 @@ New: 'new';
 /**
  * Unit denomination for numbers.
  */
-SubDenomination: 'wei' | 'gwei' | 'ether' | 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks' | 'years';
+NumberUnit: 'wei' | 'gwei' | 'ether' | 'seconds' | 'minutes' | 'hours' | 'days' | 'weeks' | 'years';
 Override: 'override';
 Payable: 'payable';
-Pragma: 'pragma' -> pushMode(PragmaMode);
 Private: 'private';
 Public: 'public';
 Pure: 'pure';
 Receive: 'receive';
 Return: 'return';
 Returns: 'returns';
-Revert: 'revert'; // not a real keyword
 /**
  * Sized signed integer types.
  * int is an alias of int256.
@@ -87,13 +82,11 @@ SignedIntegerType:
 Storage: 'storage';
 String: 'string';
 Struct: 'struct';
-Transient: 'transient';  // not a real keyword
 True: 'true';
 Try: 'try';
 Type: 'type';
 Ufixed: 'ufixed' | ('ufixed' [1-9][0-9]+ 'x' [1-9][0-9]+);
 Unchecked: 'unchecked';
-Unicode: 'unicode';
 /**
  * Sized unsigned integer types.
  * uint is an alias of uint256.
@@ -160,20 +153,15 @@ Not: '!';
 BitNot: '~';
 Inc: '++';
 Dec: '--';
-//@doc:inline
-DoubleQuote: '"';
-//@doc:inline
-SingleQuote: '\'';
 
 /**
- * A non-empty quoted string literal restricted to printable characters.
+ * A single quoted string literal restricted to printable characters.
+ */
+StringLiteral: '"' DoubleQuotedStringCharacter* '"' | '\'' SingleQuotedStringCharacter* '\'';
+/**
+ * A single non-empty quoted string literal.
  */
 NonEmptyStringLiteral: '"' DoubleQuotedStringCharacter+ '"' | '\'' SingleQuotedStringCharacter+ '\'';
-/**
- * An empty string literal
- */
-EmptyStringLiteral: '"' '"' | '\'' '\'';
-
 // Note that this will also be used for Yul string literals.
 //@doc:inline
 fragment DoubleQuotedStringCharacter: DoubleQuotedPrintable | EscapeSequence;
@@ -202,13 +190,14 @@ fragment EscapeSequence:
 /**
  * A single quoted string literal allowing arbitrary unicode characters.
  */
-UnicodeStringLiteral: 'unicode' (('"' DoubleQuotedUnicodeStringCharacter* '"') | ('\'' SingleQuotedUnicodeStringCharacter* '\''));
+UnicodeStringLiteral:
+	'unicode"' DoubleQuotedUnicodeStringCharacter* '"'
+	| 'unicode\'' SingleQuotedUnicodeStringCharacter* '\'';
 //@doc:inline
 fragment DoubleQuotedUnicodeStringCharacter: ~["\r\n\\] | EscapeSequence;
 //@doc:inline
 fragment SingleQuotedUnicodeStringCharacter: ~['\r\n\\] | EscapeSequence;
 
-// Note that this will also be used for Yul hex string literals.
 /**
  * Hex strings need to consist of an even number of hex digits that may be grouped using underscores.
  */
@@ -225,14 +214,6 @@ fragment EvenHexDigits: HexCharacter HexCharacter ('_'? HexCharacter HexCharacte
 fragment HexCharacter: [0-9A-Fa-f];
 
 /**
- * Scanned but not used by any rule, i.e, disallowed.
- * solc parser considers number starting with '0', not immediately followed by '.' or 'x' as
- * octal, even if non octal digits '8' and '9' are present.
- */
-OctalNumber: '0' DecimalDigits ('.' DecimalDigits)?;
-
-
-/**
  * A decimal number literal consists of decimal digits that may be delimited by underscores and
  * an optional positive or negative exponent.
  * If the digits contain a decimal point, the literal has fixed point type.
@@ -240,12 +221,6 @@ OctalNumber: '0' DecimalDigits ('.' DecimalDigits)?;
 DecimalNumber: (DecimalDigits | (DecimalDigits? '.' DecimalDigits)) ([eE] '-'? DecimalDigits)?;
 //@doc:inline
 fragment DecimalDigits: [0-9] ('_'? [0-9])* ;
-
-
-/**
- * This is needed to avoid successfully parsing a number followed by a string with no whitespace between.
- */
-DecimalNumberFollowedByIdentifier: DecimalNumber Identifier;
 
 
 /**
@@ -268,12 +243,6 @@ mode AssemblyBlockMode;
 AssemblyDialect: '"evmasm"';
 AssemblyLBrace: '{' -> popMode, pushMode(YulMode);
 
-AssemblyFlagString: '"' DoubleQuotedStringCharacter+ '"';
-
-AssemblyBlockLParen: '(';
-AssemblyBlockRParen: ')';
-AssemblyBlockComma: ',';
-
 AssemblyBlockWS: [ \t\r\n\u000C]+ -> skip ;
 AssemblyBlockCOMMENT: '/*' .*? '*/' -> channel(HIDDEN) ;
 AssemblyBlockLINE_COMMENT: '//' ~[\r\n]* -> channel(HIDDEN) ;
@@ -292,7 +261,6 @@ YulLeave: 'leave';
 YulLet: 'let';
 YulSwitch: 'switch';
 YulTrue: 'true';
-YulHex: 'hex';
 
 /**
  * Builtin functions in the EVM Yul dialect.
@@ -300,15 +268,14 @@ YulHex: 'hex';
 YulEVMBuiltin:
 	'stop' | 'add' | 'sub' | 'mul' | 'div' | 'sdiv' | 'mod' | 'smod' | 'exp' | 'not'
 	| 'lt' | 'gt' | 'slt' | 'sgt' | 'eq' | 'iszero' | 'and' | 'or' | 'xor' | 'byte'
-	| 'shl' | 'shr' | 'sar' | 'clz' | 'addmod' | 'mulmod' | 'signextend' | 'keccak256'
-	| 'pop' | 'mload' | 'mstore' | 'mstore8' | 'sload' | 'sstore' | 'tload' | 'tstore'| 'msize' | 'gas'
+	| 'shl' | 'shr' | 'sar' | 'addmod' | 'mulmod' | 'signextend' | 'keccak256'
+	| 'pop' | 'mload' | 'mstore' | 'mstore8' | 'sload' | 'sstore' | 'msize' | 'gas'
 	| 'address' | 'balance' | 'selfbalance' | 'caller' | 'callvalue' | 'calldataload'
 	| 'calldatasize' | 'calldatacopy' | 'extcodesize' | 'extcodecopy' | 'returndatasize'
-	| 'returndatacopy' | 'mcopy' | 'extcodehash' | 'create' | 'create2' | 'call' | 'callcode'
+	| 'returndatacopy' | 'extcodehash' | 'create' | 'create2' | 'call' | 'callcode'
 	| 'delegatecall' | 'staticcall' | 'return' | 'revert' | 'selfdestruct' | 'invalid'
 	| 'log0' | 'log1' | 'log2' | 'log3' | 'log4' | 'chainid' | 'origin' | 'gasprice'
-	| 'blockhash' | 'blobhash' | 'coinbase' | 'timestamp' | 'number' | 'difficulty'
-	| 'prevrandao' | 'gaslimit' | 'basefee' | 'blobbasefee';
+	| 'blockhash' | 'coinbase' | 'timestamp' | 'number' | 'difficulty' | 'gaslimit';
 
 YulLBrace: '{' -> pushMode(YulMode);
 YulRBrace: '}' -> popMode;
@@ -345,8 +312,7 @@ YulDecimalNumber: '0' | ([1-9] [0-9]*);
 YulStringLiteral:
 	'"' DoubleQuotedStringCharacter* '"'
 	| '\'' SingleQuotedStringCharacter* '\'';
-//@doc:inline
-YulHexStringLiteral: HexString;
+
 
 YulWS: [ \t\r\n\u000C]+ -> skip ;
 YulCOMMENT: '/*' .*? '*/' -> channel(HIDDEN) ;

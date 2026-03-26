@@ -8,9 +8,7 @@
 // step: expressionJoiner
 //
 // {
-//     {
-//         let a := mload(2)
-//         let b := mload(a)
-//         a := 4
-//     }
+//     let a := mload(2)
+//     let b := mload(a)
+//     a := 4
 // }

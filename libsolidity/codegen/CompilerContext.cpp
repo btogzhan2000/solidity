@@ -28,33 +28,36 @@
 #include <libsolidity/codegen/CompilerUtils.h>
 #include <libsolidity/interface/Version.h>
 
-#include <libyul/AST.h>
 #include <libyul/AsmParser.h>
 #include <libyul/AsmPrinter.h>
 #include <libyul/AsmAnalysis.h>
 #include <libyul/AsmAnalysisInfo.h>
+#include <libyul/AST.h>
 #include <libyul/backends/evm/AsmCodeGen.h>
 #include <libyul/backends/evm/EVMDialect.h>
 #include <libyul/backends/evm/EVMMetrics.h>
 #include <libyul/optimiser/Suite.h>
 #include <libyul/Object.h>
-#include <libyul/YulName.h>
+#include <libyul/YulString.h>
 #include <libyul/Utilities.h>
 
 #include <libsolutil/Whiskers.h>
 #include <libsolutil/FunctionSelector.h>
-#include <libsolutil/StackTooDeepString.h>
 
 #include <liblangutil/ErrorReporter.h>
 #include <liblangutil/Scanner.h>
 #include <liblangutil/SourceReferenceFormatter.h>
 
+#include <boost/algorithm/string/replace.hpp>
+
 #include <utility>
+#include <numeric>
 
 // Change to "define" to output all intermediate code
 #undef SOL_OUTPUT_ASM
 
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::util;
 using namespace solidity::evmasm;
@@ -67,7 +70,7 @@ void CompilerContext::addStateVariable(
 	unsigned _byteOffset
 )
 {
-	m_stateVariables[&_declaration] = std::make_pair(_storageOffset, _byteOffset);
+	m_stateVariables[&_declaration] = make_pair(_storageOffset, _byteOffset);
 }
 
 void CompilerContext::addImmutable(VariableDeclaration const& _variable)
@@ -87,14 +90,14 @@ size_t CompilerContext::immutableMemoryOffset(VariableDeclaration const& _variab
 	return m_immutableVariables.at(&_variable);
 }
 
-std::vector<std::string> CompilerContext::immutableVariableSlotNames(VariableDeclaration const& _variable)
+vector<string> CompilerContext::immutableVariableSlotNames(VariableDeclaration const& _variable)
 {
-	std::string baseName = std::to_string(_variable.id());
+	string baseName = to_string(_variable.id());
 	solAssert(_variable.annotation().type->sizeOnStack() > 0, "");
 	if (_variable.annotation().type->sizeOnStack() == 1)
 		return {baseName};
-	std::vector<std::string> names;
-	auto collectSlotNames = [&](std::string const& _baseName, Type const* type, auto const& _recurse) -> void {
+	vector<string> names;
+	auto collectSlotNames = [&](string const& _baseName, TypePointer type, auto const& _recurse) -> void {
 		for (auto const& [slot, type]: type->stackItems())
 			if (type)
 				_recurse(_baseName + " " + slot, type, _recurse);
@@ -120,10 +123,10 @@ void CompilerContext::startFunction(Declaration const& _function)
 }
 
 void CompilerContext::callLowLevelFunction(
-	std::string const& _name,
+	string const& _name,
 	unsigned _inArgs,
 	unsigned _outArgs,
-	std::function<void(CompilerContext&)> const& _generator
+	function<void(CompilerContext&)> const& _generator
 )
 {
 	evmasm::AssemblyItem retTag = pushNewTag();
@@ -137,7 +140,7 @@ void CompilerContext::callLowLevelFunction(
 }
 
 void CompilerContext::callYulFunction(
-	std::string const& _name,
+	string const& _name,
 	unsigned _inArgs,
 	unsigned _outArgs
 )
@@ -145,16 +148,16 @@ void CompilerContext::callYulFunction(
 	m_externallyUsedYulFunctions.insert(_name);
 	auto const retTag = pushNewTag();
 	CompilerUtils(*this).moveIntoStack(_inArgs);
-	appendJumpTo(namedTag(_name, _inArgs, _outArgs, {}), evmasm::AssemblyItem::JumpType::IntoFunction);
+	appendJumpTo(namedTag(_name), evmasm::AssemblyItem::JumpType::IntoFunction);
 	adjustStackOffset(static_cast<int>(_outArgs) - 1 - static_cast<int>(_inArgs));
 	*this << retTag.tag();
 }
 
 evmasm::AssemblyItem CompilerContext::lowLevelFunctionTag(
-	std::string const& _name,
+	string const& _name,
 	unsigned _inArgs,
 	unsigned _outArgs,
-	std::function<void(CompilerContext&)> const& _generator
+	function<void(CompilerContext&)> const& _generator
 )
 {
 	auto it = m_lowLevelFunctions.find(_name);
@@ -173,10 +176,10 @@ void CompilerContext::appendMissingLowLevelFunctions()
 {
 	while (!m_lowLevelFunctionGenerationQueue.empty())
 	{
-		std::string name;
+		string name;
 		unsigned inArgs;
 		unsigned outArgs;
-		std::function<void(CompilerContext&)> generator;
+		function<void(CompilerContext&)> generator;
 		tie(name, inArgs, outArgs, generator) = m_lowLevelFunctionGenerationQueue.front();
 		m_lowLevelFunctionGenerationQueue.pop();
 
@@ -194,11 +197,11 @@ void CompilerContext::appendYulUtilityFunctions(OptimiserSettings const& _optimi
 	solAssert(!m_appendYulUtilityFunctionsRan, "requestedYulFunctions called more than once.");
 	m_appendYulUtilityFunctionsRan = true;
 
-	std::string code = m_yulFunctionCollector.requestedFunctions();
+	string code = m_yulFunctionCollector.requestedFunctions();
 	if (!code.empty())
 	{
 		appendInlineAssembly(
-			yul::reindent("{\n" + std::move(code) + "\n}"),
+			yul::reindent("{\n" + move(code) + "\n}"),
 			{},
 			m_externallyUsedYulFunctions,
 			true,
@@ -232,7 +235,7 @@ void CompilerContext::removeVariable(Declaration const& _declaration)
 
 void CompilerContext::removeVariablesAboveStackHeight(unsigned _stackHeight)
 {
-	std::vector<Declaration const*> toRemove;
+	vector<Declaration const*> toRemove;
 	for (auto _var: m_localVariables)
 	{
 		solAssert(!_var.second.empty(), "");
@@ -249,14 +252,14 @@ unsigned CompilerContext::numberOfLocalVariables() const
 	return static_cast<unsigned>(m_localVariables.size());
 }
 
-std::shared_ptr<evmasm::Assembly> CompilerContext::compiledContract(ContractDefinition const& _contract) const
+shared_ptr<evmasm::Assembly> CompilerContext::compiledContract(ContractDefinition const& _contract) const
 {
 	auto ret = m_otherCompilers.find(&_contract);
 	solAssert(ret != m_otherCompilers.end(), "Compiled contract not found.");
 	return ret->second->assemblyPtr();
 }
 
-std::shared_ptr<evmasm::Assembly> CompilerContext::compiledContractRuntime(ContractDefinition const& _contract) const
+shared_ptr<evmasm::Assembly> CompilerContext::compiledContractRuntime(ContractDefinition const& _contract) const
 {
 	auto ret = m_otherCompilers.find(&_contract);
 	solAssert(ret != m_otherCompilers.end(), "Compiled contract not found.");
@@ -283,11 +286,7 @@ FunctionDefinition const& CompilerContext::superFunction(FunctionDefinition cons
 	solAssert(m_mostDerivedContract, "No most derived contract set.");
 	ContractDefinition const* super = _base.superContract(mostDerivedContract());
 	solAssert(super, "Super contract not available.");
-
-	FunctionDefinition const& resolvedFunction = _function.resolveVirtual(mostDerivedContract(), super);
-	solAssert(resolvedFunction.isImplemented(), "");
-
-	return resolvedFunction;
+	return _function.resolveVirtual(mostDerivedContract(), super);
 }
 
 ContractDefinition const& CompilerContext::mostDerivedContract() const
@@ -319,7 +318,7 @@ unsigned CompilerContext::currentToBaseStackOffset(unsigned _offset) const
 	return static_cast<unsigned>(m_asm->deposit()) - _offset - 1;
 }
 
-std::pair<u256, unsigned> CompilerContext::storageLocationOfVariable(Declaration const& _declaration) const
+pair<u256, unsigned> CompilerContext::storageLocationOfVariable(Declaration const& _declaration) const
 {
 	auto it = m_stateVariables.find(&_declaration);
 	solAssert(it != m_stateVariables.end(), "Variable not found in storage.");
@@ -335,7 +334,14 @@ CompilerContext& CompilerContext::appendJump(evmasm::AssemblyItem::JumpType _jum
 
 CompilerContext& CompilerContext::appendPanic(util::PanicCode _code)
 {
-	callYulFunction(utilFunctions().panicFunction(_code), 0, 0);
+	Whiskers templ(R"({
+		mstore(0, <selector>)
+		mstore(4, <code>)
+		revert(0, 0x24)
+	})");
+	templ("selector", util::selectorFromSignature("Panic(uint256)").str());
+	templ("code", u256(_code).str());
+	appendInlineAssembly(templ.render());
 	return *this;
 }
 
@@ -348,13 +354,13 @@ CompilerContext& CompilerContext::appendConditionalPanic(util::PanicCode _code)
 	return *this;
 }
 
-CompilerContext& CompilerContext::appendRevert(std::string const& _message)
+CompilerContext& CompilerContext::appendRevert(string const& _message)
 {
 	appendInlineAssembly("{ " + revertReasonIfDebug(_message) + " }");
 	return *this;
 }
 
-CompilerContext& CompilerContext::appendConditionalRevert(bool _forwardReturnData, std::string const& _message)
+CompilerContext& CompilerContext::appendConditionalRevert(bool _forwardReturnData, string const& _message)
 {
 	if (_forwardReturnData && m_evmVersion.supportsReturndata())
 		appendInlineAssembly(R"({
@@ -371,28 +377,28 @@ CompilerContext& CompilerContext::appendConditionalRevert(bool _forwardReturnDat
 
 void CompilerContext::resetVisitedNodes(ASTNode const* _node)
 {
-	std::stack<ASTNode const*> newStack;
+	stack<ASTNode const*> newStack;
 	newStack.push(_node);
 	std::swap(m_visitedNodes, newStack);
 	updateSourceLocation();
 }
 
 void CompilerContext::appendInlineAssembly(
-	std::string const& _assembly,
-	std::vector<std::string> const& _localVariables,
-	std::set<std::string> const& _externallyUsedFunctions,
+	string const& _assembly,
+	vector<string> const& _localVariables,
+	set<string> const& _externallyUsedFunctions,
 	bool _system,
 	OptimiserSettings const& _optimiserSettings,
-	std::string _sourceName
+	string _sourceName
 )
 {
 	unsigned startStackHeight = stackHeight();
 
-	std::set<yul::YulName> externallyUsedIdentifiers;
+	set<yul::YulString> externallyUsedIdentifiers;
 	for (auto const& fun: _externallyUsedFunctions)
-		externallyUsedIdentifiers.insert(yul::YulName(fun));
+		externallyUsedIdentifiers.insert(yul::YulString(fun));
 	for (auto const& var: _localVariables)
-		externallyUsedIdentifiers.insert(yul::YulName(var));
+		externallyUsedIdentifiers.insert(yul::YulString(var));
 
 	yul::ExternalIdentifierAccess identifierAccess;
 	identifierAccess.resolve = [&](
@@ -403,7 +409,7 @@ void CompilerContext::appendInlineAssembly(
 	{
 		if (_insideFunction)
 			return false;
-		return util::contains(_localVariables, _identifier.name.str());
+		return contains(_localVariables, _identifier.name.str());
 	};
 	identifierAccess.generateCode = [&](
 		yul::Identifier const& _identifier,
@@ -411,18 +417,17 @@ void CompilerContext::appendInlineAssembly(
 		yul::AbstractAssembly& _assembly
 	)
 	{
-		solAssert(_context == yul::IdentifierContext::RValue || _context == yul::IdentifierContext::LValue, "");
 		auto it = std::find(_localVariables.begin(), _localVariables.end(), _identifier.name.str());
 		solAssert(it != _localVariables.end(), "");
 		auto stackDepth = static_cast<size_t>(distance(it, _localVariables.end()));
 		size_t stackDiff = static_cast<size_t>(_assembly.stackHeight()) - startStackHeight + stackDepth;
 		if (_context == yul::IdentifierContext::LValue)
 			stackDiff -= 1;
-		if (stackDiff < 1 || stackDiff > reachableStackDepth())
+		if (stackDiff < 1 || stackDiff > 16)
 			BOOST_THROW_EXCEPTION(
 				StackTooDeepError() <<
-				errinfo_sourceLocation(nativeLocationOf(_identifier)) <<
-				util::errinfo_comment(util::stackTooDeepString)
+				errinfo_sourceLocation(_identifier.location) <<
+				util::errinfo_comment("Stack too deep (" + to_string(stackDiff) + "), try removing local variables.")
 			);
 		if (_context == yul::IdentifierContext::RValue)
 			_assembly.appendInstruction(dupInstruction(static_cast<unsigned>(stackDiff)));
@@ -435,30 +440,28 @@ void CompilerContext::appendInlineAssembly(
 
 	ErrorList errors;
 	ErrorReporter errorReporter(errors);
-	langutil::CharStream charStream(_assembly, _sourceName);
-	yul::EVMDialect const& dialect = yul::EVMDialect::strictAssemblyForEVM(m_evmVersion, std::nullopt);
-	std::optional<langutil::SourceLocation> locationOverride;
+	auto scanner = make_shared<langutil::Scanner>(langutil::CharStream(_assembly, _sourceName));
+	yul::EVMDialect const& dialect = yul::EVMDialect::strictAssemblyForEVM(m_evmVersion);
+	optional<langutil::SourceLocation> locationOverride;
 	if (!_system)
 		locationOverride = m_asm->currentSourceLocation();
-	std::shared_ptr<yul::AST> parserResult =
+	shared_ptr<yul::Block> parserResult =
 		yul::Parser(errorReporter, dialect, std::move(locationOverride))
-		.parse(charStream);
+		.parse(scanner, false);
 #ifdef SOL_OUTPUT_ASM
-	std::cout << yul::AsmPrinter::format(*parserResult) << std::endl;
+	cout << yul::AsmPrinter(&dialect)(*parserResult) << endl;
 #endif
 
-	auto reportError = [&](std::string const& _context)
+	auto reportError = [&](string const& _context)
 	{
-		std::string message =
+		string message =
 			"Error parsing/analyzing inline assembly block:\n" +
 			_context + "\n"
 			"------------------ Input: -----------------\n" +
 			_assembly + "\n"
 			"------------------ Errors: ----------------\n";
 		for (auto const& error: errorReporter.errors())
-			// TODO if we have "locationOverride", it will be the wrong char stream,
-			// but we do not have access to the solidity scanner.
-			message += SourceReferenceFormatter::formatErrorInformation(*error, charStream);
+			message += SourceReferenceFormatter::formatErrorInformation(*error);
 		message += "-------------------------------------------\n";
 
 		solAssert(false, message);
@@ -472,37 +475,37 @@ void CompilerContext::appendInlineAssembly(
 			errorReporter,
 			dialect,
 			identifierAccess.resolve
-		).analyze(parserResult->root());
-	if (!parserResult || errorReporter.hasErrorsWarningsOrInfos() || !analyzerResult)
+		).analyze(*parserResult);
+	if (!parserResult || !errorReporter.errors().empty() || !analyzerResult)
 		reportError("Invalid assembly generated by code generator.");
-	std::shared_ptr<yul::AST const> toBeAssembledAST = parserResult;
 
 	// Several optimizer steps cannot handle externally supplied stack variables,
 	// so we essentially only optimize the ABI functions.
 	if (_optimiserSettings.runYulOptimiser && _localVariables.empty())
 	{
 		yul::Object obj;
-		obj.setCode(parserResult, std::make_shared<yul::AsmAnalysisInfo>(analysisInfo));
+		obj.code = parserResult;
+		obj.analysisInfo = make_shared<yul::AsmAnalysisInfo>(analysisInfo);
 
-		solAssert(!dialect.providesObjectAccess());
-		optimizeYul(obj, _optimiserSettings, externallyUsedIdentifiers);
+		optimizeYul(obj, dialect, _optimiserSettings, externallyUsedIdentifiers);
 
 		if (_system)
 		{
 			// Store as generated sources, but first re-parse to update the source references.
 			solAssert(m_generatedYulUtilityCode.empty(), "");
-			m_generatedYulUtilityCode = yul::AsmPrinter::format(*obj.code());
-			langutil::CharStream charStream(m_generatedYulUtilityCode, _sourceName);
-			obj.setCode(yul::Parser(errorReporter, dialect).parse(charStream));
-			obj.analysisInfo = std::make_shared<yul::AsmAnalysisInfo>(yul::AsmAnalyzer::analyzeStrictAssertCorrect(obj));
+			m_generatedYulUtilityCode = yul::AsmPrinter(dialect)(*obj.code);
+			string code = yul::AsmPrinter{dialect}(*obj.code);
+			scanner = make_shared<langutil::Scanner>(langutil::CharStream(m_generatedYulUtilityCode, _sourceName));
+			obj.code = yul::Parser(errorReporter, dialect).parse(scanner, false);
+			*obj.analysisInfo = yul::AsmAnalyzer::analyzeStrictAssertCorrect(dialect, obj);
 		}
 
 		analysisInfo = std::move(*obj.analysisInfo);
-		toBeAssembledAST = obj.code();
+		parserResult = std::move(obj.code);
 
 #ifdef SOL_OUTPUT_ASM
-		std::cout << "After optimizer:" << std::endl;
-		std::cout << yul::AsmPrinter::format(*parserResult) << std::endl;
+		cout << "After optimizer:" << endl;
+		cout << yul::AsmPrinter(&dialect)(*parserResult) << endl;
 #endif
 	}
 	else if (_system)
@@ -512,17 +515,16 @@ void CompilerContext::appendInlineAssembly(
 		m_generatedYulUtilityCode = _assembly;
 	}
 
-	if (errorReporter.hasErrorsWarningsOrInfos())
+	if (!errorReporter.errors().empty())
 		reportError("Failed to analyze inline assembly block.");
 
-	solAssert(!errorReporter.hasErrorsWarningsOrInfos(), "Failed to analyze inline assembly block.");
+	solAssert(errorReporter.errors().empty(), "Failed to analyze inline assembly block.");
 	yul::CodeGenerator::assemble(
-		toBeAssembledAST->root(),
+		*parserResult,
 		analysisInfo,
 		*m_asm,
 		m_evmVersion,
-		std::nullopt,
-		identifierAccess.generateCode,
+		identifierAccess,
 		_system,
 		_optimiserSettings.optimizeStackAllocation
 	);
@@ -532,45 +534,52 @@ void CompilerContext::appendInlineAssembly(
 }
 
 
-void CompilerContext::optimizeYul(yul::Object& _object, OptimiserSettings const& _optimiserSettings, std::set<yul::YulName> const& _externalIdentifiers)
+void CompilerContext::optimizeYul(yul::Object& _object, yul::EVMDialect const& _dialect, OptimiserSettings const& _optimiserSettings, std::set<yul::YulString> const& _externalIdentifiers)
 {
-	yulAssert(_object.dialect());
-	auto const* evmDialect = dynamic_cast<yul::EVMDialect const*>(_object.dialect());
-	yulAssert(evmDialect);
 #ifdef SOL_OUTPUT_ASM
-	std::cout << yul::AsmPrinter::format(*_object.code()) << std::endl;
+	cout << yul::AsmPrinter(*dialect)(*_object.code) << endl;
 #endif
 
 	bool const isCreation = runtimeContext() != nullptr;
-	yul::GasMeter meter(*evmDialect, isCreation, _optimiserSettings.expectedExecutionsPerDeployment);
+	yul::GasMeter meter(_dialect, isCreation, _optimiserSettings.expectedExecutionsPerDeployment);
 	yul::OptimiserSuite::run(
+		_dialect,
 		&meter,
 		_object,
 		_optimiserSettings.optimizeStackAllocation,
 		_optimiserSettings.yulOptimiserSteps,
-		_optimiserSettings.yulOptimiserCleanupSteps,
-		isCreation? std::nullopt : std::make_optional(_optimiserSettings.expectedExecutionsPerDeployment),
 		_externalIdentifiers
 	);
 
 #ifdef SOL_OUTPUT_ASM
-	std::cout << "After optimizer:" << std::endl;
-	std::cout << yul::AsmPrinter::format(*_object.code()) << std::endl;
+	cout << "After optimizer:" << endl;
+	cout << yul::AsmPrinter(*dialect)(*object.code) << endl;
 #endif
 }
 
-std::string CompilerContext::revertReasonIfDebug(std::string const& _message)
+string CompilerContext::revertReasonIfDebug(string const& _message)
 {
-	return YulUtilFunctions::revertReasonIfDebugBody(
-		m_revertStrings,
-		"mload(" + std::to_string(CompilerUtils::freeMemoryPointer) + ")",
-		_message
-	);
+	return YulUtilFunctions::revertReasonIfDebug(m_revertStrings, _message);
 }
 
 void CompilerContext::updateSourceLocation()
 {
 	m_asm->setSourceLocation(m_visitedNodes.empty() ? SourceLocation() : m_visitedNodes.top()->location());
+}
+
+evmasm::Assembly::OptimiserSettings CompilerContext::translateOptimiserSettings(OptimiserSettings const& _settings)
+{
+	// Constructing it this way so that we notice changes in the fields.
+	evmasm::Assembly::OptimiserSettings asmSettings{false, false, false, false, false, false, m_evmVersion, 0};
+	asmSettings.isCreation = true;
+	asmSettings.runJumpdestRemover = _settings.runJumpdestRemover;
+	asmSettings.runPeephole = _settings.runPeephole;
+	asmSettings.runDeduplicate = _settings.runDeduplicate;
+	asmSettings.runCSE = _settings.runCSE;
+	asmSettings.runConstantOptimiser = _settings.runConstantOptimiser;
+	asmSettings.expectedExecutionsPerDeployment = _settings.expectedExecutionsPerDeployment;
+	asmSettings.evmVersion = m_evmVersion;
+	return asmSettings;
 }
 
 evmasm::AssemblyItem CompilerContext::FunctionCompilationQueue::entryLabel(
@@ -581,24 +590,8 @@ evmasm::AssemblyItem CompilerContext::FunctionCompilationQueue::entryLabel(
 	auto res = m_entryLabels.find(&_declaration);
 	if (res == m_entryLabels.end())
 	{
-		size_t params = 0;
-		size_t returns = 0;
-		if (auto const* function = dynamic_cast<FunctionDefinition const*>(&_declaration))
-		{
-			FunctionType functionType(*function, FunctionType::Kind::Internal);
-			params = CompilerUtils::sizeOnStack(functionType.parameterTypes());
-			returns = CompilerUtils::sizeOnStack(functionType.returnParameterTypes());
-		}
-
-		// some name that cannot clash with yul function names.
-		std::string labelName = "@" + _declaration.name() + "_" + std::to_string(_declaration.id());
-		evmasm::AssemblyItem tag = _context.namedTag(
-			labelName,
-			params,
-			returns,
-			_declaration.id()
-		);
-		m_entryLabels.insert(std::make_pair(&_declaration, tag));
+		evmasm::AssemblyItem tag(_context.newTag());
+		m_entryLabels.insert(make_pair(&_declaration, tag));
 		m_functionsToCompile.push(&_declaration);
 		return tag.tag();
 	}

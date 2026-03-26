@@ -6,4 +6,3 @@ contract test {
         }
     }
 }
-// ----

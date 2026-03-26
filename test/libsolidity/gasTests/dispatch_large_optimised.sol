@@ -23,35 +23,33 @@ contract Large {
     function g0(uint x) public payable returns (uint) { require(x > 10); }
 }
 // ====
-// EVMVersion: =current
-// bytecodeFormat: legacy
 // optimize: true
 // optimize-runs: 2
 // ----
 // creation:
-//   codeDepositCost: 224600
-//   executionCost: 267
-//   totalCost: 224867
+//   codeDepositCost: 270600
+//   executionCost: 312
+//   totalCost: 270912
 // external:
-//   a(): 2281
-//   b(uint256): 4934
-//   f0(uint256): 363
-//   f1(uint256): 47002
-//   f2(uint256): 24967
-//   f3(uint256): 25055
-//   f4(uint256): 25033
-//   f5(uint256): 25011
-//   f6(uint256): 24923
-//   f7(uint256): 24703
-//   f8(uint256): 24835
-//   f9(uint256): 24857
-//   g0(uint256): 603
-//   g1(uint256): 46714
-//   g2(uint256): 24701
-//   g3(uint256): 24789
-//   g4(uint256): 24767
-//   g5(uint256): 24855
-//   g6(uint256): 24635
-//   g7(uint256): 24745
-//   g8(uint256): 24723
-//   g9(uint256): 24569
+//   a(): 1028
+//   b(uint256): 2370
+//   f0(uint256): 399
+//   f1(uint256): 41539
+//   f2(uint256): 21605
+//   f3(uint256): 21693
+//   f4(uint256): 21671
+//   f5(uint256): 21649
+//   f6(uint256): 21561
+//   f7(uint256): 21341
+//   f8(uint256): 21473
+//   f9(uint256): 21495
+//   g0(uint256): 639
+//   g1(uint256): 41251
+//   g2(uint256): 21339
+//   g3(uint256): 21427
+//   g4(uint256): 21405
+//   g5(uint256): 21493
+//   g6(uint256): 21273
+//   g7(uint256): 21383
+//   g8(uint256): 21361
+//   g9(uint256): 21207

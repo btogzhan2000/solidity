@@ -11,5 +11,7 @@ contract C {
         return m[1].a == 12;
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // f() -> true

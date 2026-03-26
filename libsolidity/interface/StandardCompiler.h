@@ -24,9 +24,6 @@
 #pragma once
 
 #include <libsolidity/interface/CompilerStack.h>
-#include <libsolutil/JSON.h>
-
-#include <liblangutil/DebugInfoSelection.h>
 
 #include <optional>
 #include <utility>
@@ -39,72 +36,53 @@ namespace solidity::frontend
  * Standard JSON compiler interface, which expects a JSON input and returns a JSON output.
  * See docs/using-the-compiler#compiler-input-and-output-json-description.
  */
-class StandardCompiler
+class StandardCompiler: boost::noncopyable
 {
 public:
-	/// Noncopyable.
-	StandardCompiler(StandardCompiler const&) = delete;
-	StandardCompiler& operator=(StandardCompiler const&) = delete;
-
 	/// Creates a new StandardCompiler.
 	/// @param _readFile callback used to read files for import statements. Must return
 	/// and must not emit exceptions.
-	explicit StandardCompiler(ReadCallback::Callback _readFile = ReadCallback::Callback(),
-		util::JsonFormat const& _format = {}):
-		m_readFile(std::move(_readFile)),
-		m_jsonPrintingFormat(std::move(_format))
+	explicit StandardCompiler(ReadCallback::Callback _readFile = ReadCallback::Callback()):
+		m_readFile(std::move(_readFile))
 	{
 	}
 
 	/// Sets all input parameters according to @a _input which conforms to the standardized input
 	/// format, performs compilation and returns a standardized output.
-	Json compile(Json const& _input) noexcept;
-	/// Parses input as JSON and performs the above processing steps, returning a serialized JSON
+	Json::Value compile(Json::Value const& _input) noexcept;
+	/// Parses input as JSON and peforms the above processing steps, returning a serialized JSON
 	/// output. Parsing errors are returned as regular errors.
 	std::string compile(std::string const& _input) noexcept;
-
-	static Json formatFunctionDebugData(
-		std::map<std::string, evmasm::LinkerObject::FunctionDebugData> const& _debugInfo
-	);
 
 private:
 	struct InputsAndSettings
 	{
 		std::string language;
-		Json errors;
+		Json::Value errors;
+		bool parserErrorRecovery = false;
 		CompilerStack::State stopAfter = CompilerStack::State::CompilationSuccessful;
 		std::map<std::string, std::string> sources;
-		std::map<std::string, Json> jsonSources;
 		std::map<util::h256, std::string> smtLib2Responses;
 		langutil::EVMVersion evmVersion;
-		std::optional<uint8_t> eofVersion;
-		std::vector<ImportRemapper::Remapping> remappings;
+		std::vector<CompilerStack::Remapping> remappings;
 		RevertStrings revertStrings = RevertStrings::Default;
-		OptimiserSettings optimiserSettings;
-		std::optional<langutil::DebugInfoSelection> debugInfoSelection;
+		OptimiserSettings optimiserSettings = OptimiserSettings::minimal();
 		std::map<std::string, util::h160> libraries;
 		bool metadataLiteralSources = false;
-		CompilerStack::MetadataFormat metadataFormat = CompilerStack::defaultMetadataFormat();
 		CompilerStack::MetadataHash metadataHash = CompilerStack::MetadataHash::IPFS;
-		Json outputSelection;
+		Json::Value outputSelection;
 		ModelCheckerSettings modelCheckerSettings = ModelCheckerSettings{};
 		bool viaIR = false;
-		bool viaSSACFG = false;
-		bool experimental = false;
 	};
 
 	/// Parses the input json (and potentially invokes the read callback) and either returns
 	/// it in condensed form or an error as a json object.
-	std::variant<InputsAndSettings, Json> parseInput(Json const& _input);
+	std::variant<InputsAndSettings, Json::Value> parseInput(Json::Value const& _input);
 
-	std::map<std::string, Json> parseAstFromInput(StringMap const& _sources);
-	Json importEVMAssembly(InputsAndSettings _inputsAndSettings);
-	Json compileSolidity(InputsAndSettings _inputsAndSettings);
-	Json compileYul(InputsAndSettings _inputsAndSettings);
+	Json::Value compileSolidity(InputsAndSettings _inputsAndSettings);
+	Json::Value compileYul(InputsAndSettings _inputsAndSettings);
 
 	ReadCallback::Callback m_readFile;
-
-	util::JsonFormat m_jsonPrintingFormat;
 };
 
 }

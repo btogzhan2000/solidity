@@ -12,6 +12,9 @@ contract C {
         return 33;
     }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // _() -> 88
 // g() -> 88

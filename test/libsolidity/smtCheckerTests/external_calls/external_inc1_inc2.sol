@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 abstract contract D {
 	function d() external virtual;
 }
@@ -23,8 +25,5 @@ contract C {
 		assert(oldX == x);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 2018: (203-322): Function state mutability can be restricted to view
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 2018: (236-355): Function state mutability can be restricted to view

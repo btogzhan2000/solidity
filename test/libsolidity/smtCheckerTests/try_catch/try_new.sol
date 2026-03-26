@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract Reverts {
     constructor(uint) { revert("test message."); }
 }
@@ -25,8 +27,8 @@ contract C {
         }
     }
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 8729: (231-245): Contract deployment is only supported in the trusted mode for external calls with the CHC engine.
-// Warning 8729: (492-507): Contract deployment is only supported in the trusted mode for external calls with the CHC engine.
+// Warning 4588: (264-278): Assertion checker does not yet implement this type of function call.
+// Warning 4588: (525-540): Assertion checker does not yet implement this type of function call.
+// Warning 4588: (264-278): Assertion checker does not yet implement this type of function call.
+// Warning 4588: (525-540): Assertion checker does not yet implement this type of function call.

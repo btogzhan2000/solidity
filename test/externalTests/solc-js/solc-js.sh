@@ -18,17 +18,16 @@
 #
 # (c) 2019 solidity contributors.
 #------------------------------------------------------------------------------
-
-set -e
-
 source scripts/common.sh
-source scripts/externalTests/common.sh
+source test/externalTests/common.sh
 
+verify_version_input "$1" "$2"
 SOLJSON="$1"
 VERSION="$2"
-SOLCJS_CHECKOUT="$3" # optional
 
-[[ $SOLJSON != "" && -f "$SOLJSON" && $VERSION != "" ]] || fail "Usage: $0 <path to soljson.js> <version> [<path to solc-js>]"
+function install_fn { echo "Nothing to install."; }
+function compile_fn { echo "Nothing to compile."; }
+function test_fn { npm test; }
 
 function solcjs_test
 {
@@ -36,8 +35,7 @@ function solcjs_test
     SOLCJS_INPUT_DIR="$TEST_DIR"/test/externalTests/solc-js
 
     # set up solc-js on the branch specified
-    setup_solc "$DIR" solcjs "$SOLJSON" master solc/ "$SOLCJS_CHECKOUT"
-    cd solc/
+    setup "$SOLJSON" master
 
     printLog "Updating index.js file..."
     echo "require('./determinism.js');" >> test/index.js
@@ -48,23 +46,15 @@ function solcjs_test
     printLog "Copying contracts..."
     cp -Rf "$SOLCJS_INPUT_DIR/DAO" test/
 
-    printLog "Copying test with non-zero subassembly access"
-    cp -f "$TEST_DIR"/test/libsolidity/semanticTests/various/code_access_runtime.sol test/
-
     printLog "Copying SMTChecker tests..."
-    # We do not copy all tests because that takes too long.
-    cp -Rf "$TEST_DIR"/test/libsolidity/smtCheckerTests/external_calls test/smtCheckerTests/
-    cp -Rf "$TEST_DIR"/test/libsolidity/smtCheckerTests/loops test/smtCheckerTests/
-    cp -Rf "$TEST_DIR"/test/libsolidity/smtCheckerTests/invariants test/smtCheckerTests/
+    cp -Rf "$TEST_DIR"/test/libsolidity/smtCheckerTests test/
+    rm -rf test/smtCheckerTests/imports
 
     # Update version (needed for some tests)
     echo "Updating package.json to version $VERSION"
     npm version --allow-same-version --no-git-tag-version "$VERSION"
 
-    replace_version_pragmas
-
-    printLog "Running test function..."
-    npm test
+    run_test compile_fn test_fn
 }
 
 external_test solc-js solcjs_test

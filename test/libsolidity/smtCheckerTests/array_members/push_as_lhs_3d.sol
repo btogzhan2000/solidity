@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint[][][] c;
 
@@ -23,9 +25,5 @@ contract C {
 		assert(c[length1 - 1][length2 - 1][length3 - 1] == 200);
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreCex: yes
 // ----
-// Warning 6328: (537-592): CHC: Assertion violation happens here.
-// Info 1391: CHC: 32 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (570-625): CHC: Assertion violation happens here.\nCounterexample:\nc = [[[2]]]\n\nTransaction trace:\nC.constructor()\nState: c = []\nC.g()

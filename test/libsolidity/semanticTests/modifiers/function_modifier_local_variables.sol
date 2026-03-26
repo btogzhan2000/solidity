@@ -13,6 +13,9 @@ contract C {
         return 3;
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // f(bool): true -> 0
 // f(bool): false -> 3

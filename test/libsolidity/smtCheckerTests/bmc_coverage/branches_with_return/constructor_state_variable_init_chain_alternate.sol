@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract A {
 	uint x = 1;
 }
@@ -25,5 +27,4 @@ contract D is C {
 // ====
 // SMTEngine: bmc
 // ----
-// Warning 4661: (286-300): BMC: Assertion violation happens here.
-// Info 6002: BMC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 4661: (319-333): BMC: Assertion violation happens here.

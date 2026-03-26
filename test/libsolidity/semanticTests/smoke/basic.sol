@@ -28,6 +28,8 @@ contract C {
         return a * 7;
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // d() ->
 // e(), 1 wei -> 1

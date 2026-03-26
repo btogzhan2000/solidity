@@ -1,20 +1,14 @@
-Warning: 'transfer' is deprecated and scheduled for removal. Use 'call{value: <amount>}("")' instead.
-  --> input.sol:10:3:
-   |
-10 | 		a.transfer(x);
-   | 		^^^^^^^^^^
-
 Warning: BMC: Condition is always true.
- --> input.sol:6:11:
+ --> model_checker_targets_all_bmc/input.sol:7:11:
   |
-6 | 		require(x >= 0);
+7 | 		require(x >= 0);
   | 		        ^^^^^^
 Note: Callstack:
 
 Warning: BMC: Underflow (resulting value less than 0) happens here.
- --> input.sol:7:3:
+ --> model_checker_targets_all_bmc/input.sol:8:3:
   |
-7 | 		--x;
+8 | 		--x;
   | 		^^^
 Note: Counterexample:
   <result> = (- 1)
@@ -25,9 +19,9 @@ Note: Callstack:
 Note:
 
 Warning: BMC: Overflow (resulting value larger than 2**256 - 1) happens here.
- --> input.sol:8:3:
+ --> model_checker_targets_all_bmc/input.sol:9:3:
   |
-8 | 		x + type(uint).max;
+9 | 		x + type(uint).max;
   | 		^^^^^^^^^^^^^^^^^^
 Note: Counterexample:
   <result> = 2**256
@@ -38,10 +32,10 @@ Note: Callstack:
 Note:
 
 Warning: BMC: Division by zero happens here.
- --> input.sol:9:3:
-  |
-9 | 		2 / x;
-  | 		^^^^^
+  --> model_checker_targets_all_bmc/input.sol:10:3:
+   |
+10 | 		2 / x;
+   | 		^^^^^
 Note: Counterexample:
   <result> = 0
   a = 0
@@ -51,9 +45,9 @@ Note: Callstack:
 Note:
 
 Warning: BMC: Insufficient funds happens here.
-  --> input.sol:10:3:
+  --> model_checker_targets_all_bmc/input.sol:11:3:
    |
-10 | 		a.transfer(x);
+11 | 		a.transfer(x);
    | 		^^^^^^^^^^^^^
 Note: Counterexample:
   a = 0
@@ -63,9 +57,9 @@ Note: Callstack:
 Note:
 
 Warning: BMC: Assertion violation happens here.
-  --> input.sol:11:3:
+  --> model_checker_targets_all_bmc/input.sol:12:3:
    |
-11 | 		assert(x > 0);
+12 | 		assert(x > 0);
    | 		^^^^^^^^^^^^^
 Note: Counterexample:
   a = 0

@@ -15,6 +15,8 @@ contract Ballot {
 		return true;
 	}
 }
+// ====
+// compileViaYul: also
 // ----
 // getVoteCount(address): 0 -> 0
 // getVoteCount(address): 1 -> 0

@@ -9,4 +9,3 @@ contract C {
         a; b; c; d;
     }
 }
-// ----

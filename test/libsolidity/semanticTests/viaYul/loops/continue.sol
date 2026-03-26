@@ -29,6 +29,9 @@ contract C {
         x = x + a;
     }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> 11
 // g() -> 11

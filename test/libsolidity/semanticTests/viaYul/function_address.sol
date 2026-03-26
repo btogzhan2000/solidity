@@ -1,18 +1,17 @@
 contract C {
     function f() external returns (address) {
-        return C(address(0x1234)).f.address;
+        return this.f.address;
     }
-    function g() external returns (bool, bool) {
-        return (
-            this.f.address == address(this),
-            C(address(0x1234)).f.address == address(0x1234)
-        );
+    function g() external returns (bool) {
+      return this.f.address == address(this);
     }
     function h(function() external a) public returns (address) {
-        return a.address;
+      return a.address;
     }
 }
+// ====
+// compileViaYul: also
 // ----
-// f() -> 0x1234
-// g() -> true, true
+// f() -> 0x0fdd67305928fcac8d213d1e47bfa6165cd0b87b
+// g() -> true
 // h(function): left(0x1122334400112233445566778899AABBCCDDEEFF42424242) -> 0x1122334400112233445566778899AABBCCDDEEFF

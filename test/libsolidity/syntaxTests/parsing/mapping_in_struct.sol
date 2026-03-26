@@ -5,4 +5,3 @@ contract test {
         mapping(bytes32 => test_struct) self_reference;
     }
 }
-// ----

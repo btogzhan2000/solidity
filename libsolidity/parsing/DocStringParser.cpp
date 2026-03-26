@@ -18,16 +18,14 @@
 
 #include <libsolidity/parsing/DocStringParser.h>
 
-#include <libsolidity/ast/AST.h>
-
 #include <liblangutil/Common.h>
 #include <liblangutil/ErrorReporter.h>
 #include <liblangutil/Exceptions.h>
 
-#include <range/v3/algorithm/find_first_of.hpp>
-#include <range/v3/algorithm/find_if_not.hpp>
-#include <range/v3/view/subrange.hpp>
+#include <boost/range/algorithm/find_first_of.hpp>
+#include <boost/range/irange.hpp>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::langutil;
 using namespace solidity::frontend;
@@ -35,68 +33,70 @@ using namespace solidity::frontend;
 namespace
 {
 
-std::string::const_iterator skipLineOrEOS(
-	std::string::const_iterator _nlPos,
-	std::string::const_iterator _end
+string::const_iterator skipLineOrEOS(
+	string::const_iterator _nlPos,
+	string::const_iterator _end
 )
 {
 	return (_nlPos == _end) ? _end : ++_nlPos;
 }
 
-std::string::const_iterator firstNonIdentifier(
-	std::string::const_iterator _pos,
-	std::string::const_iterator _end
+string::const_iterator firstNonIdentifier(
+	string::const_iterator _pos,
+	string::const_iterator _end
 )
 {
 	auto currPos = _pos;
 	if (currPos == _pos && isIdentifierStart(*currPos))
 	{
 		currPos++;
-		currPos = ranges::find_if_not(ranges::make_subrange(currPos, _end), isIdentifierPart);
+		while (currPos != _end && isIdentifierPart(*currPos))
+			currPos++;
 	}
 	return currPos;
 }
 
-std::string::const_iterator firstWhitespaceOrNewline(
-	std::string::const_iterator _pos,
-	std::string::const_iterator _end
+string::const_iterator firstWhitespaceOrNewline(
+	string::const_iterator _pos,
+	string::const_iterator _end
 )
 {
-	return ranges::find_first_of(ranges::make_subrange(_pos, _end), " \t\n");
+	return boost::range::find_first_of(make_pair(_pos, _end), " \t\n");
 }
 
 
-std::string::const_iterator skipWhitespace(
-	std::string::const_iterator _pos,
-	std::string::const_iterator _end
+string::const_iterator skipWhitespace(
+	string::const_iterator _pos,
+	string::const_iterator _end
 )
 {
-	auto isWhitespace = [](char const& c) { return (c == ' ' || c == '\t'); };
-	return ranges::find_if_not(ranges::make_subrange(_pos, _end), isWhitespace);
+	auto currPos = _pos;
+	while (currPos != _end && (*currPos == ' ' || *currPos == '\t'))
+		currPos += 1;
+	return currPos;
 }
 
 }
 
-std::multimap<std::string, DocTag> DocStringParser::parse()
+void DocStringParser::parse(string const& _docString, ErrorReporter& _errorReporter)
 {
+	m_errorReporter = &_errorReporter;
 	m_lastTag = nullptr;
-	m_docTags = {};
 
-	solAssert(m_node.text(), "");
-	iter currPos = m_node.text()->begin();
-	iter end = m_node.text()->end();
+	auto currPos = _docString.begin();
+	auto end = _docString.end();
 
 	while (currPos != end)
 	{
-		iter tagPos = find(currPos, end, '@');
-		iter nlPos = find(currPos, end, '\n');
+		auto tagPos = find(currPos, end, '@');
+		auto nlPos = find(currPos, end, '\n');
 
 		if (tagPos != end && tagPos < nlPos)
 		{
 			// we found a tag
-			iter tagNameEndPos = firstWhitespaceOrNewline(tagPos, end);
-			std::string tagName{tagPos + 1, tagNameEndPos};
-			iter tagDataPos = (tagNameEndPos != end) ? tagNameEndPos + 1 : tagNameEndPos;
+			auto tagNameEndPos = firstWhitespaceOrNewline(tagPos, end);
+			auto tagName = string(tagPos + 1, tagNameEndPos);
+			auto tagDataPos = (tagNameEndPos != end) ? tagNameEndPos + 1 : tagNameEndPos;
 			currPos = parseDocTag(tagDataPos, end, tagName);
 		}
 		else if (!!m_lastTag) // continuation of the previous tag
@@ -104,7 +104,7 @@ std::multimap<std::string, DocTag> DocStringParser::parse()
 		else if (currPos != end)
 		{
 			// if it begins without a tag then consider it as @notice
-			if (currPos == m_node.text()->begin())
+			if (currPos == _docString.begin())
 			{
 				currPos = parseDocTag(currPos, end, "notice");
 				continue;
@@ -115,7 +115,6 @@ std::multimap<std::string, DocTag> DocStringParser::parse()
 			currPos = nlPos + 1;
 		}
 	}
-	return std::move(m_docTags);
 }
 
 DocStringParser::iter DocStringParser::parseDocTagLine(iter _pos, iter _end, bool _appending)
@@ -136,22 +135,22 @@ DocStringParser::iter DocStringParser::parseDocTagParam(iter _pos, iter _end)
 	auto nameStartPos = skipWhitespace(_pos, _end);
 	if (nameStartPos == _end)
 	{
-		m_errorReporter.docstringParsingError(3335_error, m_node.location(), "No param name given");
+		m_errorReporter->docstringParsingError(3335_error, "No param name given");
 		return _end;
 	}
 	auto nameEndPos = firstNonIdentifier(nameStartPos, _end);
-	auto paramName = std::string(nameStartPos, nameEndPos);
+	auto paramName = string(nameStartPos, nameEndPos);
 
 	auto descStartPos = skipWhitespace(nameEndPos, _end);
 	auto nlPos = find(descStartPos, _end, '\n');
 
 	if (descStartPos == nlPos)
 	{
-		m_errorReporter.docstringParsingError(9942_error, m_node.location(), "No description given for param " + paramName);
+		m_errorReporter->docstringParsingError(9942_error, "No description given for param " + paramName);
 		return _end;
 	}
 
-	auto paramDesc = std::string(descStartPos, nlPos);
+	auto paramDesc = string(descStartPos, nlPos);
 	newTag("param");
 	m_lastTag->paramName = paramName;
 	m_lastTag->content = paramDesc;
@@ -159,11 +158,11 @@ DocStringParser::iter DocStringParser::parseDocTagParam(iter _pos, iter _end)
 	return skipLineOrEOS(nlPos, _end);
 }
 
-DocStringParser::iter DocStringParser::parseDocTag(iter _pos, iter _end, std::string const& _tag)
+DocStringParser::iter DocStringParser::parseDocTag(iter _pos, iter _end, string const& _tag)
 {
-	// TODO: need to check for @(start of a tag) between here and the end of line
+	// LTODO: need to check for @(start of a tag) between here and the end of line
 	// for all cases.
-	if (!m_lastTag || !_tag.empty())
+	if (!m_lastTag || _tag != "")
 	{
 		if (_tag == "param")
 			return parseDocTagParam(_pos, _end);
@@ -177,7 +176,7 @@ DocStringParser::iter DocStringParser::parseDocTag(iter _pos, iter _end, std::st
 		return parseDocTagLine(_pos, _end, true);
 }
 
-void DocStringParser::newTag(std::string const& _tagName)
+void DocStringParser::newTag(string const& _tagName)
 {
 	m_lastTag = &m_docTags.insert(make_pair(_tagName, DocTag()))->second;
 }

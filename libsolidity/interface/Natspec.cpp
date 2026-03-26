@@ -19,7 +19,7 @@
  * @author Lefteris <lefteris@ethdev.com>
  * @date 2014
  * Takes the parsed AST and produces the Natspec documentation:
- * https://docs.soliditylang.org/en/latest/natspec-format.html
+ * https://github.com/ethereum/wiki/wiki/Ethereum-Natural-Specification-Format
  *
  * Can generally deal with JSON files
  */
@@ -27,41 +27,42 @@
 #include <libsolidity/interface/Natspec.h>
 
 #include <libsolidity/ast/AST.h>
+#include <boost/range/irange.hpp>
 
-#include <boost/algorithm/string.hpp>
-
+using namespace std;
 using namespace solidity;
 using namespace solidity::frontend;
 
-Json Natspec::userDocumentation(ContractDefinition const& _contractDef)
+Json::Value Natspec::userDocumentation(ContractDefinition const& _contractDef)
 {
-	Json doc;
+	Json::Value doc;
+	Json::Value methods(Json::objectValue);
+	Json::Value events(Json::objectValue);
 
-	doc["version"] = Json(c_natspecVersion);
-	doc["kind"]    = Json("user");
-	doc["methods"] = Json::object();
+	doc["version"] = Json::Value(c_natspecVersion);
+	doc["kind"]    = Json::Value("user");
 
 	auto constructorDefinition(_contractDef.constructor());
 	if (constructorDefinition)
 	{
-		std::string const value = extractDoc(constructorDefinition->annotation().docTags, "notice");
+		string const value = extractDoc(constructorDefinition->annotation().docTags, "notice");
 		if (!value.empty())
 		{
 			// add the constructor, only if we have any documentation to add
-			Json user;
-			user["notice"] = Json(value);
-			doc["methods"]["constructor"] = user;
+			Json::Value user;
+			user["notice"] = Json::Value(value);
+			methods["constructor"] = user;
 		}
 	}
 
-	std::string notice = extractDoc(_contractDef.annotation().docTags, "notice");
+	string notice = extractDoc(_contractDef.annotation().docTags, "notice");
 	if (!notice.empty())
-		doc["notice"] = Json(notice);
+		doc["notice"] = Json::Value(notice);
 
 	for (auto const& it: _contractDef.interfaceFunctions())
 		if (it.second->hasDeclaration())
 		{
-			std::string value;
+			string value;
 
 			if (auto const* f = dynamic_cast<FunctionDefinition const*>(&it.second->declaration()))
 				value = extractDoc(f->annotation().docTags, "notice");
@@ -72,37 +73,35 @@ Json Natspec::userDocumentation(ContractDefinition const& _contractDef)
 			}
 
 			if (!value.empty())
+			{
+				Json::Value user;
 				// since @notice is the only user tag if missing function should not appear
-				doc["methods"][it.second->externalSignature()]["notice"] = value;
+				user["notice"] = Json::Value(value);
+				methods[it.second->externalSignature()] = user;
+			}
 		}
 
-	for (auto const& event: uniqueInterfaceEvents(_contractDef))
+	for (auto const& event: _contractDef.interfaceEvents())
 	{
-		std::string value = extractDoc(event->annotation().docTags, "notice");
+		string value = extractDoc(event->annotation().docTags, "notice");
 		if (!value.empty())
-			doc["events"][event->functionType(true)->externalSignature()]["notice"] = value;
+			events[event->functionType(true)->externalSignature()]["notice"] = value;
 	}
 
-	for (auto const& error: _contractDef.interfaceErrors())
-	{
-		std::string value = extractDoc(error->annotation().docTags, "notice");
-		if (!value.empty())
-		{
-			Json errorDoc;
-			errorDoc["notice"] = value;
-			doc["errors"][error->functionType(true)->externalSignature()].emplace_back(std::move(errorDoc));
-		}
-	}
+	doc["methods"] = methods;
+	if (!events.empty())
+		doc["events"] = events;
 
 	return doc;
 }
 
-Json Natspec::devDocumentation(ContractDefinition const& _contractDef)
+Json::Value Natspec::devDocumentation(ContractDefinition const& _contractDef)
 {
-	Json doc = extractCustomDoc(_contractDef.annotation().docTags);
+	Json::Value doc;
+	Json::Value methods(Json::objectValue);
 
-	doc["version"] = Json(c_natspecVersion);
-	doc["kind"] = Json("dev");
+	doc["version"] = Json::Value(c_natspecVersion);
+	doc["kind"] = Json::Value("dev");
 
 	auto author = extractDoc(_contractDef.annotation().docTags, "author");
 	if (!author.empty())
@@ -112,16 +111,15 @@ Json Natspec::devDocumentation(ContractDefinition const& _contractDef)
 		doc["title"] = title;
 	auto dev = extractDoc(_contractDef.annotation().docTags, "dev");
 	if (!dev.empty())
-		doc["details"] = Json(dev);
+		doc["details"] = Json::Value(dev);
 
-	doc["methods"] = Json::object();
 	auto constructorDefinition(_contractDef.constructor());
 	if (constructorDefinition)
 	{
-		Json constructor(devDocumentation(constructorDefinition->annotation().docTags));
+		Json::Value constructor(devDocumentation(constructorDefinition->annotation().docTags));
 		if (!constructor.empty())
 			// add the constructor, only if we have any documentation to add
-			doc["methods"]["constructor"] = constructor;
+			methods["constructor"] = constructor;
 	}
 
 	for (auto const& it: _contractDef.interfaceFunctions())
@@ -130,64 +128,55 @@ Json Natspec::devDocumentation(ContractDefinition const& _contractDef)
 			continue;
 		if (auto fun = dynamic_cast<FunctionDefinition const*>(&it.second->declaration()))
 		{
-			Json method(devDocumentation(fun->annotation().docTags));
+			Json::Value method(devDocumentation(fun->annotation().docTags));
 			// add the function, only if we have any documentation to add
-			Json jsonReturn = extractReturnParameterDocs(
-				fun->annotation().docTags,
-				fun->functionType(false)->returnParameterNames()
-			);
+			Json::Value jsonReturn = extractReturnParameterDocs(fun->annotation().docTags, *fun);
 
 			if (!jsonReturn.empty())
-				method["returns"] = std::move(jsonReturn);
+				method["returns"] = jsonReturn;
 
 			if (!method.empty())
-				doc["methods"][it.second->externalSignature()] = std::move(method);
+				methods[it.second->externalSignature()] = method;
 		}
 	}
 
+	Json::Value stateVariables(Json::objectValue);
 	for (VariableDeclaration const* varDecl: _contractDef.stateVariables())
 	{
 		if (auto devDoc = devDocumentation(varDecl->annotation().docTags); !devDoc.empty())
-			doc["stateVariables"][varDecl->name()] = devDoc;
+			stateVariables[varDecl->name()] = devDoc;
 
-		auto const assignIfNotEmpty = [&](std::string const& _name, Json const& _content)
-		{
-			if (!_content.empty())
-				doc["stateVariables"][varDecl->name()][_name] = _content;
-		};
-
+		solAssert(varDecl->annotation().docTags.count("return") <= 1, "");
 		if (varDecl->annotation().docTags.count("return") == 1)
-			assignIfNotEmpty("return", extractDoc(varDecl->annotation().docTags, "return"));
-
-		if (FunctionTypePointer functionType = varDecl->functionType(false))
-			assignIfNotEmpty("returns", extractReturnParameterDocs(
-				varDecl->annotation().docTags,
-				functionType->returnParameterNames()
-			));
+			stateVariables[varDecl->name()]["return"] = extractDoc(varDecl->annotation().docTags, "return");
 	}
 
-	for (auto const& event: uniqueInterfaceEvents(_contractDef))
+	Json::Value events(Json::objectValue);
+	for (auto const& event: _contractDef.events())
 		if (auto devDoc = devDocumentation(event->annotation().docTags); !devDoc.empty())
-			doc["events"][event->functionType(true)->externalSignature()] = devDoc;
-	for (auto const& error: _contractDef.interfaceErrors())
-		if (auto devDoc = devDocumentation(error->annotation().docTags); !devDoc.empty())
-			doc["errors"][error->functionType(true)->externalSignature()].emplace_back(devDoc);
+			events[event->functionType(true)->externalSignature()] = devDoc;
+
+	doc["methods"] = methods;
+	if (!stateVariables.empty())
+		doc["stateVariables"] = stateVariables;
+	if (!events.empty())
+		doc["events"] = events;
 
 	return doc;
 }
 
-Json Natspec::extractReturnParameterDocs(std::multimap<std::string, DocTag> const& _tags, std::vector<std::string> const& _returnParameterNames)
+Json::Value Natspec::extractReturnParameterDocs(std::multimap<std::string, DocTag> const& _tags, FunctionDefinition const& _functionDef)
 {
-	Json jsonReturn;
+	Json::Value jsonReturn{Json::objectValue};
 	auto returnDocs = _tags.equal_range("return");
 
-	if (!_returnParameterNames.empty())
+	if (!_functionDef.returnParameters().empty())
 	{
 		size_t n = 0;
 		for (auto i = returnDocs.first; i != returnDocs.second; i++)
 		{
-			std::string paramName = _returnParameterNames.at(n);
-			std::string content = i->second.content;
+			string paramName = _functionDef.returnParameters().at(n)->name();
+			string content = i->second.content;
 
 			if (paramName.empty())
 				paramName = "_" + std::to_string(n);
@@ -199,7 +188,7 @@ Json Natspec::extractReturnParameterDocs(std::multimap<std::string, DocTag> cons
 				content = content.substr(nameEndPos+1);
 			}
 
-			jsonReturn[paramName] = Json(content);
+			jsonReturn[paramName] = Json::Value(content);
 			n++;
 		}
 	}
@@ -207,79 +196,33 @@ Json Natspec::extractReturnParameterDocs(std::multimap<std::string, DocTag> cons
 	return jsonReturn;
 }
 
-std::string Natspec::extractDoc(std::multimap<std::string, DocTag> const& _tags, std::string const& _name)
+string Natspec::extractDoc(multimap<string, DocTag> const& _tags, string const& _name)
 {
-	std::string value;
+	string value;
 	auto range = _tags.equal_range(_name);
 	for (auto i = range.first; i != range.second; i++)
 		value += i->second.content;
 	return value;
 }
 
-Json Natspec::extractCustomDoc(std::multimap<std::string, DocTag> const& _tags)
+Json::Value Natspec::devDocumentation(std::multimap<std::string, DocTag> const& _tags)
 {
-	std::map<std::string, std::string> concatenated;
-	for (auto const& [tag, value]: _tags)
-		if (boost::starts_with(tag, "custom"))
-			concatenated[tag] += value.content;
-	// We do not want to create an object if there are no custom tags found.
-	if (concatenated.empty())
-		return Json();
-	Json result;
-	for (auto& [tag, value]: concatenated)
-		result[tag] = std::move(value);
-	return result;
-}
-
-Json Natspec::devDocumentation(std::multimap<std::string, DocTag> const& _tags)
-{
-	Json json = extractCustomDoc(_tags);
+	Json::Value json(Json::objectValue);
 	auto dev = extractDoc(_tags, "dev");
 	if (!dev.empty())
-		json["details"] = Json(dev);
+		json["details"] = Json::Value(dev);
 
 	auto author = extractDoc(_tags, "author");
 	if (!author.empty())
 		json["author"] = author;
 
-	Json params;
+	Json::Value params(Json::objectValue);
 	auto paramRange = _tags.equal_range("param");
 	for (auto i = paramRange.first; i != paramRange.second; ++i)
-		params[i->second.paramName] = Json(i->second.content);
+		params[i->second.paramName] = Json::Value(i->second.content);
 
 	if (!params.empty())
 		json["params"] = params;
 
 	return json;
-}
-
-std::vector<EventDefinition const*>  Natspec::uniqueInterfaceEvents(ContractDefinition const& _contract)
-{
-	auto eventSignature = [](EventDefinition const* _event) -> std::string {
-		FunctionType const* functionType = _event->functionType(true);
-		solAssert(functionType, "");
-		return functionType->externalSignature();
-	};
-	auto compareBySignature =
-		[&](EventDefinition const* _lhs, EventDefinition const* _rhs) -> bool {
-			return eventSignature(_lhs) < eventSignature(_rhs);
-		};
-
-	std::set<EventDefinition const*, decltype(compareBySignature)> uniqueEvents{compareBySignature};
-	// Insert events defined in the contract first so that in case of a conflict
-	// they're the ones that get selected.
-	uniqueEvents += _contract.definedInterfaceEvents();
-
-	std::set<EventDefinition const*, decltype(compareBySignature)> filteredUsedEvents{compareBySignature};
-	std::set<std::string> usedSignatures;
-	for (EventDefinition const* event: _contract.usedInterfaceEvents())
-	{
-		auto&& [eventIt, eventInserted] = filteredUsedEvents.insert(event);
-		auto&& [signatureIt, signatureInserted] = usedSignatures.insert(eventSignature(event));
-		if (!signatureInserted)
-			filteredUsedEvents.erase(eventIt);
-	}
-
-	uniqueEvents += filteredUsedEvents;
-	return util::convertContainer<std::vector<EventDefinition const*>>(std::move(uniqueEvents));
 }

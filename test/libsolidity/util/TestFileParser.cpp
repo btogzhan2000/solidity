@@ -16,9 +16,6 @@
 */
 // SPDX-License-Identifier: GPL-3.0
 
-
-#include <libsolutil/StringUtils.h>
-
 #include <test/libsolidity/util/TestFileParser.h>
 
 #include <test/libsolidity/util/BytesUtils.h>
@@ -37,15 +34,15 @@
 #include <stdexcept>
 
 using namespace solidity;
-using namespace solidity::util;
 using namespace solidity::frontend;
 using namespace solidity::frontend::test;
+using namespace std;
 
 using Token = soltest::Token;
 
 char TestFileParser::Scanner::peek() const noexcept
 {
-	if (std::distance(m_char, m_source.end()) < 2)
+	if (std::distance(m_char, m_line.end()) < 2)
 		return '\0';
 
 	auto next = m_char;
@@ -53,18 +50,20 @@ char TestFileParser::Scanner::peek() const noexcept
 	return *next;
 }
 
-std::vector<solidity::frontend::test::FunctionCall> TestFileParser::parseFunctionCalls(size_t _lineOffset)
+vector<solidity::frontend::test::FunctionCall> TestFileParser::parseFunctionCalls(size_t _lineOffset)
 {
-	std::vector<FunctionCall> calls;
+	vector<FunctionCall> calls;
 	if (!accept(Token::EOS))
 	{
-		soltestAssert(m_scanner.currentToken() == Token::Unknown, "");
+		assert(m_scanner.currentToken() == Token::Unknown);
 		m_scanner.scanNextToken();
 
 		while (!accept(Token::EOS))
 		{
 			if (!accept(Token::Whitespace))
 			{
+				FunctionCall call;
+
 				/// If this is not the first call in the test,
 				/// the last call to parseParameter could have eaten the
 				/// new line already. This could only be fixed with a one
@@ -78,158 +77,85 @@ std::vector<solidity::frontend::test::FunctionCall> TestFileParser::parseFunctio
 
 				try
 				{
-					if (accept(Token::Gas, true))
+					if (accept(Token::Library, true))
 					{
-						if (calls.empty())
-							BOOST_THROW_EXCEPTION(TestParserError("Expected function call before gas usage filter."));
-
-						std::string runType = m_scanner.currentLiteral();
-						if (std::set<std::string>{"ir", "irOptimized", "legacy", "legacyOptimized", "ssaCFG", "ssaCFGOptimized"}.count(runType) == 0)
-							BOOST_THROW_EXCEPTION(TestParserError(
-								"Expected \"ir\", \"irOptimized\", \"legacy\", \"legacyOptimized\", \"ssaCFG\", or \"ssaCFGOptimized\"."
-							));
-						m_scanner.scanNextToken();
-
-						bool isCodeDepositCost = false;
-						if (accept(Token::Identifier))
-						{
-							if (m_scanner.currentLiteral() != "code")
-								BOOST_THROW_EXCEPTION(TestParserError("Expected \"code\" or \":\"."));
-							isCodeDepositCost = true;
-							m_scanner.scanNextToken();
-						}
-
 						expect(Token::Colon);
-
-						std::map<std::string, u256>& gasExpectationMap = (isCodeDepositCost ?
-							calls.back().expectations.gasUsedForCodeDeposit :
-							calls.back().expectations.gasUsedExcludingCode
-						);
-						if (gasExpectationMap.count(runType) > 0)
-							throw TestParserError("Gas usage expectation set multiple times.");
-
-						gasExpectationMap[runType] = u256(parseDecimalNumber());
+						call.signature = m_scanner.currentLiteral();
+						expect(Token::Identifier);
+						call.kind = FunctionCall::Kind::Library;
+						call.expectations.failure = false;
+					}
+					else if (accept(Token::Storage, true))
+					{
+						expect(Token::Colon);
+						call.expectations.failure = false;
+						call.expectations.result.push_back(Parameter());
+						// empty / non-empty is encoded as false / true
+						if (m_scanner.currentLiteral() == "empty")
+							call.expectations.result.back().rawBytes = bytes(1, uint8_t(false));
+						else if (m_scanner.currentLiteral() == "nonempty")
+							call.expectations.result.back().rawBytes = bytes(1, uint8_t(true));
+						else
+							throw TestParserError("Expected \"empty\" or \"nonempty\".");
+						call.kind = FunctionCall::Kind::Storage;
+						m_scanner.scanNextToken();
 					}
 					else
 					{
-						FunctionCall call;
-						if (accept(Token::Library, true))
+						bool lowLevelCall = false;
+						tie(call.signature, lowLevelCall) = parseFunctionSignature();
+						if (lowLevelCall)
+							call.kind = FunctionCall::Kind::LowLevel;
+
+						if (accept(Token::Comma, true))
+							call.value = parseFunctionCallValue();
+
+						if (accept(Token::Colon, true))
+							call.arguments = parseFunctionCallArguments();
+
+						if (accept(Token::Newline, true))
 						{
-							expect(Token::Colon);
-							std::string libraryName;
-							if (accept(Token::String))
-							{
-								call.libraryFile = m_scanner.currentLiteral();
-								expect(Token::String);
-								expect(Token::Colon);
-								libraryName += m_scanner.currentLiteral();
-								expect(Token::Identifier);
-							}
-							else if (accept(Token::Colon, true))
-							{
-								libraryName = m_scanner.currentLiteral();
-								expect(Token::Identifier);
-							}
-							else
-							{
-								libraryName = m_scanner.currentLiteral();
-								expect(Token::Identifier);
-							}
-							call.signature = libraryName;
-							call.kind = FunctionCall::Kind::Library;
-							call.expectations.failure = false;
+							call.displayMode = FunctionCall::DisplayMode::MultiLine;
+							m_lineNumber++;
+						}
+
+						call.arguments.comment = parseComment();
+
+						if (accept(Token::Newline, true))
+						{
+							call.displayMode = FunctionCall::DisplayMode::MultiLine;
+							m_lineNumber++;
+						}
+
+						if (accept(Token::Arrow, true))
+						{
+							call.omitsArrow = false;
+							call.expectations = parseFunctionCallExpectations();
+							if (accept(Token::Newline, true))
+								m_lineNumber++;
 						}
 						else
 						{
-							bool lowLevelCall = false;
-							tie(call.signature, lowLevelCall) = parseFunctionSignature();
-							if (lowLevelCall)
-								call.kind = FunctionCall::Kind::LowLevel;
-							else if (isBuiltinFunction(call.signature))
-								call.kind = FunctionCall::Kind::Builtin;
-
-							if (accept(Token::Comma, true))
-								call.value = parseFunctionCallValue();
-
-							if (accept(Token::Colon, true))
-								call.arguments = parseFunctionCallArguments();
-
-							if (accept(Token::Newline, true))
-							{
-								call.displayMode = FunctionCall::DisplayMode::MultiLine;
-								m_lineNumber++;
-							}
-
-							call.arguments.comment = parseComment();
-
-							if (accept(Token::Newline, true))
-							{
-								call.displayMode = FunctionCall::DisplayMode::MultiLine;
-								m_lineNumber++;
-							}
-
-							if (accept(Token::Arrow, true))
-							{
-								call.omitsArrow = false;
-								call.expectations = parseFunctionCallExpectations();
-								if (accept(Token::Newline, true))
-									m_lineNumber++;
-							}
-							else
-							{
-								call.expectations.failure = false;
-								call.displayMode = FunctionCall::DisplayMode::SingleLine;
-							}
-
-							call.expectations.comment = parseComment();
-
-							if (call.signature == "constructor()")
-								call.kind = FunctionCall::Kind::Constructor;
+							call.expectations.failure = false;
+							call.displayMode = FunctionCall::DisplayMode::SingleLine;
 						}
 
-						accept(Token::Newline, true);
-						call.expectedSideEffects = parseFunctionCallSideEffects();
+						call.expectations.comment = parseComment();
 
-						calls.emplace_back(std::move(call));
+						if (call.signature == "constructor()")
+							call.kind = FunctionCall::Kind::Constructor;
 					}
+
+					calls.emplace_back(std::move(call));
 				}
 				catch (TestParserError const& _e)
 				{
-					BOOST_THROW_EXCEPTION(
-						TestParserError("Line " + std::to_string(_lineOffset + m_lineNumber) + ": " + _e.what())
-					);
+					throw TestParserError("Line " + to_string(_lineOffset + m_lineNumber) + ": " + _e.what());
 				}
 			}
 		}
 	}
-
-	for (FunctionCall& call: calls)
-	{
-		// Ensure that each specified gas expectation has both components to simplify working with them.
-		for (auto const& [runType, gas]: call.expectations.gasUsedForCodeDeposit)
-			call.expectations.gasUsedExcludingCode.try_emplace({runType, 0});
-
-		for (auto const& [runType, gas]: call.expectations.gasUsedExcludingCode)
-			call.expectations.gasUsedForCodeDeposit.try_emplace({runType, 0});
-	}
-
 	return calls;
-}
-
-std::vector<std::string> TestFileParser::parseFunctionCallSideEffects()
-{
-	std::vector<std::string> result;
-	while (accept(Token::Tilde, false))
-	{
-		std::string effect = m_scanner.currentLiteral();
-		result.emplace_back(effect);
-		soltestAssert(m_scanner.currentToken() == Token::Tilde, "");
-		m_scanner.scanNextToken();
-		if (m_scanner.currentToken() == Token::Newline)
-			m_scanner.scanNextToken();
-	}
-
-	return result;
 }
 
 bool TestFileParser::accept(Token _token, bool const _expect)
@@ -244,20 +170,19 @@ bool TestFileParser::accept(Token _token, bool const _expect)
 bool TestFileParser::expect(Token _token, bool const _advance)
 {
 	if (m_scanner.currentToken() != _token || m_scanner.currentToken() == Token::Invalid)
-		BOOST_THROW_EXCEPTION(TestParserError(
+		throw TestParserError(
 			"Unexpected " + formatToken(m_scanner.currentToken()) + ": \"" +
 			m_scanner.currentLiteral() + "\". " +
 			"Expected \"" + formatToken(_token) + "\"."
-			)
-		);
+			);
 	if (_advance)
 		m_scanner.scanNextToken();
 	return true;
 }
 
-std::pair<std::string, bool> TestFileParser::parseFunctionSignature()
+pair<string, bool> TestFileParser::parseFunctionSignature()
 {
-	std::string signature;
+	string signature;
 	bool hasName = false;
 
 	if (accept(Token::Identifier, false))
@@ -267,13 +192,10 @@ std::pair<std::string, bool> TestFileParser::parseFunctionSignature()
 		expect(Token::Identifier);
 	}
 
-	if (isBuiltinFunction(signature) && m_scanner.currentToken() != Token::LParen)
-		return {signature, false};
-
 	signature += formatToken(Token::LParen);
 	expect(Token::LParen);
 
-	std::string parameters;
+	string parameters;
 	if (!accept(Token::RParen, false))
 		parameters = parseIdentifierOrTuple();
 
@@ -284,10 +206,10 @@ std::pair<std::string, bool> TestFileParser::parseFunctionSignature()
 		parameters += parseIdentifierOrTuple();
 	}
 	if (accept(Token::Arrow, true))
-		BOOST_THROW_EXCEPTION(TestParserError("Invalid signature detected: " + signature));
+		throw TestParserError("Invalid signature detected: " + signature);
 
 	if (!hasName && !parameters.empty())
-		BOOST_THROW_EXCEPTION(TestParserError("Signatures without a name cannot have parameters: " + signature));
+		throw TestParserError("Signatures without a name cannot have parameters: " + signature);
 	else
 		signature += parameters;
 
@@ -304,7 +226,7 @@ FunctionValue TestFileParser::parseFunctionCallValue()
 		u256 value{ parseDecimalNumber() };
 		Token token = m_scanner.currentToken();
 		if (token != Token::Ether && token != Token::Wei)
-			BOOST_THROW_EXCEPTION(TestParserError("Invalid value unit provided. Coins can be wei or ether."));
+			throw TestParserError("Invalid value unit provided. Coins can be wei or ether.");
 
 		m_scanner.scanNextToken();
 
@@ -313,7 +235,7 @@ FunctionValue TestFileParser::parseFunctionCallValue()
 	}
 	catch (std::exception const&)
 	{
-		BOOST_THROW_EXCEPTION(TestParserError("Ether value encoding invalid."));
+		throw TestParserError("Ether value encoding invalid.");
 	}
 }
 
@@ -323,7 +245,7 @@ FunctionCallArgs TestFileParser::parseFunctionCallArguments()
 
 	auto param = parseParameter();
 	if (param.abiType.type == ABIType::None)
-		BOOST_THROW_EXCEPTION(TestParserError("No argument provided."));
+		throw TestParserError("No argument provided.");
 	arguments.parameters.emplace_back(param);
 
 	while (accept(Token::Comma, true))
@@ -387,10 +309,10 @@ Parameter TestFileParser::parseParameter()
 	if (accept(Token::Boolean))
 	{
 		if (isSigned)
-			BOOST_THROW_EXCEPTION(TestParserError("Invalid boolean literal."));
+			throw TestParserError("Invalid boolean literal.");
 
 		parameter.abiType = ABIType{ABIType::Boolean, ABIType::AlignRight, 32};
-		std::string parsed = parseBoolean();
+		string parsed = parseBoolean();
 		parameter.rawString += parsed;
 		parameter.rawBytes = BytesUtils::applyAlign(
 			parameter.alignment,
@@ -401,10 +323,10 @@ Parameter TestFileParser::parseParameter()
 	else if (accept(Token::HexNumber))
 	{
 		if (isSigned)
-			BOOST_THROW_EXCEPTION(TestParserError("Invalid hex number literal."));
+			throw TestParserError("Invalid hex number literal.");
 
 		parameter.abiType = ABIType{ABIType::Hex, ABIType::AlignRight, 32};
-		std::string parsed = parseHexNumber();
+		string parsed = parseHexNumber();
 		parameter.rawString += parsed;
 		parameter.rawBytes = BytesUtils::applyAlign(
 			parameter.alignment,
@@ -415,11 +337,11 @@ Parameter TestFileParser::parseParameter()
 	else if (accept(Token::Hex, true))
 	{
 		if (isSigned)
-			BOOST_THROW_EXCEPTION(TestParserError("Invalid hex string literal."));
+			throw TestParserError("Invalid hex string literal.");
 		if (parameter.alignment != Parameter::Alignment::None)
-			BOOST_THROW_EXCEPTION(TestParserError("Hex string literals cannot be aligned or padded."));
+			throw TestParserError("Hex string literals cannot be aligned or padded.");
 
-		std::string parsed = parseString();
+		string parsed = parseString();
 		parameter.rawString += "hex\"" + parsed + "\"";
 		parameter.rawBytes = BytesUtils::convertHexNumber(parsed);
 		parameter.abiType = ABIType{
@@ -429,11 +351,11 @@ Parameter TestFileParser::parseParameter()
 	else if (accept(Token::String))
 	{
 		if (isSigned)
-			BOOST_THROW_EXCEPTION(TestParserError("Invalid string literal."));
+			throw TestParserError("Invalid string literal.");
 		if (parameter.alignment != Parameter::Alignment::None)
-			BOOST_THROW_EXCEPTION(TestParserError("String literals cannot be aligned or padded."));
+			throw TestParserError("String literals cannot be aligned or padded.");
 
-		std::string parsed = parseString();
+		string parsed = parseString();
 		parameter.abiType = ABIType{ABIType::String, ABIType::AlignLeft, parsed.size()};
 		parameter.rawString += "\"" + parsed + "\"";
 		parameter.rawBytes = BytesUtils::applyAlign(
@@ -447,27 +369,21 @@ Parameter TestFileParser::parseParameter()
 		auto type = isSigned ? ABIType::SignedDec : ABIType::UnsignedDec;
 
 		parameter.abiType = ABIType{type, ABIType::AlignRight, 32};
-		std::string parsed = parseDecimalNumber();
+		string parsed = parseDecimalNumber();
 		parameter.rawString += parsed;
 		if (isSigned)
 			parsed = "-" + parsed;
 
-		if (parsed.find('.') == std::string::npos)
-			parameter.rawBytes = BytesUtils::applyAlign(
-				parameter.alignment,
-				parameter.abiType,
-				BytesUtils::convertNumber(parsed)
-			);
-		else
-		{
-			parameter.abiType.type = isSigned ? ABIType::SignedFixedPoint : ABIType::UnsignedFixedPoint;
-			parameter.rawBytes = BytesUtils::convertFixedPoint(parsed, parameter.abiType.fractionalDigits);
-		}
+		parameter.rawBytes = BytesUtils::applyAlign(
+			parameter.alignment,
+			parameter.abiType,
+			BytesUtils::convertNumber(parsed)
+		);
 	}
 	else if (accept(Token::Failure, true))
 	{
 		if (isSigned)
-			BOOST_THROW_EXCEPTION(TestParserError("Invalid failure literal."));
+			throw TestParserError("Invalid failure literal.");
 
 		parameter.abiType = ABIType{ABIType::Failure, ABIType::AlignRight, 0};
 		parameter.rawBytes = bytes{};
@@ -481,9 +397,9 @@ Parameter TestFileParser::parseParameter()
 	return parameter;
 }
 
-std::string TestFileParser::parseIdentifierOrTuple()
+string TestFileParser::parseIdentifierOrTuple()
 {
-	std::string identOrTuple;
+	string identOrTuple;
 
 	auto parseArrayDimensions = [&]()
 	{
@@ -522,55 +438,54 @@ std::string TestFileParser::parseIdentifierOrTuple()
 	return identOrTuple;
 }
 
-std::string TestFileParser::parseBoolean()
+string TestFileParser::parseBoolean()
 {
-	std::string literal = m_scanner.currentLiteral();
+	string literal = m_scanner.currentLiteral();
 	expect(Token::Boolean);
 	return literal;
 }
 
-std::string TestFileParser::parseComment()
+string TestFileParser::parseComment()
 {
-	std::string comment = m_scanner.currentLiteral();
+	string comment = m_scanner.currentLiteral();
 	if (accept(Token::Comment, true))
 		return comment;
-	return std::string{};
+	return string{};
 }
 
-std::string TestFileParser::parseDecimalNumber()
+string TestFileParser::parseDecimalNumber()
 {
-	std::string literal = m_scanner.currentLiteral();
+	string literal = m_scanner.currentLiteral();
 	expect(Token::Number);
 	return literal;
 }
 
-std::string TestFileParser::parseHexNumber()
+string TestFileParser::parseHexNumber()
 {
-	std::string literal = m_scanner.currentLiteral();
+	string literal = m_scanner.currentLiteral();
 	expect(Token::HexNumber);
 	return literal;
 }
 
-std::string TestFileParser::parseString()
+string TestFileParser::parseString()
 {
-	std::string literal = m_scanner.currentLiteral();
+	string literal = m_scanner.currentLiteral();
 	expect(Token::String);
 	return literal;
 }
 
-void TestFileParser::Scanner::readStream(std::istream& _stream)
+void TestFileParser::Scanner::readStream(istream& _stream)
 {
 	std::string line;
-	// TODO: std::getline(..) removes newlines '\n', if present. This could be improved.
 	while (std::getline(_stream, line))
-		m_source += line;
-	m_char = m_source.begin();
+		m_line += line;
+	m_char = m_line.begin();
 }
 
 void TestFileParser::Scanner::scanNextToken()
 {
 	// Make code coverage happy.
-	soltestAssert(formatToken(Token::NUM_TOKENS).empty(), "");
+	assert(formatToken(Token::NUM_TOKENS) == "");
 
 	auto detectKeyword = [](std::string const& _literal = "") -> std::pair<Token, std::string> {
 		if (_literal == "true") return {Token::Boolean, "true"};
@@ -582,7 +497,7 @@ void TestFileParser::Scanner::scanNextToken()
 		if (_literal == "right") return {Token::Right, ""};
 		if (_literal == "hex") return {Token::Hex, ""};
 		if (_literal == "FAILURE") return {Token::Failure, ""};
-		if (_literal == "gas") return {Token::Gas, ""};
+		if (_literal == "storage") return {Token::Storage, ""};
 		return {Token::Identifier, _literal};
 	};
 
@@ -613,10 +528,6 @@ void TestFileParser::Scanner::scanNextToken()
 			}
 			else
 				selectToken(Token::Sub);
-			break;
-		case '~':
-			advance();
-			selectToken(Token::Tilde, readLine());
 			break;
 		case ':':
 			selectToken(Token::Colon);
@@ -661,37 +572,22 @@ void TestFileParser::Scanner::scanNextToken()
 			}
 			else if (langutil::isWhiteSpace(current()))
 				selectToken(Token::Whitespace);
-			else if (isEndOfFile())
+			else if (isEndOfLine())
 			{
 				m_currentToken = Token::EOS;
 				m_currentLiteral = "";
 			}
 			else
-				BOOST_THROW_EXCEPTION(TestParserError("Unexpected character: '" + std::string{current()} + "'"));
+				throw TestParserError("Unexpected character: '" + string{current()} + "'");
 			break;
 		}
 	}
 	while (m_currentToken == Token::Whitespace);
 }
 
-std::string TestFileParser::Scanner::readLine()
+string TestFileParser::Scanner::scanComment()
 {
-	std::string line;
-	// Right now the scanner discards all (real) new-lines '\n' in TestFileParser::Scanner::readStream(..).
-	// Token::NewLine is defined as `//`, and NOT '\n'. We are just searching here for the next `/`.
-	// Note that `/` anywhere else than at the beginning of a line is currently forbidden (TODO: until we fix newline handling).
-	// Once the end of the file would be reached (or beyond), peek() will return '\0'.
-	while (peek() != '\0' && peek() != '/')
-	{
-		advance();
-		line += current();
-	}
-	return line;
-}
-
-std::string TestFileParser::Scanner::scanComment()
-{
-	std::string comment;
+	string comment;
 	advance();
 
 	while (current() != '#')
@@ -702,9 +598,9 @@ std::string TestFileParser::Scanner::scanComment()
 	return comment;
 }
 
-std::string TestFileParser::Scanner::scanIdentifierOrKeyword()
+string TestFileParser::Scanner::scanIdentifierOrKeyword()
 {
-	std::string identifier;
+	string identifier;
 	identifier += current();
 	while (langutil::isIdentifierPart(peek()))
 	{
@@ -714,11 +610,11 @@ std::string TestFileParser::Scanner::scanIdentifierOrKeyword()
 	return identifier;
 }
 
-std::string TestFileParser::Scanner::scanDecimalNumber()
+string TestFileParser::Scanner::scanDecimalNumber()
 {
-	std::string number;
+	string number;
 	number += current();
-	while (langutil::isDecimalDigit(peek()) || '.' == peek())
+	while (langutil::isDecimalDigit(peek()))
 	{
 		advance();
 		number += current();
@@ -726,9 +622,9 @@ std::string TestFileParser::Scanner::scanDecimalNumber()
 	return number;
 }
 
-std::string TestFileParser::Scanner::scanHexNumber()
+string TestFileParser::Scanner::scanHexNumber()
 {
-	std::string number;
+	string number;
 	number += current();
 	while (langutil::isHexDigit(peek()))
 	{
@@ -738,9 +634,9 @@ std::string TestFileParser::Scanner::scanHexNumber()
 	return number;
 }
 
-std::string TestFileParser::Scanner::scanString()
+string TestFileParser::Scanner::scanString()
 {
-	std::string str;
+	string str;
 	advance();
 
 	while (current() != '\"')
@@ -774,7 +670,7 @@ std::string TestFileParser::Scanner::scanString()
 					str += scanHexPart();
 					break;
 				default:
-					BOOST_THROW_EXCEPTION(TestParserError("Invalid or escape sequence found in string literal."));
+					throw TestParserError("Invalid or escape sequence found in string literal.");
 			}
 		}
 		else
@@ -789,34 +685,27 @@ std::string TestFileParser::Scanner::scanString()
 // TODO: use fromHex() from CommonData
 char TestFileParser::Scanner::scanHexPart()
 {
-	auto toLower = [](char _c) -> char { return tolower(_c, std::locale::classic()); };
-
 	advance(); // skip 'x'
 
 	int value{};
-	if (isDigit(current()))
+	if (isdigit(current()))
 		value = current() - '0';
-	else if (toLower(current()) >= 'a' && toLower(current()) <= 'f')
-		value = toLower(current()) - 'a' + 10;
+	else if (tolower(current()) >= 'a' && tolower(current()) <= 'f')
+		value = tolower(current()) - 'a' + 10;
 	else
-		BOOST_THROW_EXCEPTION(TestParserError("\\x used with no following hex digits."));
+		throw TestParserError("\\x used with no following hex digits.");
 
 	advance();
 	if (current() == '"')
 		return static_cast<char>(value);
 
 	value <<= 4;
-	if (isDigit(current()))
+	if (isdigit(current()))
 		value |= current() - '0';
-	else if (toLower(current()) >= 'a' && toLower(current()) <= 'f')
-		value |= toLower(current()) - 'a' + 10;
+	else if (tolower(current()) >= 'a' && tolower(current()) <= 'f')
+		value |= tolower(current()) - 'a' + 10;
 
 	advance();
 
 	return static_cast<char>(value);
-}
-
-bool TestFileParser::isBuiltinFunction(std::string const& _signature)
-{
-	return m_builtins.count(_signature) > 0;
 }

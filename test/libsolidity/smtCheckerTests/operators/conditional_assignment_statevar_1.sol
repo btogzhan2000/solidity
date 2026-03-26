@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
     uint a;
     bool b;
@@ -11,9 +13,8 @@ contract C {
         assert(c >= a);
     }
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 4984: (143-146): CHC: Overflow (resulting value larger than 2**256 - 1) might happen here.
-// Info 1391: CHC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
-// Warning 2661: (143-146): BMC: Overflow (resulting value larger than 2**256 - 1) happens here.
+// Warning 4984: (167-173): CHC: Overflow (resulting value larger than 2**256 - 1) might happen here.
+// Warning 4984: (176-179): CHC: Overflow (resulting value larger than 2**256 - 1) might happen here.
+// Warning 2661: (167-173): BMC: Overflow (resulting value larger than 2**256 - 1) happens here.
+// Warning 2661: (176-179): BMC: Overflow (resulting value larger than 2**256 - 1) happens here.

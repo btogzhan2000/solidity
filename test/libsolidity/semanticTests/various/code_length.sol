@@ -58,9 +58,7 @@ contract C {
     }
 }
 // ====
-// bytecodeFormat: legacy
+// compileViaYul: also
 // ----
 // constructor()
-// gas legacy: 66989
-// gas legacy code: 57800
 // f(): true, true -> true, true

@@ -25,24 +25,16 @@
 
 #include <libyul/backends/evm/EVMDialect.h>
 #include <libyul/AST.h>
-#include <libyul/Utilities.h>
 
 #include <libevmasm/Instruction.h>
-#include <libevmasm/SemanticInformation.h>
 
-#include <liblangutil/Exceptions.h>
 #include <libsolutil/Keccak256.h>
-#include <libsolutil/Numeric.h>
-#include <libsolutil/picosha2.h>
 
-#include <limits>
-
+using namespace std;
 using namespace solidity;
-using namespace solidity::evmasm;
 using namespace solidity::yul;
 using namespace solidity::yul::test;
 
-using solidity::util::h160;
 using solidity::util::h256;
 using solidity::util::keccak256;
 
@@ -72,58 +64,38 @@ u256 readZeroExtended(bytes const& _data, u256 const& _offset)
 	}
 }
 
-}
-
-namespace solidity::yul::test
-{
-
+/// Copy @a _size bytes of @a _source at offset @a _sourceOffset to
+/// @a _target at offset @a _targetOffset. Behaves as if @a _source would
+/// continue with an infinite sequence of zero bytes beyond its end.
 void copyZeroExtended(
-	std::map<u256, uint8_t>& _target,
-	bytes const& _source,
-	size_t _targetOffset,
-	size_t _sourceOffset,
-	size_t _size
+	map<u256, uint8_t>& _target, bytes const& _source,
+	size_t _targetOffset, size_t _sourceOffset, size_t _size
 )
 {
 	for (size_t i = 0; i < _size; ++i)
-		_target[_targetOffset + i] = (_sourceOffset + i < _source.size() ? _source[_sourceOffset + i] : 0);
-}
-
-void copyZeroExtendedWithOverlap(
-	std::map<u256, uint8_t>& _target,
-	std::map<u256, uint8_t> const& _source,
-	size_t _targetOffset,
-	size_t _sourceOffset,
-	size_t _size
-)
-{
-	if (_targetOffset >= _sourceOffset)
-		for (size_t i = _size; i > 0; --i)
-			_target[_targetOffset + i - 1] = (_source.count(_sourceOffset + i - 1) != 0 ? _source.at(_sourceOffset + i - 1) : 0);
-	else
-		for (size_t i = 0; i < _size; ++i)
-			_target[_targetOffset + i] = (_source.count(_sourceOffset + i) != 0 ? _source.at(_sourceOffset + i) : 0);
+		_target[_targetOffset + i] = _sourceOffset + i < _source.size() ? _source[_sourceOffset + i] : 0;
 }
 
 }
+
+using u512 = boost::multiprecision::number<boost::multiprecision::cpp_int_backend<512, 256, boost::multiprecision::unsigned_magnitude, boost::multiprecision::unchecked, void>>;
 
 u256 EVMInstructionInterpreter::eval(
 	evmasm::Instruction _instruction,
-	std::vector<u256> const& _arguments
+	vector<u256> const& _arguments
 )
 {
 	using namespace solidity::evmasm;
 	using evmasm::Instruction;
 
-	auto info = instructionInfo(_instruction, m_evmVersion);
+	auto info = instructionInfo(_instruction);
 	yulAssert(static_cast<size_t>(info.args) == _arguments.size(), "");
 
 	auto const& arg = _arguments;
 	switch (_instruction)
 	{
 	case Instruction::STOP:
-		logTrace(_instruction);
-		BOOST_THROW_EXCEPTION(ExplicitlyTerminated());
+		throw ExplicitlyTerminated();
 	// --------------- arithmetic ---------------
 	case Instruction::ADD:
 		return arg[0] + arg[1];
@@ -181,8 +153,6 @@ u256 EVMInstructionInterpreter::eval(
 			return v;
 		}
 	}
-	case Instruction::CLZ:
-		return arg[0] == 0 ? 256 : 255 - msb(arg[0]);
 	case Instruction::ADDMOD:
 		return arg[2] == 0 ? 0 : u256((u512(arg[0]) + u512(arg[1])) % arg[2]);
 	case Instruction::MULMOD:
@@ -208,21 +178,21 @@ u256 EVMInstructionInterpreter::eval(
 			return u256("0x1234cafe1234cafe1234cafe") + arg[0];
 		uint64_t offset = uint64_t(arg[0] & uint64_t(-1));
 		uint64_t size = uint64_t(arg[1] & uint64_t(-1));
-		return u256(keccak256(m_state.readMemory(offset, size)));
+		return u256(keccak256(readMemory(offset, size)));
 	}
 	case Instruction::ADDRESS:
-		return h256(m_state.address, h256::AlignRight);
+		return m_state.address;
 	case Instruction::BALANCE:
-		if (arg[0] == h256(m_state.address, h256::AlignRight))
+		if (arg[0] == m_state.address)
 			return m_state.selfbalance;
 		else
 			return m_state.balance;
 	case Instruction::SELFBALANCE:
 		return m_state.selfbalance;
 	case Instruction::ORIGIN:
-		return h256(m_state.origin, h256::AlignRight);
+		return m_state.origin;
 	case Instruction::CALLER:
-		return h256(m_state.caller, h256::AlignRight);
+		return m_state.caller;
 	case Instruction::CALLVALUE:
 		return m_state.callvalue;
 	case Instruction::CALLDATALOAD:
@@ -235,7 +205,6 @@ u256 EVMInstructionInterpreter::eval(
 				m_state.memory, m_state.calldata,
 				size_t(arg[0]), size_t(arg[1]), size_t(arg[2])
 			);
-		logTrace(_instruction, arg);
 		return 0;
 	case Instruction::CODESIZE:
 		return m_state.code.size();
@@ -245,51 +214,33 @@ u256 EVMInstructionInterpreter::eval(
 				m_state.memory, m_state.code,
 				size_t(arg[0]), size_t(arg[1]), size_t(arg[2])
 			);
-		logTrace(_instruction, arg);
 		return 0;
 	case Instruction::GASPRICE:
 		return m_state.gasprice;
 	case Instruction::CHAINID:
 		return m_state.chainid;
-	case Instruction::BASEFEE:
-		return m_state.basefee;
-	case Instruction::BLOBHASH:
-		return blobHash(arg[0]);
-	case Instruction::BLOBBASEFEE:
-		return m_state.blobbasefee;
 	case Instruction::EXTCODESIZE:
 		return u256(keccak256(h256(arg[0]))) & 0xffffff;
 	case Instruction::EXTCODEHASH:
 		return u256(keccak256(h256(arg[0] + 1)));
 	case Instruction::EXTCODECOPY:
+		logTrace(_instruction, arg);
 		if (accessMemory(arg[1], arg[3]))
 			// TODO this way extcodecopy and codecopy do the same thing.
 			copyZeroExtended(
 				m_state.memory, m_state.code,
 				size_t(arg[1]), size_t(arg[2]), size_t(arg[3])
 			);
-		logTrace(_instruction, arg);
 		return 0;
 	case Instruction::RETURNDATASIZE:
 		return m_state.returndata.size();
 	case Instruction::RETURNDATACOPY:
+		logTrace(_instruction, arg);
 		if (accessMemory(arg[0], arg[2]))
 			copyZeroExtended(
 				m_state.memory, m_state.returndata,
 				size_t(arg[0]), size_t(arg[1]), size_t(arg[2])
 			);
-		logTrace(_instruction, arg);
-		return 0;
-	case Instruction::MCOPY:
-		if (accessMemory(arg[1], arg[2]) && accessMemory(arg[0], arg[2]))
-			copyZeroExtendedWithOverlap(
-				m_state.memory,
-				m_state.memory,
-				static_cast<size_t>(arg[0]),
-				static_cast<size_t>(arg[1]),
-				static_cast<size_t>(arg[2])
-			);
-		logTrace(_instruction, arg);
 		return 0;
 	case Instruction::BLOCKHASH:
 		if (arg[0] >= m_state.blockNumber || arg[0] + 256 < m_state.blockNumber)
@@ -297,13 +248,13 @@ u256 EVMInstructionInterpreter::eval(
 		else
 			return 0xaaaaaaaa + (arg[0] - m_state.blockNumber - 256);
 	case Instruction::COINBASE:
-		return h256(m_state.coinbase, h256::AlignRight);
+		return m_state.coinbase;
 	case Instruction::TIMESTAMP:
 		return m_state.timestamp;
 	case Instruction::NUMBER:
 		return m_state.blockNumber;
-	case Instruction::PREVRANDAO:
-		return (m_evmVersion < langutil::EVMVersion::paris()) ? m_state.difficulty : m_state.prevrandao;
+	case Instruction::DIFFICULTY:
+		return m_state.difficulty;
 	case Instruction::GASLIMIT:
 		return m_state.gaslimit;
 	// --------------- memory / storage / logs ---------------
@@ -349,81 +300,52 @@ u256 EVMInstructionInterpreter::eval(
 		accessMemory(arg[0], arg[1]);
 		logTrace(_instruction, arg);
 		return 0;
-	case Instruction::TLOAD:
-		return m_state.transientStorage[h256(arg[0])];
-	case Instruction::TSTORE:
-		m_state.transientStorage[h256(arg[0])] = h256(arg[1]);
-		return 0;
 	// --------------- calls ---------------
 	case Instruction::CREATE:
 		accessMemory(arg[1], arg[2]);
 		logTrace(_instruction, arg);
-		if (arg[2] != 0)
-			return (0xcccccc + arg[1]) & u256("0xffffffffffffffffffffffffffffffffffffffff");
-		else
-			return 0xcccccc;
+		return u160(0xcccccc + arg[1]);
 	case Instruction::CREATE2:
-		accessMemory(arg[1], arg[2]);
+		accessMemory(arg[2], arg[3]);
 		logTrace(_instruction, arg);
-		if (arg[2] != 0)
-			return (0xdddddd + arg[1]) & u256("0xffffffffffffffffffffffffffffffffffffffff");
-		else
-			return 0xdddddd;
+		return u160(0xdddddd + arg[1]);
 	case Instruction::CALL:
 	case Instruction::CALLCODE:
+		// TODO assign returndata
 		accessMemory(arg[3], arg[4]);
 		accessMemory(arg[5], arg[6]);
 		logTrace(_instruction, arg);
-		// Randomly fail based on the called address if it isn't a call to self.
-		// Used for fuzzing.
-		return (
-			(arg[0] > 0) &&
-			(arg[1] == util::h160::Arith(m_state.address) || (arg[1] & 1))
-		) ? 1 : 0;
+		return arg[0] & 1;
 	case Instruction::DELEGATECALL:
 	case Instruction::STATICCALL:
 		accessMemory(arg[2], arg[3]);
 		accessMemory(arg[4], arg[5]);
 		logTrace(_instruction, arg);
-		// Randomly fail based on the called address if it isn't a call to self.
-		// Used for fuzzing.
-		return (
-			(arg[0] > 0) &&
-			(arg[1] == util::h160::Arith(m_state.address) || (arg[1] & 1))
-		) ? 1 : 0;
+		return 0;
 	case Instruction::RETURN:
 	{
-		m_state.returndata = {};
+		bytes data;
 		if (accessMemory(arg[0], arg[1]))
-			m_state.returndata = m_state.readMemory(arg[0], arg[1]);
-		logTrace(_instruction, arg, m_state.returndata);
-		BOOST_THROW_EXCEPTION(ExplicitlyTerminatedWithReturn());
+			data = readMemory(arg[0], arg[1]);
+		logTrace(_instruction, arg, data);
+		throw ExplicitlyTerminated();
 	}
 	case Instruction::REVERT:
 		accessMemory(arg[0], arg[1]);
 		logTrace(_instruction, arg);
-		m_state.storage.clear();
-		m_state.transientStorage.clear();
-		BOOST_THROW_EXCEPTION(ExplicitlyTerminated());
+		throw ExplicitlyTerminated();
 	case Instruction::INVALID:
 		logTrace(_instruction);
-		m_state.storage.clear();
-		m_state.transientStorage.clear();
-		m_state.trace.clear();
-		BOOST_THROW_EXCEPTION(ExplicitlyTerminated());
+		throw ExplicitlyTerminated();
 	case Instruction::SELFDESTRUCT:
 		logTrace(_instruction, arg);
-		m_state.storage.clear();
-		m_state.transientStorage.clear();
-		m_state.trace.clear();
-		BOOST_THROW_EXCEPTION(ExplicitlyTerminated());
+		throw ExplicitlyTerminated();
 	case Instruction::POP:
-		return 0;
+		break;
 	// --------------- invalid in strict assembly ---------------
 	case Instruction::JUMP:
 	case Instruction::JUMPI:
 	case Instruction::JUMPDEST:
-	case Instruction::PUSH0:
 	case Instruction::PUSH1:
 	case Instruction::PUSH2:
 	case Instruction::PUSH3:
@@ -488,40 +410,40 @@ u256 EVMInstructionInterpreter::eval(
 	case Instruction::SWAP14:
 	case Instruction::SWAP15:
 	case Instruction::SWAP16:
-	case Instruction::SWAPN:
-	case Instruction::DUPN:
-		yulAssert(false, "Impossible in strict assembly.");
-	case Instruction::DATALOADN:
-	case Instruction::CALLF:
-	case Instruction::RETF:
-	case Instruction::JUMPF:
-	case Instruction::EOFCREATE:
-	case Instruction::RETURNCONTRACT:
-	case Instruction::RJUMP:
-	case Instruction::RJUMPI:
-	case Instruction::EXTCALL:
-	case Instruction::EXTSTATICCALL:
-	case Instruction::EXTDELEGATECALL:
-		solUnimplemented("EOF not yet supported by Yul interpreter.");
+	// --------------- EIP-615 ---------------
+	case Instruction::EIP615_JUMPTO:
+	case Instruction::EIP615_JUMPIF:
+	case Instruction::EIP615_JUMPV:
+	case Instruction::EIP615_JUMPSUB:
+	case Instruction::EIP615_JUMPSUBV:
+	case Instruction::EIP615_BEGINSUB:
+	case Instruction::EIP615_BEGINDATA:
+	case Instruction::EIP615_RETURNSUB:
+	case Instruction::EIP615_PUTLOCAL:
+	case Instruction::EIP615_GETLOCAL:
+	{
+		yulAssert(false, "");
+		return 0;
+	}
 	}
 
-	util::unreachable();
+	return 0;
 }
 
 u256 EVMInstructionInterpreter::evalBuiltin(
 	BuiltinFunctionForEVM const& _fun,
-	std::vector<Expression> const& _arguments,
-	std::vector<u256> const& _evaluatedArguments
+	vector<Expression> const& _arguments,
+	vector<u256> const& _evaluatedArguments
 )
 {
 	if (_fun.instruction)
 		return eval(*_fun.instruction, _evaluatedArguments);
 
-	std::string const& fun = _fun.name;
+	string fun = _fun.name.str();
 	// Evaluate datasize/offset/copy instructions
 	if (fun == "datasize" || fun == "dataoffset")
 	{
-		std::string arg = formatLiteral(std::get<Literal>(_arguments.at(0)));
+		string arg = std::get<Literal>(_arguments.at(0)).value.str();
 		if (arg.length() < 32)
 			arg.resize(32, 0);
 		if (fun == "datasize")
@@ -534,82 +456,42 @@ u256 EVMInstructionInterpreter::evalBuiltin(
 			return u256(keccak256(arg)) & 0xfff;
 		}
 	}
-
-	if (fun == "datacopy")
+	else if (fun == "datacopy")
 	{
 		// This is identical to codecopy.
-		if (
-			_evaluatedArguments.at(2) != 0 &&
-			accessMemory(_evaluatedArguments.at(0), _evaluatedArguments.at(2))
-		)
+		if (accessMemory(_evaluatedArguments.at(0), _evaluatedArguments.at(2)))
 			copyZeroExtended(
 				m_state.memory,
 				m_state.code,
 				size_t(_evaluatedArguments.at(0)),
-				size_t(_evaluatedArguments.at(1) & std::numeric_limits<size_t>::max()),
+				size_t(_evaluatedArguments.at(1) & numeric_limits<size_t>::max()),
 				size_t(_evaluatedArguments.at(2))
 			);
 		return 0;
 	}
-
-	if (fun == "memoryguard")
-		return _evaluatedArguments.at(0);
-
-	if (fun == "linkersymbol")
-	{
-		yulAssert(_arguments.size() == 1);
-		yulAssert(std::holds_alternative<Literal>(_arguments[0]));
-		std::string const placeholder = formatLiteral(std::get<Literal>(_arguments[0]));
-		h256 const identifier(keccak256(placeholder));
-		m_linkerSymbols.emplace(identifier, placeholder);
-		return u256(identifier);
-	}
-
-	if (fun == "loadimmutable")
-	{
-		yulAssert(_arguments.size() == 1);
-		yulAssert(std::holds_alternative<Literal>(_arguments[0]));
-		std::string const identifier = formatLiteral(std::get<Literal>(_arguments[0]));
-		// Return a deterministic value based on the identifier.
-		// This is sufficient for differential fuzzing since the same identifier
-		// will always return the same value, maintaining trace equivalence.
-		return u256(h256(keccak256(identifier)));
-	}
-
-	if (fun == "setimmutable")
-	{
-		yulAssert(_arguments.size() == 3);
-		// No-op: The real implementation patches placeholder bytes in memory-loaded runtime code.
-		// For differential fuzzing, this ensures correct code never fails (no false positives), though some
-		// bugs in setimmutable handling may not be detected (potential false negatives).
-		return 0;
-	}
-
-	yulAssert(false, "Unknown builtin: " + fun);
+	else
+		yulAssert(false, "Unknown builtin: " + fun);
+	return 0;
 }
 
 
 bool EVMInstructionInterpreter::accessMemory(u256 const& _offset, u256 const& _size)
 {
-	if (_size == 0)
-		return true;
-
-	if (_offset <= (_offset + _size) && (_offset + _size) <= (_offset + _size + 0x1f))
+	if (((_offset + _size) >= _offset) && ((_offset + _size + 0x1f) >= (_offset + _size)))
 	{
-		u256 newMSize = (_offset + _size + 0x1f) & ~u256(0x1f);
-		m_state.msize = std::max(m_state.msize, newMSize);
-		// We only record accesses to contiguous memory chunks that are at most s_maxRangeSize bytes
-		// in size and at an offset of at most numeric_limits<size_t>::max() - s_maxRangeSize
-		return _size <= s_maxRangeSize && _offset <= u256(std::numeric_limits<size_t>::max() - s_maxRangeSize);
+		u256 newSize = (_offset + _size + 0x1f) & ~u256(0x1f);
+		m_state.msize = max(m_state.msize, newSize);
+		return _size <= 0xffff;
 	}
+	else
+		m_state.msize = u256(-1);
 
-	m_state.msize = u256(-1);
 	return false;
 }
 
 bytes EVMInstructionInterpreter::readMemory(u256 const& _offset, u256 const& _size)
 {
-	yulAssert(_size <= s_maxRangeSize, "Too large read.");
+	yulAssert(_size <= 0xffff, "Too large read.");
 	bytes data(size_t(_size), uint8_t(0));
 	for (size_t i = 0; i < data.size(); ++i)
 		data[i] = m_state.memory[_offset + i];
@@ -618,7 +500,7 @@ bytes EVMInstructionInterpreter::readMemory(u256 const& _offset, u256 const& _si
 
 u256 EVMInstructionInterpreter::readMemoryWord(u256 const& _offset)
 {
-	return u256(h256(m_state.readMemory(_offset, 32)));
+	return u256(h256(readMemory(_offset, 32)));
 }
 
 void EVMInstructionInterpreter::writeMemoryWord(u256 const& _offset, u256 const& _value)
@@ -628,120 +510,23 @@ void EVMInstructionInterpreter::writeMemoryWord(u256 const& _offset, u256 const&
 }
 
 
-void EVMInstructionInterpreter::logTrace(
-	evmasm::Instruction _instruction,
-	std::vector<u256> const& _arguments,
-	bytes const& _data
-)
+void EVMInstructionInterpreter::logTrace(evmasm::Instruction _instruction, std::vector<u256> const& _arguments, bytes const& _data)
 {
-	logTrace(
-		evmasm::instructionInfo(_instruction, m_evmVersion).name,
-		SemanticInformation::memory(_instruction) == SemanticInformation::Effect::Write,
-		_arguments,
-		_data
-	);
+	logTrace(evmasm::instructionInfo(_instruction).name, _arguments, _data);
 }
 
-void EVMInstructionInterpreter::logTrace(
-	std::string const& _pseudoInstruction,
-	bool _writesToMemory,
-	std::vector<u256> const& _arguments,
-	bytes const& _data
-)
+void EVMInstructionInterpreter::logTrace(std::string const& _pseudoInstruction, std::vector<u256> const& _arguments, bytes const& _data)
 {
-	if (!(_writesToMemory && memWriteTracingDisabled()))
+	string message = _pseudoInstruction + "(";
+	for (size_t i = 0; i < _arguments.size(); ++i)
+		message += (i > 0 ? ", " : "") + util::formatNumber(_arguments[i]);
+	message += ")";
+	if (!_data.empty())
+		message += " [" + util::toHex(_data) + "]";
+	m_state.trace.emplace_back(std::move(message));
+	if (m_state.maxTraceSize > 0 && m_state.trace.size() >= m_state.maxTraceSize)
 	{
-		std::string message = _pseudoInstruction + "(";
-		std::pair<bool, size_t> inputMemoryPtrModified = isInputMemoryPtrModified(_pseudoInstruction, _arguments);
-		for (size_t i = 0; i < _arguments.size(); ++i)
-		{
-			bool printZero = inputMemoryPtrModified.first && inputMemoryPtrModified.second == i;
-			u256 arg = printZero ? 0 : _arguments[i];
-			message += (i > 0 ? ", " : "") + formatNumber(arg);
-		}
-		message += ")";
-		if (!_data.empty())
-			message += " [" + util::toHex(_data) + "]";
-		m_state.trace.emplace_back(std::move(message));
-		if (m_state.maxTraceSize > 0 && m_state.trace.size() >= m_state.maxTraceSize)
-		{
-			m_state.trace.emplace_back("Trace size limit reached.");
-			BOOST_THROW_EXCEPTION(TraceLimitReached());
-		}
+		m_state.trace.emplace_back("Trace size limit reached.");
+		throw TraceLimitReached();
 	}
-}
-
-std::pair<bool, size_t> EVMInstructionInterpreter::isInputMemoryPtrModified(
-	std::string const& _pseudoInstruction,
-	std::vector<u256> const& _arguments
-)
-{
-	if (_pseudoInstruction == "RETURN" || _pseudoInstruction == "REVERT")
-	{
-		if (_arguments[1] == 0)
-			return {true, 0};
-		else
-			return {false, 0};
-	}
-	else if (
-		_pseudoInstruction == "RETURNDATACOPY" || _pseudoInstruction == "CALLDATACOPY"
-		|| _pseudoInstruction == "CODECOPY")
-	{
-		if (_arguments[2] == 0)
-			return {true, 0};
-		else
-			return {false, 0};
-	}
-	else if (_pseudoInstruction == "EXTCODECOPY")
-	{
-		if (_arguments[3] == 0)
-			return {true, 1};
-		else
-			return {false, 0};
-	}
-	else if (
-		_pseudoInstruction == "LOG0" || _pseudoInstruction == "LOG1" || _pseudoInstruction == "LOG2"
-		|| _pseudoInstruction == "LOG3" || _pseudoInstruction == "LOG4")
-	{
-		if (_arguments[1] == 0)
-			return {true, 0};
-		else
-			return {false, 0};
-	}
-	if (_pseudoInstruction == "CREATE" || _pseudoInstruction == "CREATE2")
-	{
-		if (_arguments[2] == 0)
-			return {true, 1};
-		else
-			return {false, 0};
-	}
-	if (_pseudoInstruction == "CALL" || _pseudoInstruction == "CALLCODE")
-	{
-		if (_arguments[4] == 0)
-			return {true, 3};
-		else
-			return {false, 0};
-	}
-	else if (_pseudoInstruction == "DELEGATECALL" || _pseudoInstruction == "STATICCALL")
-	{
-		if (_arguments[3] == 0)
-			return {true, 2};
-		else
-			return {false, 0};
-	}
-	else
-		return {false, 0};
-}
-
-h256 EVMInstructionInterpreter::blobHash(u256 const& _index)
-{
-	yulAssert(m_evmVersion.hasBlobHash());
-	if (_index >= m_state.blobCommitments.size())
-		return util::FixedHash<32>{};
-
-	h256 hashedCommitment = h256(picosha2::hash256(toBigEndian(m_state.blobCommitments[static_cast<size_t>(_index)])));
-	yulAssert(m_state.blobHashVersion.size == 1);
-	hashedCommitment[0] = *m_state.blobHashVersion.data();
-	yulAssert(hashedCommitment.size == 32);
-	return hashedCommitment;
 }

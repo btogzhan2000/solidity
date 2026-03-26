@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract C {
 	bytes data;
 	function g() public {
@@ -11,10 +12,6 @@ contract C {
 		assert(uint8(data[0]) == 0); // should fail
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreOS: macos
 // ----
-// Warning 6328: (139-161): CHC: Assertion violation happens here.
-// Warning 6328: (263-290): CHC: Assertion violation happens here.
-// Info 1391: CHC: 6 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (171-193): CHC: Assertion violation happens here.\nCounterexample:\ndata = [98]\n\nTransaction trace:\nC.constructor()\nState: data = []\nC.g()
+// Warning 6328: (295-322): CHC: Assertion violation happens here.\nCounterexample:\ndata = [1]\n\nTransaction trace:\nC.constructor()\nState: data = []\nC.g()

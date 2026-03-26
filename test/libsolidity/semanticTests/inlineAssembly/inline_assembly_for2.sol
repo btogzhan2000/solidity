@@ -20,6 +20,10 @@ contract C {
         c = st;
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f(uint256): 0 -> 0, 2, 0
 // f(uint256): 1 -> 1, 4, 3

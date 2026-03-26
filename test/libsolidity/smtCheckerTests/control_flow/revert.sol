@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	function f() pure public {
 		revert();
@@ -27,11 +29,8 @@ contract C {
 		revert(m());
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 5740: (83-96): Unreachable code.
-// Warning 5740: (188-201): Unreachable code.
-// Warning 6321: (375-388): Unnamed return variable can remain unassigned. Add an explicit return with value to all non-reverting code paths or name the variable.
-// Warning 6328: (394-411): CHC: Assertion violation happens here.
-// Info 1391: CHC: 3 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 5740: (116-129): Unreachable code.
+// Warning 5740: (221-234): Unreachable code.
+// Warning 6321: (408-421): Unnamed return variable can remain unassigned. Add an explicit return with value to all non-reverting code paths or name the variable.
+// Warning 6328: (427-444): CHC: Assertion violation happens here.\nCounterexample:\nx = true\n\nTransaction trace:\nC.constructor()\nState: x = false\nC.i()\n    C.m() -- internal call

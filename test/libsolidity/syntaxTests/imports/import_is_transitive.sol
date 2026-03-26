@@ -5,4 +5,3 @@ import "a";
 ==== Source: c ====
 import "b";
 contract D is C {}
-// ----

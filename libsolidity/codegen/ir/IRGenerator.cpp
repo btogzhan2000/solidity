@@ -21,8 +21,8 @@
  * Component that translates Solidity code into Yul.
  */
 
-#include <libsolidity/codegen/ir/Common.h>
 #include <libsolidity/codegen/ir/IRGenerator.h>
+
 #include <libsolidity/codegen/ir/IRGeneratorForStatements.h>
 
 #include <libsolidity/ast/AST.h>
@@ -30,255 +30,164 @@
 #include <libsolidity/codegen/ABIFunctions.h>
 #include <libsolidity/codegen/CompilerUtils.h>
 
-#include <libyul/Object.h>
+#include <libyul/AssemblyStack.h>
 #include <libyul/Utilities.h>
 
-#include <libsolutil/Algorithms.h>
 #include <libsolutil/CommonData.h>
-#include <libsolutil/StringUtils.h>
 #include <libsolutil/Whiskers.h>
-#include <libsolutil/JSON.h>
+#include <libsolutil/StringUtils.h>
 
-#include <range/v3/algorithm/all_of.hpp>
+#include <liblangutil/SourceReferenceFormatter.h>
+
+#include <boost/range/adaptor/map.hpp>
 
 #include <sstream>
-#include <variant>
 
+using namespace std;
 using namespace solidity;
-using namespace solidity::frontend;
-using namespace solidity::langutil;
 using namespace solidity::util;
-using namespace std::string_literals;
+using namespace solidity::frontend;
 
-namespace
-{
-
-void verifyCallGraph(
-	std::set<CallableDeclaration const*, ASTNode::CompareByID> const& _expectedCallables,
-	std::set<FunctionDefinition const*> _generatedFunctions
-)
-{
-	for (auto const& expectedCallable: _expectedCallables)
-		if (auto const* expectedFunction = dynamic_cast<FunctionDefinition const*>(expectedCallable))
-		{
-			solAssert(
-				_generatedFunctions.count(expectedFunction) == 1 || expectedFunction->isConstructor(),
-				"No code generated for function " + expectedFunction->name() + " even though it is not a constructor."
-			);
-			_generatedFunctions.erase(expectedFunction);
-		}
-
-	solAssert(
-		_generatedFunctions.size() == 0,
-		"Of the generated functions " + toString(_generatedFunctions.size()) + " are not in the call graph."
-	);
-}
-
-std::set<CallableDeclaration const*, ASTNode::CompareByID> collectReachableCallables(
-	CallGraph const& _graph
-)
-{
-	std::set<CallableDeclaration const*, ASTNode::CompareByID> reachableCallables;
-	for (CallGraph::Node const& reachableNode: _graph.edges | ranges::views::keys)
-		if (std::holds_alternative<CallableDeclaration const*>(reachableNode))
-			reachableCallables.emplace(std::get<CallableDeclaration const*>(reachableNode));
-
-	return reachableCallables;
-}
-
-}
-
-std::string IRGenerator::run(
+pair<string, string> IRGenerator::run(
 	ContractDefinition const& _contract,
-	bytes const& _cborMetadata,
-	std::map<ContractDefinition const*, std::string_view const> const& _otherYulSources
+	map<ContractDefinition const*, string_view const> const& _otherYulSources
 )
 {
-	return yul::reindent(generate(_contract, _cborMetadata, _otherYulSources));
+	string const ir = yul::reindent(generate(_contract, _otherYulSources));
+
+	yul::AssemblyStack asmStack(m_evmVersion, yul::AssemblyStack::Language::StrictAssembly, m_optimiserSettings);
+	if (!asmStack.parseAndAnalyze("", ir))
+	{
+		string errorMessage;
+		for (auto const& error: asmStack.errors())
+			errorMessage += langutil::SourceReferenceFormatter::formatErrorInformation(*error);
+		solAssert(false, ir + "\n\nInvalid IR generated:\n" + errorMessage + "\n");
+	}
+	asmStack.optimize();
+
+	string warning =
+		"/*******************************************************\n"
+		" *                       WARNING                       *\n"
+		" *  Solidity to Yul compilation is still EXPERIMENTAL  *\n"
+		" *       It can result in LOSS OF FUNDS or worse       *\n"
+		" *                !USE AT YOUR OWN RISK!               *\n"
+		" *******************************************************/\n\n";
+
+	return {warning + ir, warning + asmStack.print()};
 }
 
-std::string IRGenerator::generate(
+string IRGenerator::generate(
 	ContractDefinition const& _contract,
-	bytes const& _cborMetadata,
-	std::map<ContractDefinition const*, std::string_view const> const& _otherYulSources
+	map<ContractDefinition const*, string_view const> const& _otherYulSources
 )
 {
-	auto subObjectSources = [&_otherYulSources](UniqueVector<ContractDefinition const*> const& _subObjects) -> std::string
+	auto subObjectSources = [&_otherYulSources](std::set<ContractDefinition const*, ASTNode::CompareByID> const& subObjects) -> string
 	{
 		std::string subObjectsSources;
-		for (ContractDefinition const* subObject: _subObjects)
+		for (ContractDefinition const* subObject: subObjects)
 			subObjectsSources += _otherYulSources.at(subObject);
 		return subObjectsSources;
 	};
-	auto formatUseSrcMap = [](IRGenerationContext const& _context) -> std::string
-	{
-		return joinHumanReadable(
-			ranges::views::transform(_context.usedSourceNames(), [_context](std::string const& _sourceName) {
-				return std::to_string(_context.sourceIndices().at(_sourceName)) + ":" + escapeAndQuoteString(_sourceName);
-			}),
-			", "
-		);
-	};
 
-	Whiskers t(R"(<?isEthdebugEnabled>/// ethdebug: enabled</isEthdebugEnabled>
-		/// @use-src <useSrcMapCreation>
+	Whiskers t(R"(
 		object "<CreationObject>" {
 			code {
-				<sourceLocationCommentCreation>
 				<memoryInitCreation>
 				<callValueCheck>
 				<?library>
 				<!library>
 				<?constructorHasParams> let <constructorParams> := <copyConstructorArguments>() </constructorHasParams>
-				<constructor>(<constructorParams>)
+				<implicitConstructor>(<constructorParams>)
 				</library>
 				<deploy>
 				<functions>
 			}
-			/// @use-src <useSrcMapDeployed>
-			object "<DeployedObject>" {
+			object "<RuntimeObject>" {
 				code {
-					<sourceLocationCommentDeployed>
-					<memoryInitDeployed>
+					<memoryInitRuntime>
 					<?library>
-						<?eof>
-							let called_via_delegatecall := iszero(eq(auxdataloadn(<library_address_immutable_offset>), address()))
-						<!eof>
-							let called_via_delegatecall := iszero(eq(loadimmutable("<library_address>"), address()))
-						</eof>
+					let called_via_delegatecall := iszero(eq(loadimmutable("<library_address>"), address()))
 					</library>
 					<dispatch>
-					<deployedFunctions>
+					<runtimeFunctions>
 				}
-				<deployedSubObjects>
-				data "<metadataName>" hex"<cborMetadata>"
+				<runtimeSubObjects>
 			}
 			<subObjects>
 		}
 	)");
 
-	resetContext(_contract, ExecutionContext::Creation);
-	auto const eof = m_context.eofVersion().has_value();
-	if (eof && _contract.isLibrary())
-		m_context.registerLibraryAddressImmutable();
+	resetContext(_contract);
 	for (VariableDeclaration const* var: ContractType(_contract).immutableVariables())
 		m_context.registerImmutableVariable(*var);
 
-	t("isEthdebugEnabled", m_context.debugInfoSelection().ethdebug);
 	t("CreationObject", IRNames::creationObject(_contract));
-	t("sourceLocationCommentCreation", dispenseLocationComment(_contract));
 	t("library", _contract.isLibrary());
 
 	FunctionDefinition const* constructor = _contract.constructor();
 	t("callValueCheck", !constructor || !constructor->isPayable() ? callValueCheck() : "");
-	std::vector<std::string> constructorParams;
+	vector<string> constructorParams;
 	if (constructor && !constructor->parameters().empty())
 	{
-		for (size_t i = 0; i < CompilerUtils::sizeOnStack(constructor->parameters()); ++i)
+		for (size_t i = 0; i < constructor->parameters().size(); ++i)
 			constructorParams.emplace_back(m_context.newYulVariable());
 		t(
 			"copyConstructorArguments",
-			m_utils.copyConstructorArgumentsToMemoryFunction(
-				_contract,
-				IRNames::creationObject(_contract)
-			)
+			m_utils.copyConstructorArgumentsToMemoryFunction(_contract, IRNames::creationObject(_contract))
 		);
 	}
 	t("constructorParams", joinHumanReadable(constructorParams));
 	t("constructorHasParams", !constructorParams.empty());
-	t("constructor", IRNames::constructor(_contract));
+	t("implicitConstructor", IRNames::implicitConstructor(_contract));
 
 	t("deploy", deployCode(_contract));
-	generateConstructors(_contract);
-	std::set<FunctionDefinition const*> creationFunctionList = generateQueuedFunctions();
-	InternalDispatchMap internalDispatchMap = generateInternalDispatchFunctions(_contract);
-
+	generateImplicitConstructors(_contract);
+	generateQueuedFunctions();
+	InternalDispatchMap internalDispatchMap = generateInternalDispatchFunctions();
 	t("functions", m_context.functionCollector().requestedFunctions());
 	t("subObjects", subObjectSources(m_context.subObjectsCreated()));
 
 	// This has to be called only after all other code generation for the creation object is complete.
-	bool creationInvolvesMemoryUnsafeAssembly = m_context.memoryUnsafeInlineAssemblySeen();
-	t("memoryInitCreation", memoryInit(!creationInvolvesMemoryUnsafeAssembly));
-	t("useSrcMapCreation", formatUseSrcMap(m_context));
+	bool creationInvolvesAssembly = m_context.inlineAssemblySeen();
+	t("memoryInitCreation", memoryInit(!creationInvolvesAssembly));
 
-	auto const immutableVariables = m_context.immutableVariables();
-	auto const libraryAddressImmutableOffset = (_contract.isLibrary() && eof) ?
-		m_context.libraryAddressImmutableOffset() : 0;
-
-	resetContext(_contract, ExecutionContext::Deployed);
-
-	// When generating to EOF we have to initialize these two members, because they store offsets in EOF data section
-	// which is used during deployed container generation
-	if (m_eofVersion.has_value())
-	{
-		m_context.setImmutableVariables(std::move(immutableVariables));
-		if (_contract.isLibrary())
-			m_context.setLibraryAddressImmutableOffset(libraryAddressImmutableOffset);
-	}
+	resetContext(_contract);
 
 	// NOTE: Function pointers can be passed from creation code via storage variables. We need to
 	// get all the functions they could point to into the dispatch functions even if they're never
-	// referenced by name in the deployed code.
-	m_context.initializeInternalDispatch(std::move(internalDispatchMap));
+	// referenced by name in the runtime code.
+	m_context.initializeInternalDispatch(move(internalDispatchMap));
 
 	// Do not register immutables to avoid assignment.
-	t("DeployedObject", IRNames::deployedObject(_contract));
-	t("sourceLocationCommentDeployed", dispenseLocationComment(_contract));
-	t("eof", eof);
-	if (_contract.isLibrary())
-	{
-		if (!eof)
-			t("library_address", IRNames::libraryAddressImmutable());
-		else
-			t("library_address_immutable_offset", std::to_string(m_context.libraryAddressImmutableOffsetRelative()));
-	}
-
+	t("RuntimeObject", IRNames::runtimeObject(_contract));
+	t("library_address", IRNames::libraryAddressImmutable());
 	t("dispatch", dispatchRoutine(_contract));
-	std::set<FunctionDefinition const*> deployedFunctionList = generateQueuedFunctions();
-	generateInternalDispatchFunctions(_contract);
-	t("deployedFunctions", m_context.functionCollector().requestedFunctions());
-	t("deployedSubObjects", subObjectSources(m_context.subObjectsCreated()));
-	t("metadataName", yul::Object::metadataName());
-	t("cborMetadata", util::toHex(_cborMetadata));
+	generateQueuedFunctions();
+	generateInternalDispatchFunctions();
+	t("runtimeFunctions", m_context.functionCollector().requestedFunctions());
+	t("runtimeSubObjects", subObjectSources(m_context.subObjectsCreated()));
 
-	t("useSrcMapDeployed", formatUseSrcMap(m_context));
-
-	// This has to be called only after all other code generation for the deployed object is complete.
-	bool deployedInvolvesMemoryUnsafeAssembly = m_context.memoryUnsafeInlineAssemblySeen();
-	t("memoryInitDeployed", memoryInit(!deployedInvolvesMemoryUnsafeAssembly));
-
-	solAssert(_contract.annotation().creationCallGraph->get() != nullptr, "");
-	solAssert(_contract.annotation().deployedCallGraph->get() != nullptr, "");
-	verifyCallGraph(collectReachableCallables(**_contract.annotation().creationCallGraph), std::move(creationFunctionList));
-	verifyCallGraph(collectReachableCallables(**_contract.annotation().deployedCallGraph), std::move(deployedFunctionList));
-
+	// This has to be called only after all other code generation for the runtime object is complete.
+	bool runtimeInvolvesAssembly = m_context.inlineAssemblySeen();
+	t("memoryInitRuntime", memoryInit(!runtimeInvolvesAssembly));
 	return t.render();
 }
 
-std::string IRGenerator::generate(Block const& _block)
+string IRGenerator::generate(Block const& _block)
 {
-	IRGeneratorForStatements generator(m_context, m_utils, m_optimiserSettings);
+	IRGeneratorForStatements generator(m_context, m_utils);
 	generator.generate(_block);
 	return generator.code();
 }
 
-std::set<FunctionDefinition const*> IRGenerator::generateQueuedFunctions()
+void IRGenerator::generateQueuedFunctions()
 {
-	std::set<FunctionDefinition const*> functions;
-
 	while (!m_context.functionGenerationQueueEmpty())
-	{
-		FunctionDefinition const& functionDefinition = *m_context.dequeueFunctionForCodeGeneration();
-
-		functions.emplace(&functionDefinition);
 		// NOTE: generateFunction() may modify function generation queue
-		generateFunction(functionDefinition);
-	}
-
-	return functions;
+		generateFunction(*m_context.dequeueFunctionForCodeGeneration());
 }
 
-InternalDispatchMap IRGenerator::generateInternalDispatchFunctions(ContractDefinition const& _contract)
+InternalDispatchMap IRGenerator::generateInternalDispatchFunctions()
 {
 	solAssert(
 		m_context.functionGenerationQueueEmpty(),
@@ -287,12 +196,11 @@ InternalDispatchMap IRGenerator::generateInternalDispatchFunctions(ContractDefin
 	);
 
 	InternalDispatchMap internalDispatchMap = m_context.consumeInternalDispatchMap();
-	for (YulArity const& arity: internalDispatchMap | ranges::views::keys)
+	for (YulArity const& arity: internalDispatchMap | boost::adaptors::map_keys)
 	{
-		std::string funName = IRNames::internalDispatch(arity);
+		string funName = IRNames::internalDispatch(arity);
 		m_context.functionCollector().createFunction(funName, [&]() {
 			Whiskers templ(R"(
-				<sourceLocationComment>
 				function <functionName>(fun<?+in>, <in></+in>) <?+out>-> <out></+out> {
 					switch fun
 					<#cases>
@@ -303,16 +211,13 @@ InternalDispatchMap IRGenerator::generateInternalDispatchFunctions(ContractDefin
 					</cases>
 					default { <panic>() }
 				}
-				<sourceLocationComment>
 			)");
-			templ("sourceLocationComment", dispenseLocationComment(_contract));
 			templ("functionName", funName);
 			templ("panic", m_utils.panicFunction(PanicCode::InvalidInternalFunction));
 			templ("in", suffixedVariableNameList("in_", 0, arity.in));
 			templ("out", suffixedVariableNameList("out_", 0, arity.out));
 
-			std::vector<std::map<std::string, std::string>> cases;
-			std::set<int64_t> caseValues;
+			vector<map<string, string>> cases;
 			for (FunctionDefinition const* function: internalDispatchMap.at(arity))
 			{
 				solAssert(function, "");
@@ -323,17 +228,15 @@ InternalDispatchMap IRGenerator::generateInternalDispatchFunctions(ContractDefin
 				solAssert(!function->isConstructor(), "");
 				// 0 is reserved for uninitialized function pointers
 				solAssert(function->id() != 0, "Unexpected function ID: 0");
-				solAssert(caseValues.count(function->id()) == 0, "Duplicate function ID");
 				solAssert(m_context.functionCollector().contains(IRNames::function(*function)), "");
 
-				cases.emplace_back(std::map<std::string, std::string>{
-					{"funID", std::to_string(m_context.mostDerivedContract().annotation().internalFunctionIDs.at(function))},
+				cases.emplace_back(map<string, string>{
+					{"funID", to_string(function->id())},
 					{"name", IRNames::function(*function)}
 				});
-				caseValues.insert(function->id());
 			}
 
-			templ("cases", std::move(cases));
+			templ("cases", move(cases));
 			return templ.render();
 		});
 	}
@@ -347,37 +250,24 @@ InternalDispatchMap IRGenerator::generateInternalDispatchFunctions(ContractDefin
 	return internalDispatchMap;
 }
 
-std::string IRGenerator::generateFunction(FunctionDefinition const& _function)
+string IRGenerator::generateFunction(FunctionDefinition const& _function)
 {
-	std::string functionName = IRNames::function(_function);
+	string functionName = IRNames::function(_function);
 	return m_context.functionCollector().createFunction(functionName, [&]() {
 		m_context.resetLocalVariables();
 		Whiskers t(R"(
-			<astIDComment><sourceLocationComment>
 			function <functionName>(<params>)<?+retParams> -> <retParams></+retParams> {
 				<retInit>
 				<body>
 			}
-			<contractSourceLocationComment>
 		)");
-
-		if (m_context.debugInfoSelection().astID)
-			t("astIDComment", "/// @ast-id " + std::to_string(_function.id()) + "\n");
-		else
-			t("astIDComment", "");
-		t("sourceLocationComment", dispenseLocationComment(_function));
-		t(
-			"contractSourceLocationComment",
-			dispenseLocationComment(m_context.mostDerivedContract())
-		);
-
 		t("functionName", functionName);
-		std::vector<std::string> params;
+		vector<string> params;
 		for (auto const& varDecl: _function.parameters())
 			params += m_context.addLocalVariable(*varDecl).stackSlots();
 		t("params", joinHumanReadable(params));
-		std::vector<std::string> retParams;
-		std::string retInit;
+		vector<string> retParams;
+		string retInit;
 		for (auto const& varDecl: _function.returnParameters())
 		{
 			retParams += m_context.addLocalVariable(*varDecl).stackSlots();
@@ -394,14 +284,14 @@ std::string IRGenerator::generateFunction(FunctionDefinition const& _function)
 			for (size_t i = 0; i < _function.modifiers().size(); ++i)
 			{
 				ModifierInvocation const& modifier = *_function.modifiers().at(i);
-				std::string next =
+				string next =
 					i + 1 < _function.modifiers().size() ?
 					IRNames::modifierInvocation(*_function.modifiers().at(i + 1)) :
 					IRNames::functionWithModifierInner(_function);
 				generateModifier(modifier, _function, next);
 			}
 			t("body",
-				(retParams.empty() ? std::string{} : joinHumanReadable(retParams) + " := ") +
+				(retParams.empty() ? string{} : joinHumanReadable(retParams) + " := ") +
 				IRNames::modifierInvocation(*_function.modifiers().at(0)) +
 				"(" +
 				joinHumanReadable(retParams + params) +
@@ -414,39 +304,36 @@ std::string IRGenerator::generateFunction(FunctionDefinition const& _function)
 	});
 }
 
-std::string IRGenerator::generateModifier(
+string IRGenerator::generateModifier(
 	ModifierInvocation const& _modifierInvocation,
 	FunctionDefinition const& _function,
-	std::string const& _nextFunction
+	string const& _nextFunction
 )
 {
-	std::string functionName = IRNames::modifierInvocation(_modifierInvocation);
+	string functionName = IRNames::modifierInvocation(_modifierInvocation);
 	return m_context.functionCollector().createFunction(functionName, [&]() {
 		m_context.resetLocalVariables();
 		Whiskers t(R"(
-			<astIDComment><sourceLocationComment>
 			function <functionName>(<params>)<?+retParams> -> <retParams></+retParams> {
 				<assignRetParams>
 				<evalArgs>
 				<body>
 			}
-			<contractSourceLocationComment>
 		)");
-
 		t("functionName", functionName);
-		std::vector<std::string> retParamsIn;
+		vector<string> retParamsIn;
 		for (auto const& varDecl: _function.returnParameters())
-			retParamsIn += m_context.addLocalVariable(*varDecl).stackSlots();
-		std::vector<std::string> params = retParamsIn;
+			retParamsIn += IRVariable(*varDecl).stackSlots();
+		vector<string> params = retParamsIn;
 		for (auto const& varDecl: _function.parameters())
 			params += m_context.addLocalVariable(*varDecl).stackSlots();
 		t("params", joinHumanReadable(params));
-		std::vector<std::string> retParams;
-		std::string assignRetParams;
+		vector<string> retParams;
+		string assignRetParams;
 		for (size_t i = 0; i < retParamsIn.size(); ++i)
 		{
 			retParams.emplace_back(m_context.newYulVariable());
-			assignRetParams += retParams.at(i) + " := " + retParamsIn.at(i) + "\n";
+			assignRetParams += retParams.back() + " := " + retParamsIn[i] + "\n";
 		}
 		t("retParams", joinHumanReadable(retParams));
 		t("assignRetParams", assignRetParams);
@@ -455,17 +342,6 @@ std::string IRGenerator::generateModifier(
 			_modifierInvocation.name().annotation().referencedDeclaration
 		);
 		solAssert(modifier, "");
-
-		if (m_context.debugInfoSelection().astID)
-			t("astIDComment", "/// @ast-id " + std::to_string(modifier->id()) + "\n");
-		else
-			t("astIDComment", "");
-		t("sourceLocationComment", dispenseLocationComment(*modifier));
-		t(
-			"contractSourceLocationComment",
-			dispenseLocationComment(m_context.mostDerivedContract())
-		);
-
 		switch (*_modifierInvocation.name().annotation().requiredLookup)
 		{
 		case VirtualLookup::Virtual:
@@ -483,7 +359,7 @@ std::string IRGenerator::generateModifier(
 			(!_modifierInvocation.arguments() || _modifierInvocation.arguments()->empty()),
 			""
 		);
-		IRGeneratorForStatements expressionEvaluator(m_context, m_utils, m_optimiserSettings);
+		IRGeneratorForStatements expressionEvaluator(m_context, m_utils);
 		if (_modifierInvocation.arguments())
 			for (size_t i = 0; i < _modifierInvocation.arguments()->size(); i++)
 			{
@@ -498,8 +374,8 @@ std::string IRGenerator::generateModifier(
 			}
 
 		t("evalArgs", expressionEvaluator.code());
-		IRGeneratorForStatements generator(m_context, m_utils, m_optimiserSettings, [&]() {
-			std::string ret = joinHumanReadable(retParams);
+		IRGeneratorForStatements generator(m_context, m_utils, [&]() {
+			string ret = joinHumanReadable(retParams);
 			return
 				(ret.empty() ? "" : ret + " := ") +
 				_nextFunction + "(" + joinHumanReadable(params) + ")\n";
@@ -510,36 +386,29 @@ std::string IRGenerator::generateModifier(
 	});
 }
 
-std::string IRGenerator::generateFunctionWithModifierInner(FunctionDefinition const& _function)
+string IRGenerator::generateFunctionWithModifierInner(FunctionDefinition const& _function)
 {
-	std::string functionName = IRNames::functionWithModifierInner(_function);
+	string functionName = IRNames::functionWithModifierInner(_function);
 	return m_context.functionCollector().createFunction(functionName, [&]() {
 		m_context.resetLocalVariables();
 		Whiskers t(R"(
-			<sourceLocationComment>
 			function <functionName>(<params>)<?+retParams> -> <retParams></+retParams> {
 				<assignRetParams>
 				<body>
 			}
-			<contractSourceLocationComment>
 		)");
-		t("sourceLocationComment", dispenseLocationComment(_function));
-		t(
-			"contractSourceLocationComment",
-			dispenseLocationComment(m_context.mostDerivedContract())
-		);
 		t("functionName", functionName);
-		std::vector<std::string> retParams;
-		std::vector<std::string> retParamsIn;
+		vector<string> retParams;
+		vector<string> retParamsIn;
 		for (auto const& varDecl: _function.returnParameters())
 			retParams += m_context.addLocalVariable(*varDecl).stackSlots();
-		std::string assignRetParams;
+		string assignRetParams;
 		for (size_t i = 0; i < retParams.size(); ++i)
 		{
 			retParamsIn.emplace_back(m_context.newYulVariable());
-			assignRetParams += retParams.at(i) + " := " + retParamsIn.at(i) + "\n";
+			assignRetParams += retParams.back() + " := " + retParamsIn[i] + "\n";
 		}
-		std::vector<std::string> params = retParamsIn;
+		vector<string> params = retParamsIn;
 		for (auto const& varDecl: _function.parameters())
 			params += m_context.addLocalVariable(*varDecl).stackSlots();
 		t("params", joinHumanReadable(params));
@@ -550,9 +419,9 @@ std::string IRGenerator::generateFunctionWithModifierInner(FunctionDefinition co
 	});
 }
 
-std::string IRGenerator::generateGetter(VariableDeclaration const& _varDecl)
+string IRGenerator::generateGetter(VariableDeclaration const& _varDecl)
 {
-	std::string functionName = IRNames::function(_varDecl);
+	string functionName = IRNames::function(_varDecl);
 	return m_context.functionCollector().createFunction(functionName, [&]() {
 		Type const* type = _varDecl.annotation().type;
 
@@ -563,69 +432,31 @@ std::string IRGenerator::generateGetter(VariableDeclaration const& _varDecl)
 		if (_varDecl.immutable())
 		{
 			solAssert(paramTypes.empty(), "");
-			solUnimplementedAssert(type->sizeOnStack() == 1);
-
-			auto t = Whiskers(R"(
-				<astIDComment><sourceLocationComment>
+			solUnimplementedAssert(type->sizeOnStack() == 1, "");
+			return Whiskers(R"(
 				function <functionName>() -> rval {
-					<?eof>
-						rval := auxdataloadn(<immutableOffset>)
-					<!eof>
-						rval := loadimmutable("<id>")
-					</eof>
+					rval := loadimmutable("<id>")
 				}
-				<contractSourceLocationComment>
-				)");
-			t(
-				"astIDComment",
-				m_context.debugInfoSelection().astID ?
-					"/// @ast-id " + std::to_string(_varDecl.id()) + "\n" :
-					""
-			);
-			t("sourceLocationComment", dispenseLocationComment(_varDecl));
-			t(
-				"contractSourceLocationComment",
-				dispenseLocationComment(m_context.mostDerivedContract())
-			);
-			t("functionName", functionName);
-
-			auto const eof = m_context.eofVersion().has_value();
-			t("eof", eof);
-			if (!eof)
-				t("id", std::to_string(_varDecl.id()));
-			else
-				t("immutableOffset", std::to_string(m_context.immutableMemoryOffsetRelative(_varDecl)));
-
-			return t.render();
+			)")
+			("functionName", functionName)
+			("id", to_string(_varDecl.id()))
+			.render();
 		}
 		else if (_varDecl.isConstant())
 		{
 			solAssert(paramTypes.empty(), "");
 			return Whiskers(R"(
-				<astIDComment><sourceLocationComment>
 				function <functionName>() -> <ret> {
 					<ret> := <constantValueFunction>()
 				}
-				<contractSourceLocationComment>
 			)")
-			(
-				"astIDComment",
-				m_context.debugInfoSelection().astID ?
-					"/// @ast-id " + std::to_string(_varDecl.id()) + "\n" :
-					""
-			)
-			("sourceLocationComment", dispenseLocationComment(_varDecl))
-			(
-				"contractSourceLocationComment",
-				dispenseLocationComment(m_context.mostDerivedContract())
-			)
 			("functionName", functionName)
-			("constantValueFunction", IRGeneratorForStatements(m_context, m_utils, m_optimiserSettings).constantValueFunction(_varDecl))
+			("constantValueFunction", IRGeneratorForStatements(m_context, m_utils).constantValueFunction(_varDecl))
 			("ret", suffixedVariableNameList("ret_", 0, _varDecl.type()->sizeOnStack()))
 			.render();
 		}
 
-		std::string code;
+		string code;
 
 		auto const& location = m_context.storageLocationOfStateVariable(_varDecl);
 		code += Whiskers(R"(
@@ -633,7 +464,7 @@ std::string IRGenerator::generateGetter(VariableDeclaration const& _varDecl)
 			let offset := <offset>
 		)")
 		("slot", location.first.str())
-		("offset", std::to_string(location.second))
+		("offset", to_string(location.second))
 		.render();
 
 		if (!paramTypes.empty())
@@ -647,10 +478,10 @@ std::string IRGenerator::generateGetter(VariableDeclaration const& _varDecl)
 		// In each iteration of the loop below, we consume one parameter, perform an
 		// index access, reassign the yul variable `slot` and move @a currentType further "down".
 		// The initial value of @a currentType is only used if we skip the loop completely.
-		Type const* currentType = _varDecl.annotation().type;
+		TypePointer currentType = _varDecl.annotation().type;
 
-		std::vector<std::string> parameters;
-		std::vector<std::string> returnVariables;
+		vector<string> parameters;
+		vector<string> returnVariables;
 
 		for (size_t i = 0; i < paramTypes.size(); ++i)
 		{
@@ -658,7 +489,7 @@ std::string IRGenerator::generateGetter(VariableDeclaration const& _varDecl)
 			ArrayType const* arrayType = dynamic_cast<ArrayType const*>(currentType);
 			solAssert(mappingType || arrayType, "");
 
-			std::vector<std::string> keys = IRVariable("key_" + std::to_string(i),
+			vector<string> keys = IRVariable("key_" + to_string(i),
 				mappingType ? *mappingType->keyType() : *TypeProvider::uint256()
 			).stackSlots();
 			parameters += keys;
@@ -697,18 +528,18 @@ std::string IRGenerator::generateGetter(VariableDeclaration const& _varDecl)
 					continue;
 				if (
 					auto const* arrayType = dynamic_cast<ArrayType const*>(returnTypes[i]);
-					arrayType && !arrayType->isByteArrayOrString()
+					arrayType && !arrayType->isByteArray()
 				)
 					continue;
 
-				std::pair<u256, unsigned> const& offsets = structType->storageOffsetsOfMember(names[i]);
-				std::vector<std::string> retVars = IRVariable("ret_" + std::to_string(returnVariables.size()), *returnTypes[i]).stackSlots();
+				pair<u256, unsigned> const& offsets = structType->storageOffsetsOfMember(names[i]);
+				vector<string> retVars = IRVariable("ret_" + to_string(returnVariables.size()), *returnTypes[i]).stackSlots();
 				returnVariables += retVars;
 				code += Whiskers(R"(
 					<ret> := <readStorage>(add(slot, <slotOffset>))
 				)")
 				("ret", joinHumanReadable(retVars))
-				("readStorage", m_utils.readFromStorage(*returnTypes[i], offsets.second, true, _varDecl.referenceLocation()))
+				("readStorage", m_utils.readFromStorage(*returnTypes[i], offsets.second, true))
 				("slotOffset", offsets.first.str())
 				.render();
 			}
@@ -718,89 +549,38 @@ std::string IRGenerator::generateGetter(VariableDeclaration const& _varDecl)
 			solAssert(returnTypes.size() == 1, "");
 			auto const* arrayType = dynamic_cast<ArrayType const*>(returnTypes.front());
 			if (arrayType)
-				solAssert(arrayType->isByteArrayOrString(), "");
-			std::vector<std::string> retVars = IRVariable("ret", *returnTypes.front()).stackSlots();
+				solAssert(arrayType->isByteArray(), "");
+			vector<string> retVars = IRVariable("ret", *returnTypes.front()).stackSlots();
 			returnVariables += retVars;
 			code += Whiskers(R"(
 				<ret> := <readStorage>(slot, offset)
 			)")
 			("ret", joinHumanReadable(retVars))
-			("readStorage", m_utils.readFromStorageDynamic(*returnTypes.front(), true, _varDecl.referenceLocation()))
+			("readStorage", m_utils.readFromStorageDynamic(*returnTypes.front(), true))
 			.render();
 		}
 
 		return Whiskers(R"(
-			<astIDComment><sourceLocationComment>
 			function <functionName>(<params>) -> <retVariables> {
 				<code>
 			}
-			<contractSourceLocationComment>
 		)")
 		("functionName", functionName)
 		("params", joinHumanReadable(parameters))
 		("retVariables", joinHumanReadable(returnVariables))
 		("code", std::move(code))
-		(
-			"astIDComment",
-			m_context.debugInfoSelection().astID ?
-				"/// @ast-id " + std::to_string(_varDecl.id()) + "\n" :
-				""
-		)
-		("sourceLocationComment", dispenseLocationComment(_varDecl))
-		(
-			"contractSourceLocationComment",
-			dispenseLocationComment(m_context.mostDerivedContract())
-		)
 		.render();
 	});
 }
 
-std::string IRGenerator::generateExternalFunction(ContractDefinition const& _contract, FunctionType const& _functionType)
+string IRGenerator::generateInitialAssignment(VariableDeclaration const& _varDecl)
 {
-	std::string functionName = IRNames::externalFunctionABIWrapper(_functionType.declaration());
-	return m_context.functionCollector().createFunction(functionName, [&](std::vector<std::string>&, std::vector<std::string>&) -> std::string {
-		Whiskers t(R"X(
-			<callValueCheck>
-			<?+params>let <params> := </+params> <abiDecode>(4, calldatasize())
-			<?+retParams>let <retParams> := </+retParams> <function>(<params>)
-			let memPos := <allocateUnbounded>()
-			let memEnd := <abiEncode>(memPos <?+retParams>,</+retParams> <retParams>)
-			return(memPos, sub(memEnd, memPos))
-		)X");
-		t("callValueCheck", (_functionType.isPayable() || _contract.isLibrary()) ? "" : callValueCheck());
-
-		unsigned paramVars = std::make_shared<TupleType>(_functionType.parameterTypes())->sizeOnStack();
-		unsigned retVars = std::make_shared<TupleType>(_functionType.returnParameterTypes())->sizeOnStack();
-
-		ABIFunctions abiFunctions(m_evmVersion, m_eofVersion, m_context.revertStrings(), m_context.functionCollector());
-		t("abiDecode", abiFunctions.tupleDecoder(_functionType.parameterTypes()));
-		t("params",  suffixedVariableNameList("param_", 0, paramVars));
-		t("retParams",  suffixedVariableNameList("ret_", 0, retVars));
-
-		if (FunctionDefinition const* funDef = dynamic_cast<FunctionDefinition const*>(&_functionType.declaration()))
-		{
-			solAssert(!funDef->isConstructor());
-			t("function", m_context.enqueueFunctionForCodeGeneration(*funDef));
-		}
-		else if (VariableDeclaration const* varDecl = dynamic_cast<VariableDeclaration const*>(&_functionType.declaration()))
-			t("function", generateGetter(*varDecl));
-		else
-			solAssert(false, "Unexpected declaration for function!");
-
-		t("allocateUnbounded", m_utils.allocateUnboundedFunction());
-		t("abiEncode", abiFunctions.tupleEncoder(_functionType.returnParameterTypes(), _functionType.returnParameterTypes(), _contract.isLibrary()));
-		return t.render();
-	});
-}
-
-std::string IRGenerator::generateInitialAssignment(VariableDeclaration const& _varDecl)
-{
-	IRGeneratorForStatements generator(m_context, m_utils, m_optimiserSettings);
+	IRGeneratorForStatements generator(m_context, m_utils);
 	generator.initializeLocalVar(_varDecl);
 	return generator.code();
 }
 
-std::pair<std::string, std::map<ContractDefinition const*, std::vector<std::string>>> IRGenerator::evaluateConstructorArguments(
+pair<string, map<ContractDefinition const*, vector<string>>> IRGenerator::evaluateConstructorArguments(
 	ContractDefinition const& _contract
 )
 {
@@ -808,18 +588,19 @@ std::pair<std::string, std::map<ContractDefinition const*, std::vector<std::stri
 	{
 		bool operator()(ContractDefinition const* _c1, ContractDefinition const* _c2) const
 		{
-			solAssert(util::contains(linearizedBaseContracts, _c1) && util::contains(linearizedBaseContracts, _c2), "");
+			solAssert(contains(linearizedBaseContracts, _c1) && contains(linearizedBaseContracts, _c2), "");
 			auto it1 = find(linearizedBaseContracts.begin(), linearizedBaseContracts.end(), _c1);
 			auto it2 = find(linearizedBaseContracts.begin(), linearizedBaseContracts.end(), _c2);
 			return it1 < it2;
 		}
-		std::vector<ContractDefinition const*> const& linearizedBaseContracts;
+		vector<ContractDefinition const*> const& linearizedBaseContracts;
 	} inheritanceOrder{_contract.annotation().linearizedBaseContracts};
 
-	std::map<ContractDefinition const*, std::vector<std::string>> constructorParams;
+	map<ContractDefinition const*, vector<string>> constructorParams;
 
-	std::map<ContractDefinition const*, std::vector<ASTPointer<Expression>>const *, InheritanceOrder>
+	map<ContractDefinition const*, std::vector<ASTPointer<Expression>>const *, InheritanceOrder>
 		baseConstructorArguments(inheritanceOrder);
+																											;
 
 	for (ASTPointer<InheritanceSpecifier> const& base: _contract.baseContracts())
 		if (FunctionDefinition const* baseConstructor = dynamic_cast<ContractDefinition const*>(
@@ -844,13 +625,13 @@ std::pair<std::string, std::map<ContractDefinition const*, std::vector<std::stri
 						modifier->arguments()
 					).second, "");
 
-	IRGeneratorForStatements generator{m_context, m_utils, m_optimiserSettings};
+	IRGeneratorForStatements generator{m_context, m_utils};
 	for (auto&& [baseContract, arguments]: baseConstructorArguments)
 	{
 		solAssert(baseContract && arguments, "");
 		if (baseContract->constructor() && !arguments->empty())
 		{
-			std::vector<std::string> params;
+			vector<string> params;
 			for (size_t i = 0; i < arguments->size(); ++i)
 				params += generator.evaluateExpression(
 					*(arguments->at(i)),
@@ -863,91 +644,71 @@ std::pair<std::string, std::map<ContractDefinition const*, std::vector<std::stri
 	return {generator.code(), constructorParams};
 }
 
-std::string IRGenerator::initStateVariables(ContractDefinition const& _contract)
+string IRGenerator::initStateVariables(ContractDefinition const& _contract)
 {
-	IRGeneratorForStatements generator{m_context, m_utils, m_optimiserSettings};
+	IRGeneratorForStatements generator{m_context, m_utils};
 	for (VariableDeclaration const* variable: _contract.stateVariables())
-	{
 		if (!variable->isConstant())
 			generator.initializeStateVar(*variable);
-	}
 
 	return generator.code();
 }
 
 
-void IRGenerator::generateConstructors(ContractDefinition const& _contract)
+void IRGenerator::generateImplicitConstructors(ContractDefinition const& _contract)
 {
-	auto listAllParams =
-		[&](std::map<ContractDefinition const*, std::vector<std::string>> const& baseParams) -> std::vector<std::string>
-		{
-			std::vector<std::string> params;
-			for (ContractDefinition const* contract: _contract.annotation().linearizedBaseContracts)
-				if (baseParams.count(contract))
-					params += baseParams.at(contract);
-			return params;
-		};
+	auto listAllParams = [&](
+		map<ContractDefinition const*, vector<string>> const& baseParams) -> vector<string>
+	{
+		vector<string> params;
+		for (ContractDefinition const* contract: _contract.annotation().linearizedBaseContracts)
+			if (baseParams.count(contract))
+				params += baseParams.at(contract);
+		return params;
+	};
 
-	std::map<ContractDefinition const*, std::vector<std::string>> baseConstructorParams;
+	map<ContractDefinition const*, vector<string>> baseConstructorParams;
 	for (size_t i = 0; i < _contract.annotation().linearizedBaseContracts.size(); ++i)
 	{
 		ContractDefinition const* contract = _contract.annotation().linearizedBaseContracts[i];
 		baseConstructorParams.erase(contract);
 
 		m_context.resetLocalVariables();
-		m_context.functionCollector().createFunction(IRNames::constructor(*contract), [&]() {
+		m_context.functionCollector().createFunction(IRNames::implicitConstructor(*contract), [&]() {
 			Whiskers t(R"(
-				<astIDComment><sourceLocationComment>
 				function <functionName>(<params><comma><baseParams>) {
 					<evalBaseArguments>
-					<sourceLocationComment>
 					<?hasNextConstructor> <nextConstructor>(<nextParams>) </hasNextConstructor>
 					<initStateVariables>
 					<userDefinedConstructorBody>
 				}
-				<contractSourceLocationComment>
 			)");
-			std::vector<std::string> params;
+			vector<string> params;
 			if (contract->constructor())
 				for (ASTPointer<VariableDeclaration> const& varDecl: contract->constructor()->parameters())
 					params += m_context.addLocalVariable(*varDecl).stackSlots();
-
-			if (m_context.debugInfoSelection().astID && contract->constructor())
-				t("astIDComment", "/// @ast-id " + std::to_string(contract->constructor()->id()) + "\n");
-			else
-				t("astIDComment", "");
-			t("sourceLocationComment", dispenseLocationComment(
-				contract->constructor() ?
-				dynamic_cast<ASTNode const&>(*contract->constructor()) :
-				dynamic_cast<ASTNode const&>(*contract)
-			));
-			t(
-				"contractSourceLocationComment",
-				dispenseLocationComment(m_context.mostDerivedContract())
-			);
-
 			t("params", joinHumanReadable(params));
-			std::vector<std::string> baseParams = listAllParams(baseConstructorParams);
+			vector<string> baseParams = listAllParams(baseConstructorParams);
 			t("baseParams", joinHumanReadable(baseParams));
 			t("comma", !params.empty() && !baseParams.empty() ? ", " : "");
-			t("functionName", IRNames::constructor(*contract));
-			std::pair<std::string, std::map<ContractDefinition const*, std::vector<std::string>>> evaluatedArgs = evaluateConstructorArguments(*contract);
+			t("functionName", IRNames::implicitConstructor(*contract));
+			pair<string, map<ContractDefinition const*, vector<string>>> evaluatedArgs = evaluateConstructorArguments(*contract);
 			baseConstructorParams.insert(evaluatedArgs.second.begin(), evaluatedArgs.second.end());
 			t("evalBaseArguments", evaluatedArgs.first);
 			if (i < _contract.annotation().linearizedBaseContracts.size() - 1)
 			{
 				t("hasNextConstructor", true);
 				ContractDefinition const* nextContract = _contract.annotation().linearizedBaseContracts[i + 1];
-				t("nextConstructor", IRNames::constructor(*nextContract));
+				t("nextConstructor", IRNames::implicitConstructor(*nextContract));
 				t("nextParams", joinHumanReadable(listAllParams(baseConstructorParams)));
 			}
 			else
 				t("hasNextConstructor", false);
 			t("initStateVariables", initStateVariables(*contract));
-			std::string body;
+			string body;
 			if (FunctionDefinition const* constructor = contract->constructor())
 			{
-				std::vector<ModifierInvocation*> realModifiers;
+				vector<ModifierInvocation*> realModifiers;
 				for (auto const& modifierInvocation: constructor->modifiers())
 					// Filter out the base constructor calls
 					if (dynamic_cast<ModifierDefinition const*>(modifierInvocation->name().annotation().referencedDeclaration))
@@ -959,14 +720,14 @@ void IRGenerator::generateConstructors(ContractDefinition const& _contract)
 					for (size_t i = 0; i < realModifiers.size(); ++i)
 					{
 						ModifierInvocation const& modifier = *realModifiers.at(i);
-						std::string next =
+						string next =
 							i + 1 < realModifiers.size() ?
 							IRNames::modifierInvocation(*realModifiers.at(i + 1)) :
 							IRNames::functionWithModifierInner(*constructor);
 						generateModifier(modifier, *constructor, next);
 					}
 					body =
-						IRNames::modifierInvocation(*realModifiers.at(0)) +
+						IRNames::modifierInvocation(*constructor->modifiers().at(0)) +
 						"(" +
 						joinHumanReadable(params) +
 						")";
@@ -974,84 +735,73 @@ void IRGenerator::generateConstructors(ContractDefinition const& _contract)
 					generateFunctionWithModifierInner(*constructor);
 				}
 			}
-			t("userDefinedConstructorBody", std::move(body));
+			t("userDefinedConstructorBody", move(body));
 
 			return t.render();
 		});
 	}
 }
 
-std::string IRGenerator::deployCode(ContractDefinition const& _contract)
+string IRGenerator::deployCode(ContractDefinition const& _contract)
 {
 	Whiskers t(R"X(
-		<?eof>
-			<?library>
-				mstore(<libraryAddressImmutableOffset>, address())
-			</library>
-			returncontract("<object>", <auxDataStart>, <auxDataSize>)
-		<!eof>
-			let <codeOffset> := <allocateUnbounded>()
-			codecopy(<codeOffset>, dataoffset("<object>"), datasize("<object>"))
-			<#immutables>
-				setimmutable(<codeOffset>, "<immutableName>", <value>)
-			</immutables>
-			return(<codeOffset>, datasize("<object>"))
-		</eof>
-	)X");
-	auto const eof = m_context.eofVersion().has_value();
-	t("eof", eof);
-	t("allocateUnbounded", m_utils.allocateUnboundedFunction());
-	t("codeOffset", m_context.newYulVariable());
-	t("object", IRNames::deployedObject(_contract));
+		<#loadImmutables>
+			let <var> := mload(<memoryOffset>)
+		</loadImmutables>
 
-	std::vector<std::map<std::string, std::string>> immutables;
+		codecopy(0, dataoffset("<object>"), datasize("<object>"))
+
+		<#storeImmutables>
+			setimmutable(0, "<immutableName>", <var>)
+		</storeImmutables>
+
+		return(0, datasize("<object>"))
+	)X");
+	t("object", IRNames::runtimeObject(_contract));
+
+	vector<map<string, string>> loadImmutables;
+	vector<map<string, string>> storeImmutables;
+
 	if (_contract.isLibrary())
 	{
 		solAssert(ContractType(_contract).immutableVariables().empty(), "");
-		if (!eof)
-			immutables.emplace_back(std::map<std::string, std::string>{
-				{"immutableName"s, IRNames::libraryAddressImmutable()},
-				{"value"s, "address()"}
-			});
-		else
-			t("libraryAddressImmutableOffset", std::to_string(m_context.libraryAddressImmutableOffset()));
+		storeImmutables.emplace_back(map<string, string>{
+			{"var"s, "address()"},
+			{"immutableName"s, IRNames::libraryAddressImmutable()}
+		});
+
 	}
 	else
-	{
 		for (VariableDeclaration const* immutable: ContractType(_contract).immutableVariables())
 		{
-			solUnimplementedAssert(immutable->type()->isValueType());
-			solUnimplementedAssert(immutable->type()->sizeOnStack() == 1);
-			if (!eof)
-				immutables.emplace_back(std::map<std::string, std::string>{
-					{"immutableName"s, std::to_string(immutable->id())},
-					{"value"s, "mload(" + std::to_string(m_context.immutableMemoryOffset(*immutable)) + ")"}
-				});
+			solUnimplementedAssert(immutable->type()->isValueType(), "");
+			solUnimplementedAssert(immutable->type()->sizeOnStack() == 1, "");
+			string yulVar = m_context.newYulVariable();
+			loadImmutables.emplace_back(map<string, string>{
+				{"var"s, yulVar},
+				{"memoryOffset"s, to_string(m_context.immutableMemoryOffset(*immutable))}
+			});
+			storeImmutables.emplace_back(map<string, string>{
+				{"var"s, yulVar},
+				{"immutableName"s, to_string(immutable->id())}
+			});
 		}
-	}
-
-	if (eof)
-	{
-		t("library", _contract.isLibrary());
-		t("auxDataStart", std::to_string(CompilerUtils::generalPurposeMemoryStart));
-		solAssert(m_context.reservedMemorySize() <= 0xFFFF, "Reserved memory size exceeded maximum allowed EOF data section size.");
-		t("auxDataSize", std::to_string(m_context.reservedMemorySize()));
-	}
-	else
-		t("immutables", std::move(immutables));
-
+	t("loadImmutables", std::move(loadImmutables));
+	// reverse order to ease stack strain
+	reverse(storeImmutables.begin(), storeImmutables.end());
+	t("storeImmutables", std::move(storeImmutables));
 	return t.render();
 }
 
-std::string IRGenerator::callValueCheck()
+string IRGenerator::callValueCheck()
 {
-	return "if callvalue() { " + m_utils.revertReasonIfDebugFunction("Ether sent to non-payable function") + "() }";
+	return "if callvalue() { " + m_context.revertReasonIfDebug("Ether sent to non-payable function") + " }";
 }
 
-std::string IRGenerator::dispatchRoutine(ContractDefinition const& _contract)
+string IRGenerator::dispatchRoutine(ContractDefinition const& _contract)
 {
 	Whiskers t(R"X(
-		<?+cases>if iszero(lt(calldatasize(), 4))
+		if iszero(lt(calldatasize(), 4))
 		{
 			let selector := <shr224>(calldataload(0))
 			switch selector
@@ -1060,24 +810,29 @@ std::string IRGenerator::dispatchRoutine(ContractDefinition const& _contract)
 			{
 				// <functionName>
 				<delegatecallCheck>
-				<externalFunction>()
+				<callValueCheck>
+				<?+params>let <params> := </+params> <abiDecode>(4, calldatasize())
+				<?+retParams>let <retParams> := </+retParams> <function>(<params>)
+				let memPos := <allocate>(0)
+				let memEnd := <abiEncode>(memPos <?+retParams>,</+retParams> <retParams>)
+				return(memPos, sub(memEnd, memPos))
 			}
 			</cases>
 			default {}
-		}</+cases>
-		<?+receiveEther>if iszero(calldatasize()) { <receiveEther> }</+receiveEther>
+		}
+		if iszero(calldatasize()) { <receiveEther> }
 		<fallback>
 	)X");
 	t("shr224", m_utils.shiftRightFunction(224));
-	std::vector<std::map<std::string, std::string>> functions;
+	vector<map<string, string>> functions;
 	for (auto const& function: _contract.interfaceFunctions())
 	{
 		functions.emplace_back();
-		std::map<std::string, std::string>& templ = functions.back();
+		map<string, string>& templ = functions.back();
 		templ["functionSelector"] = "0x" + function.first.hex();
 		FunctionTypePointer const& type = function.second;
 		templ["functionName"] = type->externalSignature();
-		std::string delegatecallCheck;
+		string delegatecallCheck;
 		if (_contract.isLibrary())
 		{
 			solAssert(!type->isPayable(), "");
@@ -1086,12 +841,29 @@ std::string IRGenerator::dispatchRoutine(ContractDefinition const& _contract)
 				// we revert.
 				delegatecallCheck =
 					"if iszero(called_via_delegatecall) { " +
-					m_utils.revertReasonIfDebugFunction("Non-view function of library called without DELEGATECALL") +
-					"() }";
+					m_context.revertReasonIfDebug("Non-view function of library called without DELEGATECALL") +
+					" }";
 		}
 		templ["delegatecallCheck"] = delegatecallCheck;
+		templ["callValueCheck"] = (type->isPayable() || _contract.isLibrary()) ? "" : callValueCheck();
 
-		templ["externalFunction"] = generateExternalFunction(_contract, *type);
+		unsigned paramVars = make_shared<TupleType>(type->parameterTypes())->sizeOnStack();
+		unsigned retVars = make_shared<TupleType>(type->returnParameterTypes())->sizeOnStack();
+
+		ABIFunctions abiFunctions(m_evmVersion, m_context.revertStrings(), m_context.functionCollector());
+		templ["abiDecode"] = abiFunctions.tupleDecoder(type->parameterTypes());
+		templ["params"] = suffixedVariableNameList("param_", 0, paramVars);
+		templ["retParams"] = suffixedVariableNameList("ret_", 0, retVars);
+
+		if (FunctionDefinition const* funDef = dynamic_cast<FunctionDefinition const*>(&type->declaration()))
+			templ["function"] = m_context.enqueueFunctionForCodeGeneration(*funDef);
+		else if (VariableDeclaration const* varDecl = dynamic_cast<VariableDeclaration const*>(&type->declaration()))
+			templ["function"] = generateGetter(*varDecl);
+		else
+			solAssert(false, "Unexpected declaration for function!");
+
+		templ["allocate"] = m_utils.allocationFunction();
+		templ["abiEncode"] = abiFunctions.tupleEncoder(type->returnParameterTypes(), type->returnParameterTypes(), _contract.isLibrary());
 	}
 	t("cases", functions);
 	FunctionDefinition const* etherReceiver = _contract.receiveFunction();
@@ -1105,7 +877,7 @@ std::string IRGenerator::dispatchRoutine(ContractDefinition const& _contract)
 	if (FunctionDefinition const* fallback = _contract.fallbackFunction())
 	{
 		solAssert(!_contract.isLibrary(), "");
-		std::string fallbackCode;
+		string fallbackCode;
 		if (!fallback->isPayable())
 			fallbackCode += callValueCheck() + "\n";
 		if (fallback->parameters().empty())
@@ -1121,16 +893,20 @@ std::string IRGenerator::dispatchRoutine(ContractDefinition const& _contract)
 		t("fallback", fallbackCode);
 	}
 	else
-		t("fallback", (
+		t(
+			"fallback",
 			etherReceiver ?
-			m_utils.revertReasonIfDebugFunction("Unknown signature and no fallback defined") :
-			m_utils.revertReasonIfDebugFunction("Contract does not have fallback nor receive functions")
-		) + "()");
+			m_context.revertReasonIfDebug("Unknown signature and no fallback defined") :
+			m_context.revertReasonIfDebug("Contract does not have fallback nor receive functions")
+		);
 	return t.render();
 }
 
-std::string IRGenerator::memoryInit(bool _useMemoryGuard)
+string IRGenerator::memoryInit(bool _useMemoryGuard)
 {
+	// TODO: Remove once we have made sure it is safe, i.e. after "Yul memory objects lite".
+	//       Also restore the tests removed in the commit that adds this comment.
+	_useMemoryGuard = false;
 	// This function should be called at the beginning of the EVM call frame
 	// and thus can assume all memory to be zero, including the contents of
 	// the "zero memory area" (the position CompilerUtils::zeroPointer points to).
@@ -1140,14 +916,14 @@ std::string IRGenerator::memoryInit(bool _useMemoryGuard)
 			"mstore(<memPtr>, memoryguard(<freeMemoryStart>))" :
 			"mstore(<memPtr>, <freeMemoryStart>)"
 		}
-		("memPtr", std::to_string(CompilerUtils::freeMemoryPointer))
+		("memPtr", to_string(CompilerUtils::freeMemoryPointer))
 		(
 			"freeMemoryStart",
-			std::to_string(CompilerUtils::generalPurposeMemoryStart + m_context.reservedMemory())
+			to_string(CompilerUtils::generalPurposeMemoryStart + m_context.reservedMemory())
 		).render();
 }
 
-void IRGenerator::resetContext(ContractDefinition const& _contract, ExecutionContext _context)
+void IRGenerator::resetContext(ContractDefinition const& _contract)
 {
 	solAssert(
 		m_context.functionGenerationQueueEmpty(),
@@ -1161,25 +937,9 @@ void IRGenerator::resetContext(ContractDefinition const& _contract, ExecutionCon
 		m_context.internalDispatchClean(),
 		"Reset internal dispatch map without consuming it."
 	);
-	IRGenerationContext newContext(
-		m_evmVersion,
-		m_eofVersion,
-		_context,
-		m_context.revertStrings(),
-		m_context.sourceIndices(),
-		m_context.debugInfoSelection(),
-		m_context.soliditySourceProvider()
-	);
-
-	m_context = std::move(newContext);
+	m_context = IRGenerationContext(m_evmVersion, m_context.revertStrings(), m_optimiserSettings);
 
 	m_context.setMostDerivedContract(_contract);
-	for (auto const location: {DataLocation::Storage, DataLocation::Transient})
-		for (auto const& var: ContractType(_contract).linearizedStateVariables(location))
-			m_context.addStateVariable(*std::get<0>(var), std::get<1>(var), std::get<2>(var));
-}
-
-std::string IRGenerator::dispenseLocationComment(ASTNode const& _node)
-{
-	return ::dispenseLocationComment(_node, m_context);
+	for (auto const& var: ContractType(_contract).stateVariables())
+		m_context.addStateVariable(*get<0>(var), get<1>(var), get<2>(var));
 }

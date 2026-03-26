@@ -7,19 +7,14 @@ object "a" {
         )
     }
 }
-// ====
-// EVMVersion: >=shanghai
-// bytecodeFormat: legacy
 // ----
 // Assembly:
-//     /* "source":143:185   */
+//     /* "source":167:209   */
 //   0x1234567890123456789012345678901234567890
-//     /* "source":59:60   */
+//     /* "source":58:59   */
 //   0x00
-//     /* "source":46:186   */
+//     /* "source":32:219   */
 //   assignImmutable("0x85a5b1db611c82c46f5fa18e39ae218397536256c451e5de155a86de843a9ad6")
-//     /* "source":22:202   */
-//   stop
-// Bytecode: 7312345678901234567890123456789012345678905f505000
-// Opcodes: PUSH20 0x1234567890123456789012345678901234567890 PUSH0 POP POP STOP
-// SourceMappings: 143:42:0:-:0;59:1;46:140;;22:180
+// Bytecode: 73123456789012345678901234567890123456789060005050
+// Opcodes: PUSH20 0x1234567890123456789012345678901234567890 PUSH1 0x0 POP POP
+// SourceMappings: 167:42:0:-:0;58:1;32:187

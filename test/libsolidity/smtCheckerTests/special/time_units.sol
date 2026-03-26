@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract D {
 	function f() public pure {
 		assert(1 == 1 seconds);
@@ -12,12 +13,9 @@ contract D {
 		assert(25 weeks == 14 days);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (69-91): CHC: Assertion violation happens here.
-// Warning 6328: (131-163): CHC: Assertion violation happens here.
-// Warning 6328: (201-231): CHC: Assertion violation happens here.
-// Warning 6328: (265-291): CHC: Assertion violation happens here.
-// Warning 6328: (325-352): CHC: Assertion violation happens here.
-// Info 1391: CHC: 5 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (101-123): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nD.constructor()\nD.f()
+// Warning 6328: (163-195): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nD.constructor()\nD.f()
+// Warning 6328: (233-263): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nD.constructor()\nD.f()
+// Warning 6328: (297-323): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nD.constructor()\nD.f()
+// Warning 6328: (357-384): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nD.constructor()\nD.f()

@@ -9,6 +9,8 @@ contract C {
         return add(a, 0x100) + 0x100;
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // f(uint16): 7 -> 0x0207
 // f(uint16): 0xffff -> 511

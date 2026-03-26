@@ -17,4 +17,3 @@ abstract contract B is IJ
 	function g() external override {}
 }
 contract C is A, B {}
-// ----

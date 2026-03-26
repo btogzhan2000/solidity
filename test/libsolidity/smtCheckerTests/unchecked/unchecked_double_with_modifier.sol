@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 
 	modifier m() {
@@ -11,6 +13,6 @@ contract C {
 		unchecked { t(); }
 	}
 }
-// ====
-// SMTEngine: all
+
+
 // ----

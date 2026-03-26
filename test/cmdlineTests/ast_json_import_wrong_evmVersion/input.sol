@@ -49,7 +49,6 @@
               7
             ],
             "name": "C",
-            "nameLocation": "27:1:0",
             "nodeType": "ContractDefinition",
             "nodes":
             [
@@ -83,7 +82,6 @@
                 "kind": "function",
                 "modifiers": [],
                 "name": "f",
-                "nameLocation": "45:4:0",
                 "nodeType": "FunctionDefinition",
                 "overrides": null,
                 "parameters":

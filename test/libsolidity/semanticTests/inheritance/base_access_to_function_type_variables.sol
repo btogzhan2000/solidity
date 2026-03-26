@@ -13,6 +13,10 @@ contract C {
         return C.x();
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // g() -> 2
 // h() -> FAILURE, hex"4e487b71", 0x51

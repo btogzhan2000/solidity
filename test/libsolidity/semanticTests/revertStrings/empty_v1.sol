@@ -10,8 +10,8 @@ contract C {
 // ====
 // ABIEncoderV1Only: true
 // EVMVersion: >=byzantium
-// revertStrings: debug
 // compileViaYul: false
+// revertStrings: debug
 // ----
 // f() -> FAILURE, hex"08c379a0", 0x20, 0
 // g(string): 0x20, 0, "" -> FAILURE, hex"08c379a0", 0x20, 0

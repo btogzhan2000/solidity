@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 abstract contract D {
 	function d() external virtual;
 }
@@ -24,8 +26,3 @@ contract C {
 		assert(y == x);
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreInv: yes
-// ----
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

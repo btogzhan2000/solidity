@@ -7,6 +7,8 @@ contract C {
         unchecked { return add(a, b) + c; }
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // f(uint16,uint16,uint16): 0xe000, 0xe500, 2 -> FAILURE, hex"4e487b71", 0x11
 // f(uint16,uint16,uint16): 0xe000, 0x1000, 0x1000 -> 0x00

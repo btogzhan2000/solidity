@@ -4,4 +4,3 @@ abstract contract A {
         f();
     }
 }
-// ----

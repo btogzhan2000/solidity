@@ -13,5 +13,7 @@ contract C {
         return s[0][0];
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // f() -> 1

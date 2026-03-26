@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C
 {
 	mapping (uint => uint) a;
@@ -14,8 +16,6 @@ contract C
 	}
 }
 // ====
-// SMTEngine: all
 // SMTIgnoreCex: yes
 // ----
-// Warning 6328: (233-253): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (266-286): CHC: Assertion violation happens here.

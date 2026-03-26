@@ -20,6 +20,8 @@
 
 #include <libyul/Dialect.h>
 
+#include <liblangutil/SourceLocation.h>
+
 #include <libsolutil/CommonData.h>
 
 using namespace solidity;
@@ -30,38 +32,41 @@ using namespace solidity::yul::unusedFunctionsCommon;
 FunctionDefinition unusedFunctionsCommon::createLinkingFunction(
 	FunctionDefinition const& _original,
 	std::pair<std::vector<bool>, std::vector<bool>> const& _usedParametersAndReturns,
-	YulName const& _originalFunctionName,
-	YulName const& _linkingFunctionName,
+	YulString const& _originalFunctionName,
+	YulString const& _linkingFunctionName,
 	NameDispenser& _nameDispenser
 )
 {
-	auto generateTypedName = [&](NameWithDebugData t)
+	auto generateTypedName = [&](TypedName t)
 	{
-		return NameWithDebugData{
-			t.debugData,
-			_nameDispenser.newName(t.name)
+		return TypedName{
+			t.location,
+			_nameDispenser.newName(t.name),
+			t.type
 		};
 	};
 
+	langutil::SourceLocation loc = _original.location;
+
 	FunctionDefinition linkingFunction{
-		_original.debugData,
+		loc,
 		_linkingFunctionName,
 		util::applyMap(_original.parameters, generateTypedName),
 		util::applyMap(_original.returnVariables, generateTypedName),
-		{_original.debugData, {}} // body
+		{loc, {}} // body
 	};
 
-	FunctionCall call{_original.debugData, Identifier{_original.debugData, _originalFunctionName}, {}};
+	FunctionCall call{loc, Identifier{loc, _originalFunctionName}, {}};
 	for (auto const& p: filter(linkingFunction.parameters, _usedParametersAndReturns.first))
-		call.arguments.emplace_back(Identifier{_original.debugData, p.name});
+		call.arguments.emplace_back(Identifier{loc, p.name});
 
-	Assignment assignment{_original.debugData, {}, nullptr};
+	Assignment assignment{loc, {}, nullptr};
 
 	for (auto const& r: filter(linkingFunction.returnVariables, _usedParametersAndReturns.second))
-		assignment.variableNames.emplace_back(Identifier{_original.debugData, r.name});
+		assignment.variableNames.emplace_back(Identifier{loc, r.name});
 
 	if (assignment.variableNames.empty())
-		linkingFunction.body.statements.emplace_back(ExpressionStatement{_original.debugData, std::move(call)});
+		linkingFunction.body.statements.emplace_back(ExpressionStatement{loc, std::move(call)});
 	else
 	{
 		assignment.value = std::make_unique<Expression>(std::move(call));

@@ -18,4 +18,3 @@ contract C {
         return uint8(bytes1(uint8(0)));
     }
 }
-// ----

@@ -12,5 +12,8 @@ contract c {
         l = data.length;
     }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // test() -> 2, 1, 1

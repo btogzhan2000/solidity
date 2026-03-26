@@ -25,8 +25,8 @@
 
 #include <string>
 #include <set>
-#include <iostream>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::langutil;
 using namespace solidity::frontend;
@@ -41,40 +41,40 @@ std::string errorMessage(Error const& _e)
 
 bool solidity::frontend::test::searchErrorMessage(Error const& _err, std::string const& _substr)
 {
-	if (std::string const* errorMessage = _err.comment())
+	if (string const* errorMessage = _err.comment())
 	{
 		if (errorMessage->find(_substr) == std::string::npos)
 		{
-			std::cout << "Expected message \"" << _substr << "\" but found \"" << *errorMessage << "\".\n";
+			cout << "Expected message \"" << _substr << "\" but found \"" << *errorMessage << "\".\n";
 			return false;
 		}
 		return true;
 	}
 	else
-		std::cout << "Expected error message but found none." << std::endl;
+		cout << "Expected error message but found none." << endl;
 	return _substr.empty();
 }
 
-std::string solidity::frontend::test::searchErrors(ErrorList const& _errors, std::vector<std::pair<Error::Type, std::string>> const& _expectations)
+string solidity::frontend::test::searchErrors(ErrorList const& _errors, vector<pair<Error::Type, string>> const& _expectations)
 {
 	auto expectations = _expectations;
 	for (auto const& error: _errors)
 	{
-		std::string msg = errorMessage(*error);
+		string msg = errorMessage(*error);
 		bool found = false;
 		for (auto it = expectations.begin(); it != expectations.end(); ++it)
-			if (msg.find(it->second) != std::string::npos && error->type() == it->first)
+			if (msg.find(it->second) != string::npos && error->type() == it->first)
 			{
 				found = true;
 				expectations.erase(it);
 				break;
 			}
 		if (!found)
-			return "Unexpected error: " + Error::formatErrorType(error->type()) + ": " + msg;
+			return "Unexpected error: " + error->typeName() + ": " + msg;
 	}
 	if (!expectations.empty())
 	{
-		std::string msg = "Expected error(s) not present:\n";
+		string msg = "Expected error(s) not present:\n";
 		for (auto const& expectation: expectations)
 			msg += expectation.second + "\n";
 		return msg;

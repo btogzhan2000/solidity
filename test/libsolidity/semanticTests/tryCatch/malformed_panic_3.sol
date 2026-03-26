@@ -51,6 +51,7 @@ contract C {
 }
 // ====
 // EVMVersion: >=byzantium
+// compileViaYul: also
 // ----
 // a() -> FAILURE, hex"4e487b"
 // b() -> FAILURE, hex"4e487b710000"

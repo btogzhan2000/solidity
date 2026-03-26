@@ -1,4 +1,4 @@
-/*
+/*(
 	This file is part of solidity.
 
 	solidity is free software: you can redistribute it and/or modify
@@ -15,32 +15,24 @@
 	along with solidity.  If not, see <http://www.gnu.org/licenses/>.
 */
 /**
- * Optimisation stage that aggressively rematerializes certain variables in a function to free
+ * Optimisation stage that aggressively rematerializes certain variables ina a function to free
  * space on the stack until it is compilable.
  */
 
 #include <libyul/optimiser/StackCompressor.h>
 
-#include <libyul/optimiser/ASTCopier.h>
+#include <libyul/optimiser/SSAValueTracker.h>
 #include <libyul/optimiser/NameCollector.h>
 #include <libyul/optimiser/Rematerialiser.h>
 #include <libyul/optimiser/UnusedPruner.h>
 #include <libyul/optimiser/Metrics.h>
 #include <libyul/optimiser/Semantics.h>
 
-#include <libyul/backends/evm/ControlFlowGraphBuilder.h>
-#include <libyul/backends/evm/StackHelpers.h>
-#include <libyul/backends/evm/StackLayoutGenerator.h>
-
-#include <libyul/AsmAnalysis.h>
-#include <libyul/AsmAnalysisInfo.h>
-
 #include <libyul/CompilabilityChecker.h>
 
 #include <libyul/AST.h>
 
-#include <libsolutil/CommonData.h>
-
+using namespace std;
 using namespace solidity;
 using namespace solidity::yul;
 
@@ -50,52 +42,35 @@ namespace
 /**
  * Class that discovers all variables that can be fully eliminated by rematerialization,
  * and the corresponding approximate costs.
- *
- * Prerequisite: Disambiguator, Function Grouper
  */
 class RematCandidateSelector: public DataFlowAnalyzer
 {
 public:
-	explicit RematCandidateSelector(Dialect const& _dialect): DataFlowAnalyzer(_dialect, MemoryAndStorage::Ignore) {}
+	explicit RematCandidateSelector(Dialect const& _dialect): DataFlowAnalyzer(_dialect) {}
 
-	/// @returns a map from function name to rematerialisation costs to a vector of variables to rematerialise
-	/// and variables that occur in their expression.
-	/// While the map is sorted by cost, the contained vectors are sorted by the order of occurrence.
-	std::map<YulName, std::map<size_t, std::vector<YulName>>> candidates()
+	/// @returns a set of tuples of rematerialisation costs, variable to rematerialise
+	/// and variables that occur in its expression.
+	/// Note that this set is sorted by cost.
+	set<tuple<size_t, YulString, set<YulString>>> candidates()
 	{
-		std::map<YulName, std::map<size_t, std::vector<YulName>>> cand;
-		for (auto const& [functionName, candidate]: m_candidates)
+		set<tuple<size_t, YulString, set<YulString>>> cand;
+		for (auto const& codeCost: m_expressionCodeCost)
 		{
-			if (size_t const* cost = util::valueOrNullptr(m_expressionCodeCost, candidate))
-			{
-				size_t numRef = m_numReferences[candidate];
-				cand[functionName][*cost * numRef].emplace_back(candidate);
-			}
+			size_t numRef = m_numReferences[codeCost.first];
+			cand.emplace(make_tuple(codeCost.second * numRef, codeCost.first, m_references[codeCost.first]));
 		}
 		return cand;
 	}
 
 	using DataFlowAnalyzer::operator();
-	void operator()(FunctionDefinition& _function) override
-	{
-		yulAssert(m_currentFunctionName.empty());
-		m_currentFunctionName = _function.name;
-		DataFlowAnalyzer::operator()(_function);
-		m_currentFunctionName = {};
-	}
-
 	void operator()(VariableDeclaration& _varDecl) override
 	{
 		DataFlowAnalyzer::operator()(_varDecl);
 		if (_varDecl.variables.size() == 1)
 		{
-			YulName varName = _varDecl.variables.front().name;
-			if (AssignedValue const* value = variableValue(varName))
-			{
-				yulAssert(!m_expressionCodeCost.count(varName), "");
-				m_candidates.emplace_back(m_currentFunctionName, varName);
-				m_expressionCodeCost[varName] = CodeCost::codeCost(m_dialect, *value->value);
-			}
+			YulString varName = _varDecl.variables.front().name;
+			if (m_value.count(varName))
+				m_expressionCodeCost[varName] = CodeCost::codeCost(m_dialect, *m_value[varName].value);
 		}
 	}
 
@@ -110,12 +85,12 @@ public:
 	// get called on left-hand-sides of assignments.
 	void visit(Expression& _e) override
 	{
-		if (std::holds_alternative<Identifier>(_e))
+		if (holds_alternative<Identifier>(_e))
 		{
-			YulName name = std::get<Identifier>(_e).name;
+			YulString name = std::get<Identifier>(_e).name;
 			if (m_expressionCodeCost.count(name))
 			{
-				if (!variableValue(name))
+				if (!m_value.count(name))
 					rematImpossible(name);
 				else
 					++m_numReferences[name];
@@ -125,173 +100,104 @@ public:
 	}
 
 	/// Remove the variable from the candidate set.
-	void rematImpossible(YulName _variable)
+	void rematImpossible(YulString _variable)
 	{
 		m_numReferences.erase(_variable);
 		m_expressionCodeCost.erase(_variable);
 	}
 
-	YulName m_currentFunctionName = {};
-
-	/// All candidate variables by function name, in order of occurrence.
-	std::vector<std::pair<YulName, YulName>> m_candidates;
 	/// Candidate variables and the code cost of their value.
-	std::map<YulName, size_t> m_expressionCodeCost;
+	map<YulString, size_t> m_expressionCodeCost;
 	/// Number of references to each candidate variable.
-	std::map<YulName, size_t> m_numReferences;
+	map<YulString, size_t> m_numReferences;
 };
 
-/// Selects at most @a _numVariables among @a _candidates.
-std::set<YulName> chooseVarsToEliminate(
-	std::map<size_t, std::vector<YulName>> const& _candidates,
-	size_t _numVariables
-)
-{
-	std::set<YulName> varsToEliminate;
-	for (auto&& [cost, candidates]: _candidates)
-		for (auto&& candidate: candidates)
-		{
-			if (varsToEliminate.size() >= _numVariables)
-				return varsToEliminate;
-			varsToEliminate.insert(candidate);
-		}
-	return varsToEliminate;
-}
-
+template <typename ASTNode>
 void eliminateVariables(
 	Dialect const& _dialect,
-	Block& _ast,
-	std::map<YulName, int> const& _numVariables,
+	ASTNode& _node,
+	size_t _numVariables,
 	bool _allowMSizeOptimization
 )
 {
 	RematCandidateSelector selector{_dialect};
-	selector(_ast);
-	std::map<YulName, std::map<size_t, std::vector<YulName>>> candidates = selector.candidates();
+	selector(_node);
 
-	std::set<YulName> varsToEliminate;
-	for (auto const& [functionName, numVariables]: _numVariables)
+	// Select at most _numVariables
+	set<YulString> varsToEliminate;
+	for (auto const& costs: selector.candidates())
 	{
-		yulAssert(numVariables > 0);
-		varsToEliminate += chooseVarsToEliminate(candidates[functionName], static_cast<size_t>(numVariables));
+		if (varsToEliminate.size() >= _numVariables)
+			break;
+		// If a variable we would like to eliminate references another one
+		// we already selected for elimination, then stop selecting
+		// candidates. If we would add that variable, then the cost calculation
+		// for the previous variable would be off. Furthermore, we
+		// do not skip the variable because it would be better to properly re-compute
+		// the costs of all other variables instead.
+		bool referencesVarToEliminate = false;
+		for (YulString const& referencedVar: get<2>(costs))
+			if (varsToEliminate.count(referencedVar))
+			{
+				referencesVarToEliminate = true;
+				break;
+			}
+		if (referencesVarToEliminate)
+			break;
+		varsToEliminate.insert(get<1>(costs));
 	}
 
-	Rematerialiser::run(_dialect, _ast, std::move(varsToEliminate));
-	// Do not remove functions.
-	std::set<YulName> allFunctions = NameCollector{_ast, NameCollector::OnlyFunctions}.names();
-	UnusedPruner::runUntilStabilised(_dialect, _ast, _allowMSizeOptimization, nullptr, allFunctions);
+	Rematerialiser::run(_dialect, _node, std::move(varsToEliminate));
+	UnusedPruner::runUntilStabilised(_dialect, _node, _allowMSizeOptimization);
 }
 
-void eliminateVariablesOptimizedCodegen(
+}
+
+bool StackCompressor::run(
 	Dialect const& _dialect,
-	Block& _ast,
-	std::map<YulName, std::vector<StackLayoutGenerator::StackTooDeep>> const& _unreachables,
-	bool _allowMSizeOptimization
+	Object& _object,
+	bool _optimizeStackAllocation,
+	size_t _maxIterations
 )
 {
-	if (std::all_of(_unreachables.begin(), _unreachables.end(), [](auto const& _item) { return _item.second.empty(); }))
-		return;
-
-	RematCandidateSelector selector{_dialect};
-	selector(_ast);
-
-	std::map<YulName, size_t> candidates;
-	for (auto const& [functionName, candidatesInFunction]: selector.candidates())
-		for (auto [cost, candidatesWithCost]: candidatesInFunction)
-			for (auto candidate: candidatesWithCost)
-				candidates[candidate] = cost;
-
-	std::set<YulName> varsToEliminate;
-
-	// TODO: this currently ignores the fact that variables may reference other variables we want to eliminate.
-	for (auto const& [functionName, unreachables]: _unreachables)
-		for (auto const& unreachable: unreachables)
-		{
-			std::map<size_t, std::vector<YulName>> suitableCandidates;
-			size_t neededSlots = unreachable.deficit;
-			for (auto varName: unreachable.variableChoices)
-			{
-				if (varsToEliminate.count(varName))
-					--neededSlots;
-				else if (size_t* cost = util::valueOrNullptr(candidates, varName))
-					if (!util::contains(suitableCandidates[*cost], varName))
-						suitableCandidates[*cost].emplace_back(varName);
-			}
-			for (auto candidatesByCost: suitableCandidates)
-			{
-				for (auto candidate: candidatesByCost.second)
-					if (neededSlots--)
-						varsToEliminate.emplace(candidate);
-					else
-						break;
-				if (!neededSlots)
-					break;
-			}
-		}
-	Rematerialiser::run(_dialect, _ast, std::move(varsToEliminate), true);
-	// Do not remove functions.
-	std::set<YulName> allFunctions = NameCollector{_ast, NameCollector::OnlyFunctions}.names();
-	UnusedPruner::runUntilStabilised(_dialect, _ast, _allowMSizeOptimization, nullptr, allFunctions);
-}
-
-}
-
-std::tuple<bool, Block> StackCompressor::run(
-	Object const& _object,
-	bool _optimizeStackAllocation,
-	size_t _maxIterations)
-{
-	yulAssert(_object.hasCode());
-	yulAssert(_object.dialect(), "No dialect");
 	yulAssert(
-		!_object.code()->root().statements.empty() && std::holds_alternative<Block>(_object.code()->root().statements.at(0)),
+		_object.code &&
+		_object.code->statements.size() > 0 && holds_alternative<Block>(_object.code->statements.at(0)),
 		"Need to run the function grouper before the stack compressor."
 	);
-	bool usesOptimizedCodeGenerator = false;
-	auto evmDialect = dynamic_cast<EVMDialect const*>(_object.dialect());
-	if (evmDialect)
+	bool allowMSizeOptimzation = !MSizeFinder::containsMSize(_dialect, *_object.code);
+	for (size_t iterations = 0; iterations < _maxIterations; iterations++)
 	{
-		yulAssert(!evmDialect->eofVersion().has_value(), "StackCompressor does not support EOF.");
-		usesOptimizedCodeGenerator =
-			_optimizeStackAllocation &&
-			evmDialect->evmVersion().canOverchargeGasForCall() &&
-			evmDialect->providesObjectAccess();
-	}
-	bool allowMSizeOptimization = !MSizeFinder::containsMSize(*_object.dialect(), _object.code()->root());
-	Block astRoot = std::get<Block>(ASTCopier{}(_object.code()->root()));
-	if (usesOptimizedCodeGenerator)
-	{
-		yul::AsmAnalysisInfo analysisInfo = yul::AsmAnalyzer::analyzeStrictAssertCorrect(
-			*_object.dialect(),
-			astRoot,
-			_object.summarizeStructure()
-		);
-		std::unique_ptr<CFG> cfg = ControlFlowGraphBuilder::build(analysisInfo, *_object.dialect(), astRoot);
-		yulAssert(evmDialect);
-		eliminateVariablesOptimizedCodegen(
-			*_object.dialect(),
-			astRoot,
-			StackLayoutGenerator::reportStackTooDeep(*cfg, *evmDialect),
-			allowMSizeOptimization
-		);
-	}
-	else
-	{
-		for (size_t iterations = 0; iterations < _maxIterations; iterations++)
+		map<YulString, int> stackSurplus = CompilabilityChecker(_dialect, _object, _optimizeStackAllocation).stackDeficit;
+		if (stackSurplus.empty())
+			return true;
+
+		if (stackSurplus.count(YulString{}))
 		{
-			Object object(_object);
-			object.setCode(std::make_shared<AST>(*_object.dialect(), std::get<Block>(ASTCopier{}(astRoot))));
-			std::map<YulName, int> stackSurplus = CompilabilityChecker(object, _optimizeStackAllocation).stackDeficit;
-			if (stackSurplus.empty())
-				return std::make_tuple(true, std::move(astRoot));
+			yulAssert(stackSurplus.at({}) > 0, "Invalid surplus value.");
 			eliminateVariables(
-				*object.dialect(),
-				astRoot,
-				stackSurplus,
-				allowMSizeOptimization
+				_dialect,
+				std::get<Block>(_object.code->statements.at(0)),
+				static_cast<size_t>(stackSurplus.at({})),
+				allowMSizeOptimzation
+			);
+		}
+
+		for (size_t i = 1; i < _object.code->statements.size(); ++i)
+		{
+			auto& fun = std::get<FunctionDefinition>(_object.code->statements[i]);
+			if (!stackSurplus.count(fun.name))
+				continue;
+
+			yulAssert(stackSurplus.at(fun.name) > 0, "Invalid surplus value.");
+			eliminateVariables(
+				_dialect,
+				fun,
+				static_cast<size_t>(stackSurplus.at(fun.name)),
+				allowMSizeOptimzation
 			);
 		}
 	}
-	return std::make_tuple(false, std::move(astRoot));
+	return false;
 }
 

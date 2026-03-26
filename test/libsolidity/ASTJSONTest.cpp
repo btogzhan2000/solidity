@@ -16,66 +16,37 @@
 */
 // SPDX-License-Identifier: GPL-3.0
 
-#include <liblangutil/SourceReferenceFormatter.h>
-#include <libsolidity/ast/ASTJsonExporter.h>
-#include <libsolutil/AnsiColorized.h>
-#include <libsolutil/CommonIO.h>
-#include <libsolutil/JSON.h>
-
-#include <test/Common.h>
+#include <boost/algorithm/string/replace.hpp>
 #include <test/libsolidity/ASTJSONTest.h>
-
+#include <test/Common.h>
+#include <libsolutil/AnsiColorized.h>
+#include <liblangutil/SourceReferenceFormatter.h>
+#include <libsolidity/ast/ASTJsonConverter.h>
+#include <libsolidity/interface/CompilerStack.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/predicate.hpp>
-#include <boost/algorithm/string/replace.hpp>
-#include <boost/algorithm/string/trim.hpp>
-#include <boost/test/unit_test.hpp>
 #include <boost/throw_exception.hpp>
-
+#include <boost/test/unit_test.hpp>
 #include <fstream>
 #include <memory>
 #include <stdexcept>
 
-using namespace solidity;
 using namespace solidity::langutil;
 using namespace solidity::frontend;
 using namespace solidity::frontend::test;
 using namespace solidity::util::formatting;
 using namespace solidity::util;
+using namespace solidity;
+using namespace std;
 namespace fs = boost::filesystem;
 using namespace boost::unit_test;
-using namespace std::string_literals;
 
 namespace
 {
 
-std::string const sourceDelimiter("==== Source: ");
+string const sourceDelimiter("==== Source: ");
 
-std::string compilerStateToString(CompilerStack::State _state)
-{
-	switch (_state)
-	{
-		case CompilerStack::State::Empty: return "Empty";
-		case CompilerStack::State::SourcesSet: return "SourcesSet";
-		case CompilerStack::State::Parsed: return "Parsed";
-		case CompilerStack::State::ParsedAndImported: return "ParsedAndImported";
-		case CompilerStack::State::AnalysisSuccessful: return "AnalysisSuccessful";
-		case CompilerStack::State::CompilationSuccessful: return "CompilationSuccessful";
-	}
-	soltestAssert(false, "Unexpected value of state parameter");
-}
-
-CompilerStack::State stringToCompilerState(const std::string& _state)
-{
-	for (unsigned int i = CompilerStack::State::Empty; i <= CompilerStack::State::CompilationSuccessful; ++i)
-	{
-		if (_state == compilerStateToString(CompilerStack::State(i)))
-			return CompilerStack::State(i);
-	}
-	BOOST_THROW_EXCEPTION(std::runtime_error("Unsupported compiler state (" + _state + ") in test contract file"));
-}
-
-void replaceVersionWithTag(std::string& _input)
+void replaceVersionWithTag(string& _input)
 {
 	boost::algorithm::replace_all(
 		_input,
@@ -84,7 +55,7 @@ void replaceVersionWithTag(std::string& _input)
 	);
 }
 
-void replaceTagWithVersion(std::string& _input)
+void replaceTagWithVersion(string& _input)
 {
 	boost::algorithm::replace_all(
 		_input,
@@ -95,40 +66,24 @@ void replaceTagWithVersion(std::string& _input)
 
 }
 
-void ASTJSONTest::generateTestVariants(std::string const& _filename)
+
+ASTJSONTest::ASTJSONTest(string const& _filename)
 {
-	std::string_view baseName = _filename;
-	baseName.remove_suffix(4);
+	if (!boost::algorithm::ends_with(_filename, ".sol"))
+		BOOST_THROW_EXCEPTION(runtime_error("Invalid test contract file name: \"" + _filename + "\"."));
 
-	const std::vector<CompilerStack::State> variantCompileStates = {
-		CompilerStack::State::Parsed,
-		CompilerStack::State::AnalysisSuccessful,
-	};
+	m_astFilename = _filename.substr(0, _filename.size() - 4) + ".json";
+	m_astParseOnlyFilename = _filename.substr(0, _filename.size() - 4) + "_parseOnly.json";
 
-	for (const auto state: variantCompileStates)
-	{
-		auto variant = TestVariant(baseName, state);
-		if (boost::filesystem::exists(variant.astFilename()))
-		{
-			variant.expectation = readFileAsString(variant.astFilename());
-			boost::replace_all(variant.expectation, "\r\n", "\n");
-			m_variants.push_back(variant);
-		}
-	}
-}
-
-void ASTJSONTest::fillSources(std::string const& _filename)
-{
-	std::ifstream file(_filename);
+	ifstream file(_filename);
 	if (!file)
-		BOOST_THROW_EXCEPTION(std::runtime_error("Cannot open test contract: \"" + _filename + "\"."));
-	file.exceptions(std::ios::badbit);
+		BOOST_THROW_EXCEPTION(runtime_error("Cannot open test contract: \"" + _filename + "\"."));
+	file.exceptions(ios::badbit);
 
-	std::string sourceName;
-	std::string source;
-	std::string line;
-	std::string const delimiter("// ----");
-	std::string const failMarker("// failAfter:");
+	string sourceName;
+	string source;
+	string line;
+	string const delimiter("// ----");
 	while (getline(file, line))
 	{
 		if (boost::algorithm::starts_with(line, sourceDelimiter))
@@ -140,180 +95,190 @@ void ASTJSONTest::fillSources(std::string const& _filename)
 				sourceDelimiter.size(),
 				line.size() - " ===="s.size() - sourceDelimiter.size()
 			);
-			source = std::string();
-		}
-		else if (boost::algorithm::starts_with(line, failMarker))
-		{
-			std::string state = line.substr(failMarker.size());
-			boost::algorithm::trim(state);
-			if (m_expectedFailAfter.has_value())
-				BOOST_THROW_EXCEPTION(std::runtime_error("Duplicated \"failAfter\" directive"));
-			m_expectedFailAfter = stringToCompilerState(state);
-
+			source = string();
 		}
 		else if (!line.empty() && !boost::algorithm::starts_with(line, delimiter))
 			source += line + "\n";
 	}
+
 	m_sources.emplace_back(sourceName.empty() ? "a" : sourceName, source);
+
+	file.close();
+	file.open(m_astFilename);
+	if (file)
+	{
+		string line;
+		while (getline(file, line))
+			m_expectation += line + "\n";
+	}
+
+	file.close();
+	file.open(m_astParseOnlyFilename);
+	if (file)
+	{
+		string line;
+		while (getline(file, line))
+			m_expectationParseOnly += line + "\n";
+	}
+
 	file.close();
 }
 
-void ASTJSONTest::validateTestConfiguration() const
-{
-	if (m_variants.empty())
-		BOOST_THROW_EXCEPTION(std::runtime_error("No file with expected result found."));
-
-	if (m_expectedFailAfter.has_value())
-	{
-		auto unexpectedTestVariant = std::find_if(
-			m_variants.begin(), m_variants.end(),
-			[failAfter = m_expectedFailAfter](TestVariant v) { return v.stopAfter > failAfter; }
-		);
-
-		if (unexpectedTestVariant != m_variants.end())
-			BOOST_THROW_EXCEPTION(
-				std::runtime_error(
-					std::string("Unexpected JSON file: ") + unexpectedTestVariant->astFilename() +
-					" in \"failAfter: " +
-					compilerStateToString(m_expectedFailAfter.value()) + "\" scenario."
-				)
-			);
-	}
-}
-
-ASTJSONTest::ASTJSONTest(std::string const& _filename):
-	EVMVersionRestrictedTestCase(_filename)
-{
-	if (!boost::algorithm::ends_with(_filename, ".sol"))
-		BOOST_THROW_EXCEPTION(std::runtime_error("Invalid test contract file name: \"" + _filename + "\"."));
-
-	generateTestVariants(_filename);
-	fillSources(_filename);
-	validateTestConfiguration();
-}
-
-TestCase::TestResult ASTJSONTest::run(std::ostream& _stream, std::string const& _linePrefix, bool const _formatted)
+TestCase::TestResult ASTJSONTest::run(ostream& _stream, string const& _linePrefix, bool const _formatted)
 {
 	CompilerStack c;
 
 	StringMap sources;
-	std::map<std::string, unsigned> sourceIndices;
+	map<string, unsigned> sourceIndices;
 	for (size_t i = 0; i < m_sources.size(); i++)
 	{
 		sources[m_sources[i].first] = m_sources[i].second;
 		sourceIndices[m_sources[i].first] = static_cast<unsigned>(i + 1);
 	}
+	c.setSources(sources);
+	c.setEVMVersion(solidity::test::CommonOptions::get().evmVersion());
 
-	bool resultsMatch = true;
 
-	for (TestVariant& variant: m_variants)
+	if (!c.compile(CompilerStack::State::Parsed))
 	{
-		c.reset();
-		c.setSources(sources);
-		c.setEVMVersion(solidity::test::CommonOptions::get().evmVersion());
-
-		if (!c.parseAndAnalyze(variant.stopAfter))
-		{
-			if (!m_expectedFailAfter.has_value() || m_expectedFailAfter.value() + 1 != c.state())
-			{
-				SourceReferenceFormatter formatter(_stream, c, _formatted, false);
-				formatter.printErrorInformation(c.errors());
-				return TestResult::FatalError;
-			}
-		}
-
-		resultsMatch = resultsMatch && runTest(
-			variant,
-			sourceIndices,
-			c,
-			_stream,
-			_linePrefix,
-			_formatted
-		);
+		SourceReferenceFormatter formatter(_stream, _formatted, false);
+		for (auto const& error: c.errors())
+			formatter.printErrorInformation(*error);
+		return TestResult::FatalError;
 	}
+
+	bool resultsMatch = runTest(
+		m_expectationParseOnly,
+		m_resultParseOnly,
+		sourceIndices,
+		c,
+		"parseOnly",
+		_stream,
+		_linePrefix,
+		_formatted
+	);
+
+	c.reset();
+	c.setSources(sources);
+	c.setEVMVersion(solidity::test::CommonOptions::get().evmVersion());
+	if (!c.parse())
+	{
+		// Empty Expectations means we expect failure
+		if (m_expectation.empty())
+			return resultsMatch ? TestResult::Success : TestResult::Failure;
+
+		SourceReferenceFormatter formatter(_stream, _formatted, false);
+		for (auto const& error: c.errors())
+			formatter.printErrorInformation(*error);
+		return TestResult::FatalError;
+	}
+
+	c.analyze();
+
+	resultsMatch = runTest(
+		m_expectation,
+		m_result,
+		sourceIndices,
+		c,
+		"",
+		_stream,
+		_linePrefix,
+		_formatted
+	) && resultsMatch;
 
 	return resultsMatch ? TestResult::Success : TestResult::Failure;
 }
 
 bool ASTJSONTest::runTest(
-	TestVariant& _variant,
-	std::map<std::string, unsigned> const& _sourceIndices,
+	string& _expectation,
+	string& _result,
+	map<string, unsigned> const& _sourceIndices,
 	CompilerStack& _compiler,
-	std::ostream& _stream,
-	std::string const& _linePrefix,
+	string const& _variation,
+	ostream& _stream,
+	string const& _linePrefix,
 	bool const _formatted
 )
 {
 	if (m_sources.size() > 1)
-		_variant.result += "[\n";
+		_result += "[\n";
 
 	for (size_t i = 0; i < m_sources.size(); i++)
 	{
-		std::ostringstream result;
-		ASTJsonExporter(_compiler.state(), _sourceIndices).print(result, _compiler.ast(m_sources[i].first), JsonFormat{ JsonFormat::Pretty });
-		_variant.result += result.str();
+		ostringstream result;
+		ASTJsonConverter(_compiler.state(), _sourceIndices).print(result, _compiler.ast(m_sources[i].first));
+		_result += result.str();
 		if (i != m_sources.size() - 1)
-			_variant.result += ",";
-		_variant.result += "\n";
+			_result += ",";
+		_result += "\n";
 	}
 
 	if (m_sources.size() > 1)
-		_variant.result += "]\n";
+		_result += "]\n";
 
-	replaceTagWithVersion(_variant.expectation);
+	replaceTagWithVersion(_expectation);
 
-	if (_variant.expectation != _variant.result)
+	if (_expectation != _result)
 	{
-		std::string nextIndentLevel = _linePrefix + "  ";
+		string nextIndentLevel = _linePrefix + "  ";
 		AnsiColorized(_stream, _formatted, {BOLD, CYAN}) <<
 			_linePrefix <<
 			"Expected result" <<
-			(!_variant.name().empty() ? " (" + _variant.name() + "):" : ":") <<
-			std::endl;
-		printPrefixed(_stream, _variant.expectation, nextIndentLevel);
-		_stream << std::endl;
+			(!_variation.empty() ? " (" + _variation + "):" : ":") <<
+			endl;
+		{
+			istringstream stream(_expectation);
+			string line;
+			while (getline(stream, line))
+				_stream << nextIndentLevel << line << endl;
+		}
+		_stream << endl;
 
 		AnsiColorized(_stream, _formatted, {BOLD, CYAN}) <<
 			_linePrefix <<
 			"Obtained result" <<
-			(!_variant.name().empty() ? " (" + _variant.name() + "):" : ":") <<
-			std::endl;
-		printPrefixed(_stream, _variant.result, nextIndentLevel);
-		_stream << std::endl;
+			(!_variation.empty() ? " (" + _variation + "):" : ":") <<
+			endl;
+		{
+			istringstream stream(_result);
+			string line;
+			while (getline(stream, line))
+				_stream << nextIndentLevel << line << endl;
+		}
+		_stream << endl;
 		return false;
 	}
 
 	return true;
 }
 
-void ASTJSONTest::printSource(std::ostream& _stream, std::string const& _linePrefix, bool const) const
+void ASTJSONTest::printSource(ostream& _stream, string const& _linePrefix, bool const) const
 {
 	for (auto const& source: m_sources)
 	{
 		if (m_sources.size() > 1 || source.first != "a")
-			printPrefixed(_stream, sourceDelimiter + source.first + " ====\n", _linePrefix);
-		printPrefixed(_stream, source.second, _linePrefix);
-		_stream << std::endl;
+			_stream << _linePrefix << sourceDelimiter << source.first << " ====" << endl << endl;
+		stringstream stream(source.second);
+		string line;
+		while (getline(stream, line))
+			_stream << _linePrefix << line << endl;
+		_stream << endl;
 	}
 }
 
 void ASTJSONTest::printUpdatedExpectations(std::ostream&, std::string const&) const
 {
-	for (TestVariant const& variant: m_variants)
-		updateExpectation(
-			variant.astFilename(),
-			variant.result,
-			variant.name().empty() ? "" : variant.name() + " "
-		);
+	updateExpectation(m_astFilename, m_result, "");
+	updateExpectation(m_astParseOnlyFilename, m_resultParseOnly, "parseOnly ");
 }
 
-void ASTJSONTest::updateExpectation(std::string const& _filename, std::string const& _expectation, std::string const& _variant) const
+void ASTJSONTest::updateExpectation(string const& _filename, string const& _expectation, string const& _variation) const
 {
-	std::ofstream file(_filename.c_str());
-	if (!file) BOOST_THROW_EXCEPTION(std::runtime_error("Cannot write " + _variant + "AST expectation to \"" + _filename + "\"."));
-	file.exceptions(std::ios::badbit);
+	ofstream file(_filename.c_str());
+	if (!file) BOOST_THROW_EXCEPTION(runtime_error("Cannot write " + _variation + "AST expectation to \"" + _filename + "\"."));
+	file.exceptions(ios::badbit);
 
-	std::string replacedResult = _expectation;
+	string replacedResult = _expectation;
 	replaceVersionWithTag(replacedResult);
 
 	file << replacedResult;

@@ -5,6 +5,10 @@ contract Test {
         return 2;
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f(uint256): 11 -> 21
 // f(uint256): 1 -> FAILURE

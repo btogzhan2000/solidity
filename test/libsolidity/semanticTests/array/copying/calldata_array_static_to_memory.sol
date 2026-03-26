@@ -4,5 +4,7 @@ contract C {
         return (m1[0], m1[1]);
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // f(uint256[2]): 43, 57 -> 43, 57

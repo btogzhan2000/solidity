@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract C {
 	function abiEncodeSimple(bool t, uint x, uint y, uint z, uint[] memory a, uint[] memory b) public pure {
 		require(x == y);
@@ -17,11 +18,13 @@ contract C {
 		//assert(b1.length == b5.length); // should fail
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreOS: macos
 // ----
-// Warning 6328: (298-328): CHC: Assertion violation happens here.
-// Warning 6328: (389-419): CHC: Assertion violation happens here.
-// Warning 6328: (492-522): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 1218: (330-360): CHC: Error trying to invoke SMT solver.
+// Warning 6328: (330-360): CHC: Assertion violation might happen here.
+// Warning 1218: (421-451): CHC: Error trying to invoke SMT solver.
+// Warning 6328: (421-451): CHC: Assertion violation might happen here.
+// Warning 1218: (524-554): CHC: Error trying to invoke SMT solver.
+// Warning 6328: (524-554): CHC: Assertion violation might happen here.
+// Warning 4661: (330-360): BMC: Assertion violation happens here.
+// Warning 4661: (421-451): BMC: Assertion violation happens here.
+// Warning 4661: (524-554): BMC: Assertion violation happens here.

@@ -3,9 +3,9 @@ Layout of a Solidity Source File
 ********************************
 
 Source files can contain an arbitrary number of
-:ref:`contract definitions<contract_structure>`, import_ ,
-:ref:`pragma<pragma>` and :ref:`using for<using-for>` directives and
-:ref:`struct<structs>`, :ref:`enum<enums>`, :ref:`function<functions>`, :ref:`error<errors>`
+:ref:`contract definitions<contract_structure>`, import_ directives,
+:ref:`pragma directives<pragma>` and
+:ref:`struct<structs>`, :ref:`enum<enums>`, :ref:`function<functions>`
 and :ref:`constant variable<constants>` definitions.
 
 .. index:: ! license, spdx
@@ -13,7 +13,7 @@ and :ref:`constant variable<constants>` definitions.
 SPDX License Identifier
 =======================
 
-Trust in smart contracts can be better established if their source code
+Trust in smart contract can be better established if their source code
 is available. Since making source code available always touches on legal problems
 with regards to copyright, the Solidity compiler encourages the use
 of machine-readable `SPDX license identifiers <https://spdx.org>`_.
@@ -27,9 +27,6 @@ it does include the supplied string in the :ref:`bytecode metadata <metadata>`.
 
 If you do not want to specify a license or if the source code is
 not open-source, please use the special value ``UNLICENSED``.
-Note that ``UNLICENSED`` (no usage allowed, not present in SPDX license list)
-is different from ``UNLICENSE`` (grants all rights to everyone).
-Solidity follows `the npm recommendation <https://docs.npmjs.com/cli/v7/configuring-npm/package-json#license>`_.
 
 Supplying this comment of course does not free you from other
 obligations related to licensing like having to mention
@@ -40,7 +37,7 @@ The comment is recognized by the compiler anywhere in the file at the
 file level, but it is recommended to put it at the top of the file.
 
 More information about how to use SPDX license identifiers
-can be found at the `SPDX website <https://spdx.dev/learn/handling-license-info/#how>`_.
+can be found at the `SPDX website <https://spdx.org/ids-how>`_.
 
 
 .. index:: ! pragma
@@ -52,11 +49,11 @@ Pragmas
 
 The ``pragma`` keyword is used to enable certain compiler features
 or checks. A pragma directive is always local to a source file, so
-you have to add the pragma to all your files if you want to enable it
+you have to add the pragma to all your files if you want enable it
 in your whole project. If you :ref:`import<import>` another file, the pragma
 from that file does *not* automatically apply to the importing file.
 
-.. index:: ! pragma;version
+.. index:: ! pragma, version
 
 .. _version_pragma:
 
@@ -82,7 +79,7 @@ be sure that your code compiles the way you intended. The exact version of the
 compiler is not fixed, so that bugfix releases are still possible.
 
 It is possible to specify more complex rules for the compiler version,
-these follow the same syntax used by `npm <https://docs.npmjs.com/cli/v6/using-npm/semver>`_.
+these follow the same syntax used by `npm <https://docs.npmjs.com/misc/semver>`_.
 
 .. note::
   Using the version pragma *does not* change the version of the compiler.
@@ -91,9 +88,6 @@ these follow the same syntax used by `npm <https://docs.npmjs.com/cli/v6/using-n
   required by the pragma. If it does not match, the compiler issues
   an error.
 
-.. index:: ! ABI coder, ! pragma; abicoder, pragma; ABIEncoderV2
-.. _abi_coder:
-
 ABI Coder Pragma
 ----------------
 
@@ -101,15 +95,12 @@ By using ``pragma abicoder v1`` or ``pragma abicoder v2`` you can
 select between the two implementations of the ABI encoder and decoder.
 
 The new ABI coder (v2) is able to encode and decode arbitrarily nested
-arrays and structs. Apart from supporting more types, it involves more extensive
-validation and safety checks, which may result in higher gas costs, but also heightened
-security.
-It is considered non-experimental as of Solidity 0.6.0 and it is enabled by default starting
-with Solidity 0.8.0. The old ABI coder can still be selected using ``pragma abicoder v1;``.
-
-.. warning::
-  The ABI coder v1 is deprecated and scheduled for removal.
-  Use ABI coder v2 instead.
+arrays and structs. It might produce less optimal code and has not
+received as much testing as the old encoder, but is considered
+non-experimental as of Solidity 0.6.0. You still have to explicitly
+activate it using ``pragma abicoder v2;``. Since it will be
+activated by default starting from Solidity 0.8.0, there is the option to select
+the old coder using ``pragma abicoder v1;``.
 
 The set of types supported by the new encoder is a strict superset of
 the ones supported by the old one. Contracts that use it can interact with ones
@@ -132,7 +123,8 @@ enough to make the error go away.
   by using ``pragma experimental ABIEncoderV2``, but it was not possible
   to explicitly select coder v1 because it was the default.
 
-.. index:: ! pragma; experimental
+.. index:: ! pragma, experimental
+
 .. _experimental_pragma:
 
 Experimental Pragma
@@ -142,7 +134,6 @@ The second pragma is the experimental pragma. It can be used to enable
 features of the compiler or language that are not yet enabled by default.
 The following experimental pragmas are currently supported:
 
-.. index:: ! pragma; ABIEncoderV2
 
 ABIEncoderV2
 ~~~~~~~~~~~~
@@ -151,11 +142,19 @@ Because the ABI coder v2 is not considered experimental anymore,
 it can be selected via ``pragma abicoder v2`` (please see above)
 since Solidity 0.7.4.
 
-.. index:: ! pragma; SMTChecker
 .. _smt_checker:
 
 SMTChecker
 ~~~~~~~~~~
+
+This component has to be enabled when the Solidity compiler is built
+and therefore it is not available in all Solidity binaries.
+The :ref:`build instructions<smt_solvers_build>` explain how to activate this option.
+It is activated for the Ubuntu PPA releases in most versions,
+but not for the Docker images, Windows binaries or the
+statically-built Linux binaries. It can be activated for solc-js via the
+`smtCallback <https://github.com/ethereum/solc-js#example-usage-with-smtsolver-callback>`_ if you have an SMT solver
+installed locally and run solc-js via node (not via the browser).
 
 If you use ``pragma experimental SMTChecker;``, then you get additional
 :ref:`safety warnings<formal_verification>` which are obtained by querying an
@@ -164,12 +163,7 @@ The component does not yet support all features of the Solidity language and
 likely outputs many warnings. In case it reports unsupported features, the
 analysis may not be fully sound.
 
-.. note::
-
-    The ``SMTChecker`` pragma is deprecated and will be removed.
-    To enable SMTChecker, simply select :ref:`select an engine<smtchecker_engines>` when invoking the compiler.
-
-.. index:: source file, ! import, module, source unit
+.. index:: source file, ! import, module
 
 .. _import:
 
@@ -182,15 +176,14 @@ Syntax and Semantics
 Solidity supports import statements to help modularise your code that
 are similar to those available in JavaScript
 (from ES6 on). However, Solidity does not support the concept of
-a `default export <https://developer.mozilla.org/en-US/docs/web/javascript/reference/statements/export#description>`_.
+a `default export <https://developer.mozilla.org/en-US/docs/web/javascript/reference/statements/export#Description>`_.
 
 At a global level, you can use import statements of the following form:
 
-.. code-block:: solidity
+::
 
-    import "filename";
+  import "filename";
 
-The ``filename`` part is called an *import path*.
 This statement imports all global symbols from "filename" (and symbols imported there) into the
 current global scope (different than in ES6 but backwards-compatible for Solidity).
 This form is not recommended for use, because it unpredictably pollutes the namespace.
@@ -201,15 +194,15 @@ symbols explicitly.
 The following example creates a new global symbol ``symbolName`` whose members are all
 the global symbols from ``"filename"``:
 
-.. code-block:: solidity
+::
 
-    import * as symbolName from "filename";
+  import * as symbolName from "filename";
 
 which results in all global symbols being available in the format ``symbolName.symbol``.
 
 A variant of this syntax that is not part of ES6, but possibly useful is:
 
-.. code-block:: solidity
+::
 
   import "filename" as symbolName;
 
@@ -219,38 +212,105 @@ If there is a naming collision, you can rename symbols while importing. For exam
 the code below creates new global symbols ``alias`` and ``symbol2`` which reference
 ``symbol1`` and ``symbol2`` from inside ``"filename"``, respectively.
 
-.. code-block:: solidity
+::
 
-    import {symbol1 as alias, symbol2} from "filename";
+  import {symbol1 as alias, symbol2} from "filename";
 
-.. index:: virtual filesystem, source unit name, import; path, filesystem path, import callback, Remix IDE
+Paths
+-----
 
-Import Paths
-------------
+In the above, ``filename`` is always treated as a path with ``/`` as directory separator,
+and ``.`` as the current and ``..`` as the parent directory.  When ``.`` or ``..`` is followed by a character except ``/``,
+it is not considered as the current or the parent directory.
+All path names are treated as absolute paths unless they start with the current ``.`` or the parent directory ``..``.
 
-In order to be able to support reproducible builds on all platforms, the Solidity compiler has to
-abstract away the details of the filesystem where source files are stored.
-For this reason import paths do not refer directly to files in the host filesystem.
-Instead the compiler maintains an internal database (*virtual filesystem* or *VFS* for short) where
-each source unit is assigned a unique *source unit name* which is an opaque and unstructured identifier.
-The import path specified in an import statement is translated into a source unit name and used to
-find the corresponding source unit in this database.
+To import a file ``filename`` from the same directory as the current file, use ``import "./filename" as symbolName;``.
+If you use ``import "filename" as symbolName;`` instead, a different file could be referenced
+(in a global "include directory").
 
-Using the :ref:`Standard JSON <compiler-api>` API it is possible to directly provide the names and
-content of all the source files as a part of the compiler input.
-In this case source unit names are truly arbitrary.
-If, however, you want the compiler to automatically find and load source code into the VFS, your
-source unit names need to be structured in a way that makes it possible for an :ref:`import callback
-<import-callback>` to locate them.
-When using the command-line compiler the default import callback supports only loading source code
-from the host filesystem, which means that your source unit names must be paths.
-Some environments provide custom callbacks that are more versatile.
-For example the `Remix IDE <https://remix.ethereum.org/>`_ provides one that
-lets you `import files from HTTP, IPFS and Swarm URLs or refer directly to packages in NPM registry
-<https://remix-ide.readthedocs.io/en/latest/import.html>`_.
+It depends on the compiler (see :ref:`import-compiler`) how to actually resolve the paths.
+In general, the directory hierarchy does not need to strictly map onto your local
+filesystem, and the path can also map to resources such as ipfs, http or git.
 
-For a complete description of the virtual filesystem and the path resolution logic used by the
-compiler see :ref:`Path Resolution <path-resolution>`.
+.. note::
+    Always use relative imports like ``import "./filename.sol";`` and avoid
+    using ``..`` in path specifiers. In the latter case, it is probably better to use
+    global paths and set up remappings as explained below.
+
+.. _import-compiler:
+
+Use in Actual Compilers
+-----------------------
+
+When invoking the compiler, you can specify how to discover the first element
+of a path, and also path prefix remappings. For
+example you can setup a remapping so that everything imported from the virtual
+directory ``github.com/ethereum/dapp-bin/library`` would actually be read from
+your local directory ``/usr/local/dapp-bin/library``.
+If multiple remappings apply, the one with the longest key is tried first.
+An empty prefix is not allowed. The remappings can depend on a context,
+which allows you to configure packages to import e.g., different versions of a
+library of the same name.
+
+**solc**:
+
+For solc (the commandline compiler), you provide these path remappings as
+``context:prefix=target`` arguments, where both the ``context:`` and the
+``=target`` parts are optional (``target`` defaults to ``prefix`` in this
+case). All remapping values that are regular files are compiled (including
+their dependencies).
+
+This mechanism is backwards-compatible (as long
+as no filename contains ``=`` or ``:``) and thus not a breaking change. All
+files in or below the ``context`` directory that import a file that starts with
+``prefix`` are redirected by replacing ``prefix`` by ``target``.
+
+For example, if you clone ``github.com/ethereum/dapp-bin/`` locally to
+``/usr/local/dapp-bin``, you can use the following in your source file:
+
+::
+
+  import "github.com/ethereum/dapp-bin/library/iterable_mapping.sol" as it_mapping;
+
+Then run the compiler:
+
+.. code-block:: bash
+
+  solc github.com/ethereum/dapp-bin/=/usr/local/dapp-bin/ source.sol
+
+As a more complex example, suppose you rely on a module that uses an old
+version of dapp-bin that you checked out to ``/usr/local/dapp-bin_old``, then you can run:
+
+.. code-block:: bash
+
+  solc module1:github.com/ethereum/dapp-bin/=/usr/local/dapp-bin/ \
+       module2:github.com/ethereum/dapp-bin/=/usr/local/dapp-bin_old/ \
+       source.sol
+
+This means that all imports in ``module2`` point to the old version but imports
+in ``module1`` point to the new version.
+
+.. note::
+
+  ``solc`` only allows you to include files from certain directories. They have
+  to be in the directory (or subdirectory) of one of the explicitly specified
+  source files or in the directory (or subdirectory) of a remapping target. If
+  you want to allow direct absolute includes, add the remapping ``/=/``.
+
+If there are multiple remappings that lead to a valid file, the remapping
+with the longest common prefix is chosen.
+
+**Remix**:
+
+`Remix <https://remix.ethereum.org/>`_ provides an automatic remapping for
+GitHub and automatically retrieves the file over the network. You can import
+the iterable mapping as above,  e.g.
+
+::
+
+  import "github.com/ethereum/dapp-bin/library/iterable_mapping.sol" as it_mapping;
+
+Remix may add other source code providers in the future.
 
 .. index:: ! comment, natspec
 
@@ -259,22 +319,47 @@ Comments
 
 Single-line comments (``//``) and multi-line comments (``/*...*/``) are possible.
 
-.. code-block:: solidity
+::
 
-    // This is a single-line comment.
+  // This is a single-line comment.
 
-    /*
-    This is a
-    multi-line comment.
-    */
+  /*
+  This is a
+  multi-line comment.
+  */
 
 .. note::
   A single-line comment is terminated by any unicode line terminator
-  (LF, VF, FF, CR, NEL, LS or PS) in UTF-8 encoding. The terminator is still part of
-  the source code after the comment, so if it is not an ASCII symbol
+  (LF, VF, FF, CR, NEL, LS or PS) in utf8 encoding. The terminator is still part of
+  the source code after the comment, so if it is not an ascii symbol
   (these are NEL, LS and PS), it will lead to a parser error.
 
-Additionally, there is another type of comment called a NatSpec comment,
-which is detailed in the :ref:`style guide<style_guide_natspec>`. They are written with a
-triple slash (``///``) or a double asterisk block (``/** ... */``) and
+Additionally, there is another type of comment called a natspec comment,
+which is detailed in the :ref:`style guide<natspec>`. They are written with a
+triple slash (``///``) or a double asterisk block(``/** ... */``) and
 they should be used directly above function declarations or statements.
+You can use `Doxygen <https://en.wikipedia.org/wiki/Doxygen>`_-style tags inside these comments to document
+functions, annotate conditions for formal verification, and provide a
+**confirmation text** which is shown to users when they attempt to invoke a
+function.
+
+In the following example we document the title of the contract, the explanation
+for the two function parameters and two return variables.
+
+::
+
+    // SPDX-License-Identifier: GPL-3.0
+    pragma solidity >=0.4.21 <0.9.0;
+
+    /** @title Shape calculator. */
+    contract ShapeCalculator {
+        /// @dev Calculates a rectangle's surface and perimeter.
+        /// @param w Width of the rectangle.
+        /// @param h Height of the rectangle.
+        /// @return s The calculated surface.
+        /// @return p The calculated perimeter.
+        function rectangle(uint w, uint h) public pure returns (uint s, uint p) {
+            s = w * h;
+            p = 2 * (w + h);
+        }
+    }

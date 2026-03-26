@@ -1,34 +1,39 @@
 {
   "absolutePath": "a",
-  "exportedSymbols": {
-    "C": [
+  "exportedSymbols":
+  {
+    "C":
+    [
       14
     ]
   },
   "id": 15,
   "nodeType": "SourceUnit",
-  "nodes": [
+  "nodes":
+  [
     {
       "abstract": false,
       "baseContracts": [],
-      "canonicalName": "C",
       "contractDependencies": [],
       "contractKind": "contract",
       "fullyImplemented": true,
       "id": 14,
-      "linearizedBaseContracts": [
+      "linearizedBaseContracts":
+      [
         14
       ],
       "name": "C",
-      "nameLocation": "9:1:1",
       "nodeType": "ContractDefinition",
-      "nodes": [
+      "nodes":
+      [
         {
-          "body": {
+          "body":
+          {
             "id": 5,
             "nodeType": "Block",
             "src": "32:6:1",
-            "statements": [
+            "statements":
+            [
               {
                 "id": 4,
                 "nodeType": "PlaceholderStatement",
@@ -38,33 +43,36 @@
           },
           "id": 6,
           "name": "M",
-          "nameLocation": "22:1:1",
           "nodeType": "ModifierDefinition",
-          "parameters": {
+          "parameters":
+          {
             "id": 3,
             "nodeType": "ParameterList",
-            "parameters": [
+            "parameters":
+            [
               {
                 "constant": false,
                 "id": 2,
                 "mutability": "mutable",
                 "name": "i",
-                "nameLocation": "29:1:1",
                 "nodeType": "VariableDeclaration",
                 "scope": 6,
                 "src": "24:6:1",
                 "stateVariable": false,
                 "storageLocation": "default",
-                "typeDescriptions": {
+                "typeDescriptions":
+                {
                   "typeIdentifier": "t_uint256",
                   "typeString": "uint256"
                 },
-                "typeName": {
+                "typeName":
+                {
                   "id": 1,
                   "name": "uint",
                   "nodeType": "ElementaryTypeName",
                   "src": "24:4:1",
-                  "typeDescriptions": {
+                  "typeDescriptions":
+                  {
                     "typeIdentifier": "t_uint256",
                     "typeString": "uint256"
                   }
@@ -79,7 +87,8 @@
           "visibility": "internal"
         },
         {
-          "body": {
+          "body":
+          {
             "id": 12,
             "nodeType": "Block",
             "src": "64:2:1",
@@ -89,9 +98,11 @@
           "id": 13,
           "implemented": true,
           "kind": "function",
-          "modifiers": [
+          "modifiers":
+          [
             {
-              "arguments": [
+              "arguments":
+              [
                 {
                   "hexValue": "31",
                   "id": 9,
@@ -102,7 +113,8 @@
                   "lValueRequested": false,
                   "nodeType": "Literal",
                   "src": "54:1:1",
-                  "typeDescriptions": {
+                  "typeDescriptions":
+                  {
                     "typeIdentifier": "t_rational_1_by_1",
                     "typeString": "int_const 1"
                   },
@@ -110,13 +122,10 @@
                 }
               ],
               "id": 10,
-              "kind": "modifierInvocation",
-              "modifierName": {
+              "modifierName":
+              {
                 "id": 8,
                 "name": "M",
-                "nameLocations": [
-                  "52:1:1"
-                ],
                 "nodeType": "IdentifierPath",
                 "referencedDeclaration": 6,
                 "src": "52:1:1"
@@ -126,15 +135,16 @@
             }
           ],
           "name": "F",
-          "nameLocation": "48:1:1",
           "nodeType": "FunctionDefinition",
-          "parameters": {
+          "parameters":
+          {
             "id": 7,
             "nodeType": "ParameterList",
             "parameters": [],
             "src": "49:2:1"
           },
-          "returnParameters": {
+          "returnParameters":
+          {
             "id": 11,
             "nodeType": "ParameterList",
             "parameters": [],
@@ -148,9 +158,7 @@
         }
       ],
       "scope": 15,
-      "src": "0:68:1",
-      "usedErrors": [],
-      "usedEvents": []
+      "src": "0:68:1"
     }
   ],
   "src": "0:69:1"

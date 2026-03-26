@@ -23,13 +23,12 @@
 
 #include <libyul/ASTForward.h>
 
-#include <libyul/YulName.h>
+#include <libyul/YulString.h>
 
 #include <memory>
 #include <optional>
 #include <set>
 #include <vector>
-#include <map>
 
 namespace solidity::yul
 {
@@ -100,14 +99,13 @@ protected:
 	Case translate(Case const& _case);
 	virtual Identifier translate(Identifier const& _identifier);
 	Literal translate(Literal const& _literal);
-	FunctionName translate(FunctionName const& _functionName);
-	NameWithDebugData translate(NameWithDebugData const& _typedName);
+	TypedName translate(TypedName const& _typedName);
 
 	virtual void enterScope(Block const&) { }
 	virtual void leaveScope(Block const&) { }
 	virtual void enterFunction(FunctionDefinition const&) { }
 	virtual void leaveFunction(FunctionDefinition const&) { }
-	virtual YulName translateIdentifier(YulName _name) { return _name; }
+	virtual YulString translateIdentifier(YulString _name) { return _name; }
 };
 
 template <typename T>
@@ -119,22 +117,5 @@ std::vector<T> ASTCopier::translateVector(std::vector<T> const& _values)
 	return translated;
 }
 
-/// Helper class that creates a copy of the function definition, replacing the names of the variable
-/// declarations with new names.
-class FunctionCopier: public ASTCopier
-{
-public:
-	FunctionCopier(
-		std::map<YulName, YulName> const& _translations
-	):
-		m_translations(_translations)
-	{}
-	using ASTCopier::operator();
-	YulName translateIdentifier(YulName _name) override;
-private:
-	/// A mapping between old and new names. We replace the names of variable declarations contained
-	/// in the mapping with their new names.
-	std::map<YulName, YulName> const& m_translations;
-};
 
 }

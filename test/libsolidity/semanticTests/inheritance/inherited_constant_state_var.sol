@@ -8,5 +8,9 @@ contract B is A {
         return A.x;
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> 7

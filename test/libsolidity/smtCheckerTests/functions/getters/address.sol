@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	address public x;
 	address payable public y;
@@ -11,9 +13,6 @@ contract C {
 		assert(y == address(this)); // should fail
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (171-197): CHC: Assertion violation happens here.
-// Warning 6328: (249-275): CHC: Assertion violation happens here.
-// Info 1391: CHC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (204-230): CHC: Assertion violation happens here.\nCounterexample:\nx = 0, y = 0\n\nTransaction trace:\nC.constructor()\nState: x = 0, y = 0\nC.f()
+// Warning 6328: (282-308): CHC: Assertion violation happens here.\nCounterexample:\nx = 0, y = 0\n\nTransaction trace:\nC.constructor()\nState: x = 0, y = 0\nC.f()

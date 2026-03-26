@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract Simple{
 
     address destination;
@@ -115,7 +116,5 @@ contract PropagateThroughReturnValue {
     return (var_state);
   }
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 2018: (1847-1915): Function state mutability can be restricted to view
+// Warning 2018: (1879-1947): Function state mutability can be restricted to view

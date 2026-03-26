@@ -23,7 +23,7 @@ namespace solidity::frontend::test
 
 #define NEW_ENCODER(CODE) \
 { \
-	std::string sourceCodeTmp = sourceCode; \
+	string sourceCodeTmp = sourceCode; \
 	sourceCode = "pragma abicoder v2;\n" + sourceCode; \
 	{ CODE } \
 	sourceCode = sourceCodeTmp; \
@@ -31,7 +31,7 @@ namespace solidity::frontend::test
 
 #define OLD_ENCODER(CODE) \
 { \
-	std::string sourceCodeTmp = sourceCode; \
+	string sourceCodeTmp = sourceCode; \
 	sourceCode = "pragma abicoder v1;\n" + sourceCode; \
 	{ CODE } \
 	sourceCode = sourceCodeTmp; \

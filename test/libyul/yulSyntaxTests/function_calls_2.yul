@@ -15,4 +15,3 @@
 	{ function f() { g() } function g() { f() } }
 	{ function f(a) -> b {} function g(a, b, c) {} function x() { g(1, 2, f(mul(2, 3))) x() } }
 }
-// ----

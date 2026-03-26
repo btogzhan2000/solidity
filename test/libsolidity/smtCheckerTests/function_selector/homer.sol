@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 interface ERC165 {
     /// @notice Query if a contract implements an interface
     /// @param interfaceID The interface identifier, as specified in ERC-165
@@ -38,8 +40,7 @@ contract Homer is ERC165, Simpson {
         assert(supportsInterface(type(PeaceMaker).interfaceId));
     }
 }
-// ====
-// SMTEngine: all
+
+
 // ----
-// Warning 6328: (1340-1395): CHC: Assertion violation happens here.
-// Info 1391: CHC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (1373-1428): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nHomer.constructor()\nHomer.check()\n    Homer.supportsInterface(1941353618) -- internal call\n    Homer.supportsInterface(33540519) -- internal call\n    Homer.supportsInterface(2342435274) -- internal call

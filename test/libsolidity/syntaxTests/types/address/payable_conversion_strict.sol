@@ -12,4 +12,3 @@ contract C {
         a; b; c; d; a1; b1;
     }
 }
-// ----

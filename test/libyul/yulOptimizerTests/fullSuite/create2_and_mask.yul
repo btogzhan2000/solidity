@@ -7,14 +7,15 @@
     sstore(a, b)
 }
 // ====
-// EVMVersion: >=shanghai
-// bytecodeFormat: legacy
+// EVMVersion: >=constantinople
 // ----
 // step: fullSuite
 //
 // {
 //     {
-//         let a := and(create2(0, 0, 0x20, 0), sub(shl(160, 1), 1))
-//         sstore(a, and(sub(shl(160, 1), 1), create2(0, 0, 0x20, 0)))
+//         let _1 := sub(shl(160, 1), 1)
+//         let _2 := 0
+//         let a := and(create2(_2, _2, 0x20, _2), _1)
+//         sstore(a, and(_1, create2(_2, _2, 0x20, _2)))
 //     }
 // }

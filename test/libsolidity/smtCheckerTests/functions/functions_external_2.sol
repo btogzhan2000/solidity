@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 abstract contract D
 {
 	function g(uint x) public virtual;
@@ -20,9 +22,6 @@ contract C
 	}
 }
 // ====
-// SMTEngine: chc
 // SMTIgnoreCex: yes
-// SMTSolvers: eld
 // ----
-// Warning 6328: (234-253): CHC: Assertion violation happens here.
-// Info 1391: CHC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (267-286): CHC: Assertion violation happens here.

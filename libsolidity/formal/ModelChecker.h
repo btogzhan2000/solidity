@@ -31,9 +31,7 @@
 #include <libsolidity/interface/ReadFile.h>
 
 #include <libsmtutil/SolverInterface.h>
-
 #include <liblangutil/ErrorReporter.h>
-#include <liblangutil/UniqueErrorReporter.h>
 
 namespace solidity::langutil
 {
@@ -51,18 +49,11 @@ public:
 	/// should be used, even if all are available. The default choice is to use all.
 	ModelChecker(
 		langutil::ErrorReporter& _errorReporter,
-		langutil::CharStreamProvider const& _charStreamProvider,
 		std::map<solidity::util::h256, std::string> const& _smtlib2Responses,
 		ModelCheckerSettings _settings = ModelCheckerSettings{},
-		ReadCallback::Callback const& _smtCallback = ReadCallback::Callback()
+		ReadCallback::Callback const& _smtCallback = ReadCallback::Callback(),
+		smtutil::SMTSolverChoice _enabledSolvers = smtutil::SMTSolverChoice::All()
 	);
-
-	// TODO This should be removed for 0.9.0.
-	static bool isPragmaPresent(std::vector<std::shared_ptr<SourceUnit>> const& _sources);
-
-	/// Generates error messages if the requested sources and contracts
-	/// do not exist.
-	void checkRequestedSourcesAndContracts(std::vector<std::shared_ptr<SourceUnit>> const& _sources);
 
 	void analyze(SourceUnit const& _sources);
 
@@ -74,33 +65,7 @@ public:
 	/// @returns SMT solvers that are available via the C++ API.
 	static smtutil::SMTSolverChoice availableSolvers();
 
-	/// @returns the intersection of the enabled and available solvers,
-	/// reporting warnings when a solver is enabled but not available.
-	static smtutil::SMTSolverChoice checkRequestedSolvers(smtutil::SMTSolverChoice _enabled, langutil::ErrorReporter& _errorReporter);
-
 private:
-	/// Error reporter from CompilerStack.
-	/// We need to append m_uniqueErrorReporter
-	/// to this one when the analysis is done.
-	langutil::ErrorReporter& m_errorReporter;
-
-	/// Used by ModelChecker, SMTEncoder, BMC and CHC to avoid duplicates.
-	/// This is local to ModelChecker, so needs to be appended
-	/// to m_errorReporter at the end of the analysis.
-	langutil::UniqueErrorReporter m_uniqueErrorReporter;
-
-	/// Used by SMTEncoder, BMC and CHC to accumulate unsupported
-	/// warnings and avoid duplicates.
-	/// This is local to ModelChecker, so needs to be appended
-	/// to m_errorReporter at the end of the analysis.
-	langutil::UniqueErrorReporter m_unsupportedErrorReporter;
-
-	langutil::ErrorList m_provedSafeLogs;
-	/// Used by SMTEncoder, BMC and CHC to accumulate info about proved targets.
-	/// This is local to ModelChecker, so needs to be appended
-	/// to m_errorReporter at the end of the analysis.
-	langutil::ErrorReporter m_provedSafeReporter;
-
 	ModelCheckerSettings m_settings;
 
 	/// Stores the context of the encoding.

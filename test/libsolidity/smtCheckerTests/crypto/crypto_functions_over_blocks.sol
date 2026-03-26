@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	function f(bytes memory data) public pure {
 		bytes32 k = keccak256(data);
@@ -8,7 +10,3 @@ contract C {
 		assert(h == k);
 	}
 }
-// ====
-// SMTEngine: all
-// ----
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

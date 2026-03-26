@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract Simp {
 	function f3() public pure returns (bytes1) {
 		bytes memory y = "def";
@@ -6,9 +7,5 @@ contract Simp {
 		return y[0];
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreCex: yes
 // ----
-// Warning 6328: (140-171): CHC: Assertion violation happens here.
-// Info 1391: CHC: 4 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (172-203): CHC: Assertion violation happens here.\nCounterexample:\n\n = 0\n\nTransaction trace:\nSimp.constructor()\nSimp.f3()

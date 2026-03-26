@@ -1,6 +1,5 @@
-from opcodes import BYTE, DIV, SHR
 from rule import Rule
-from z3 import BitVec, UGE, ULE, ULT
+from opcodes import *
 
 """
 byte(A, shr(B, X))

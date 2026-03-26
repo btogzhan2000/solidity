@@ -7,5 +7,8 @@ contract test {
         return boo();
     }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // foo(uint256): 0x0 -> 0x2fbebd3800000000000000000000000000000000000000000000000000000000

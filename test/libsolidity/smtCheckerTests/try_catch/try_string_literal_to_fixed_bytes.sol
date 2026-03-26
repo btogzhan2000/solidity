@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract C {
 
 	function g() public pure returns (bytes2) {
@@ -12,9 +13,5 @@ contract C {
 		}
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreCex: yes
 // ----
-// Warning 6328: (218-262): CHC: Assertion violation happens here.
-// Info 1391: CHC: 5 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (250-294): CHC: Assertion violation happens here.

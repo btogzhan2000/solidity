@@ -1,33 +1,29 @@
 {
+  let a := 3
+  let b := 4
   {
-    let a := 3
-    let b := 4
+    a := add(b, 3)
+    let c := 5
     {
-      a := add(b, 3)
-      let c := 5
+      b := add(b, 4)
       {
-        b := add(b, 4)
-        {
-          c := add(a, 5)
-        }
-        b := add(a, b)
-      }
-      a := add(a, c)
+        c := add(a, 5)
+	  }
+      b := add(a, b)
     }
+    a := add(a, c)
   }
 }
 // ----
 // step: blockFlattener
 //
 // {
-//     {
-//         let a := 3
-//         let b := 4
-//         a := add(b, 3)
-//         let c := 5
-//         b := add(b, 4)
-//         c := add(a, 5)
-//         b := add(a, b)
-//         a := add(a, c)
-//     }
+//     let a := 3
+//     let b := 4
+//     a := add(b, 3)
+//     let c := 5
+//     b := add(b, 4)
+//     c := add(a, 5)
+//     b := add(a, b)
+//     a := add(a, c)
 // }

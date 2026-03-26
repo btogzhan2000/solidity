@@ -16,49 +16,24 @@
 */
 
 #include <libyul/optimiser/FunctionCallFinder.h>
-
-#include <libyul/optimiser/ASTWalker.h>
 #include <libyul/AST.h>
-#include <libyul/Utilities.h>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::yul;
 
-namespace
+vector<FunctionCall*> FunctionCallFinder::run(Block& _block, YulString _functionName)
 {
-template<typename Base, typename ResultType>
-class MaybeConstFunctionCallFinder: Base
-{
-public:
-	using MaybeConstBlock = std::conditional_t<std::is_const_v<ResultType>, Block const, Block>;
-	static std::vector<ResultType*> run(MaybeConstBlock& _block, FunctionHandle const& _functionHandle)
-	{
-		MaybeConstFunctionCallFinder functionCallFinder(_functionHandle);
-		functionCallFinder(_block);
-		return functionCallFinder.m_calls;
-	}
-private:
-	explicit MaybeConstFunctionCallFinder(FunctionHandle const& _functionHandle):
-		m_functionHandle(_functionHandle), m_calls() {}
-
-	using Base::operator();
-	void operator()(ResultType& _functionCall) override
-	{
-		Base::operator()(_functionCall);
-		if (functionNameToHandle(_functionCall.functionName) == m_functionHandle)
-			m_calls.emplace_back(&_functionCall);
-	}
-	FunctionHandle const& m_functionHandle;
-	std::vector<ResultType*> m_calls;
-};
+	FunctionCallFinder functionCallFinder(_functionName);
+	functionCallFinder(_block);
+	return functionCallFinder.m_calls;
 }
 
-std::vector<FunctionCall*> yul::findFunctionCalls(Block& _block, FunctionHandle const& _functionHandle)
-{
-	return MaybeConstFunctionCallFinder<ASTModifier, FunctionCall>::run(_block, _functionHandle);
-}
+FunctionCallFinder::FunctionCallFinder(YulString _functionName): m_functionName(_functionName) {}
 
-std::vector<FunctionCall const*> yul::findFunctionCalls(Block const& _block, FunctionHandle const& _functionHandle)
+void FunctionCallFinder::operator()(FunctionCall& _functionCall)
 {
-	return MaybeConstFunctionCallFinder<ASTWalker, FunctionCall const>::run(_block, _functionHandle);
+	ASTModifier::operator()(_functionCall);
+	if (_functionCall.functionName.name == m_functionName)
+		m_calls.emplace_back(&_functionCall);
 }

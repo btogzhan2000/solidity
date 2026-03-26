@@ -17,5 +17,7 @@ contract C {
         correct = r == 0x01;
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // f() -> true

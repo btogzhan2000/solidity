@@ -8,10 +8,8 @@
 // step: expressionSimplifier
 //
 // {
-//     {
-//         let c, d := f()
-//         sstore(add(add(d, c), 7), 20)
-//     }
+//     let c, d := f()
+//     sstore(add(add(d, c), 7), 20)
 //     function f() -> x, z
 //     { }
 // }

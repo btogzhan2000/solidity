@@ -18,29 +18,17 @@
 
 #pragma once
 
+#include <libsolidity/formal/SymbolicVariables.h>
+#include <libsolidity/formal/SymbolicVariables.h>
 
-#include <libsolidity/ast/ASTForward.h>
-#include <libsolidity/ast/Types.h>
-
-#include <libsmtutil/SolverInterface.h>
 #include <libsmtutil/Sorts.h>
 
 #include <map>
 #include <optional>
 #include <vector>
 
-namespace solidity::langutil
-{
-class CharStreamProvider;
-}
-
 namespace solidity::frontend
 {
-
-namespace smt
-{
-class EncodingContext;
-}
 
 enum class PredicateType
 {
@@ -49,7 +37,6 @@ enum class PredicateType
 	ConstructorSummary,
 	FunctionSummary,
 	FunctionBlock,
-	FunctionErrorBlock,
 	InternalCall,
 	ExternalCallTrusted,
 	ExternalCallUntrusted,
@@ -68,19 +55,13 @@ public:
 		std::string _name,
 		PredicateType _type,
 		smt::EncodingContext& _context,
-		ASTNode const* _node = nullptr,
-		ContractDefinition const* _contractContext = nullptr,
-		std::vector<ScopeOpener const*> _scopeStack = {}
+		ASTNode const* _node = nullptr
 	);
 
 	Predicate(
-		std::string _name,
-		smtutil::SortPointer _sort,
+		smt::SymbolicFunctionVariable&& _predicate,
 		PredicateType _type,
-		bool _bytesConcatFunctionInContext,
-		ASTNode const* _node = nullptr,
-		ContractDefinition const* _contractContext = nullptr,
-		std::vector<ScopeOpener const*> _scopeStack = {}
+		ASTNode const* _node = nullptr
 	);
 
 	/// Predicate should not be copiable.
@@ -97,14 +78,14 @@ public:
 	smtutil::Expression operator()(std::vector<smtutil::Expression> const& _args) const;
 
 	/// @returns the function declaration of the predicate.
-	smtutil::Expression const& functor() const;
+	smtutil::Expression functor() const;
+	/// @returns the function declaration of the predicate with index _idx.
+	smtutil::Expression functor(unsigned _idx) const;
+	/// Increases the index of the function declaration of the predicate.
+	void newFunctor();
 
 	/// @returns the program node this predicate represents.
 	ASTNode const* programNode() const;
-
-	/// @returns the ContractDefinition of the most derived contract
-	/// being analyzed.
-	ContractDefinition const* contextContract() const;
 
 	/// @returns the ContractDefinition that this predicate represents
 	/// or nullptr otherwise.
@@ -118,10 +99,6 @@ public:
 	/// or nullptr otherwise.
 	FunctionCall const* programFunctionCall() const;
 
-	/// @returns the VariableDeclaration that this predicate represents
-	/// or nullptr otherwise.
-	VariableDeclaration const* programVariable() const;
-
 	/// @returns the program state variables in the scope of this predicate.
 	std::optional<std::vector<VariableDeclaration const*>> stateVariables() const;
 
@@ -130,12 +107,6 @@ public:
 
 	/// @returns true if this predicate represents a function summary.
 	bool isFunctionSummary() const;
-
-	/// @returns true if this predicate represents a function block.
-	bool isFunctionBlock() const;
-
-	/// @returns true if this predicate represents a function error block.
-	bool isFunctionErrorBlock() const;
 
 	/// @returns true if this predicate represents an internal function call.
 	bool isInternalCall() const;
@@ -152,18 +123,11 @@ public:
 	/// @returns true if this predicate represents an interface.
 	bool isInterface() const;
 
-	/// @returns true if this predicate represents a nondeterministic interface.
-	bool isNondetInterface() const;
-
 	PredicateType type() const { return m_type; }
 
 	/// @returns a formatted string representing a call to this predicate
 	/// with _args.
-	std::string formatSummaryCall(
-		std::vector<smtutil::Expression> const& _args,
-		langutil::CharStreamProvider const& _charStreamProvider,
-		bool _appendTxVars = false
-	) const;
+	std::string formatSummaryCall(std::vector<smtutil::Expression> const& _args) const;
 
 	/// @returns the values of the state variables from _args at the point
 	/// where this summary was reached.
@@ -177,14 +141,13 @@ public:
 	/// where this summary was reached.
 	std::vector<std::optional<std::string>> summaryPostOutputValues(std::vector<smtutil::Expression> const& _args) const;
 
-	/// @returns the values of the local variables used by this predicate.
-	std::pair<std::vector<std::optional<std::string>>, std::vector<VariableDeclaration const*>> localVariableValues(std::vector<smtutil::Expression> const& _args) const;
-
-	/// @returns a substitution map from the predicate arguments @p _predArgs
-	/// to a Solidity-like expression.
-	std::map<std::string, std::string> expressionSubstitution(std::vector<std::string> const& _predArgs) const;
-
 private:
+	/// @returns the formatted version of the given SMT expressions. Those expressions must be SMT constants.
+	std::vector<std::optional<std::string>> formatExpressions(std::vector<smtutil::Expression> const& _exprs, std::vector<TypePointer> const& _types) const;
+
+	/// @returns a string representation of the SMT expression based on a Solidity type.
+	std::optional<std::string> expressionToString(smtutil::Expression const& _expr, TypePointer _type) const;
+
 	/// Recursively fills _array from _expr.
 	/// _expr should have the form `store(store(...(const_array(x_0), i_0, e_0), i_m, e_m), i_k, e_k)`.
 	/// @returns true if the construction worked,
@@ -193,14 +156,8 @@ private:
 
 	std::map<std::string, std::optional<std::string>> readTxVars(smtutil::Expression const& _tx) const;
 
-	/// @returns index at which transaction values start in args list
-	size_t txValuesIndex() const { return m_bytesConcatFunctionInContext ? 5 : 4; }
-	/// @returns index at which function arguments start in args list
-	size_t firstArgIndex() const { return m_bytesConcatFunctionInContext ? 7 : 6; }
-	/// @returns index at which state variables values start in args list
-	size_t firstStateVarIndex() const { return m_bytesConcatFunctionInContext ? 8 : 7; }
-
-	smtutil::Expression m_functor;
+	/// The actual SMT expression.
+	smt::SymbolicFunctionVariable m_predicate;
 
 	/// The type of this predicate.
 	PredicateType m_type;
@@ -209,34 +166,9 @@ private:
 	/// nullptr if this predicate is not associated with a specific program AST node.
 	ASTNode const* m_node = nullptr;
 
-	/// The ContractDefinition that contains this predicate.
-	/// nullptr if this predicate is not associated with a specific contract.
-	/// This is unfortunately necessary because of virtual resolution for
-	/// function nodes.
-	ContractDefinition const* m_contractContext = nullptr;
-
 	/// Maps the name of the predicate to the actual Predicate.
 	/// Used in counterexample generation.
 	static std::map<std::string, Predicate> m_predicates;
-
-	/// The scope stack when the predicate was created.
-	/// Used to identify the subset of variables in scope.
-	std::vector<ScopeOpener const*> const m_scopeStack;
-
-	/// True iff there is a bytes concat function in contract scope
-	bool m_bytesConcatFunctionInContext;
-};
-
-struct PredicateCompare
-{
-	bool operator()(Predicate const* lhs, Predicate const* rhs) const
-	{
-		// We cannot use m_node->id() because different predicates may
-		// represent the same program node.
-		// We use the symbolic name since it is unique per predicate and
-		// the order does not really matter.
-		return lhs->functor().name < rhs->functor().name;
-	}
 };
 
 }

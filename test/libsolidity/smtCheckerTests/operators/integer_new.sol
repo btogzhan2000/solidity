@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	function f() public pure {
 		uint[] memory x = new uint[](0);
@@ -31,9 +33,4 @@ contract C {
 		assert(x[1] == 0x34);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6368: (474-478): CHC: Out of bounds access happens here.
-// Warning 6368: (496-500): CHC: Out of bounds access happens here.
-// Info 1391: CHC: 23 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

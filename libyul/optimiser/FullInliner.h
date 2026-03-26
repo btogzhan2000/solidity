@@ -44,10 +44,10 @@ class NameCollector;
  * Optimiser component that modifies an AST in place, inlining functions.
  * Expressions are expected to be split, i.e. the component will only inline
  * function calls that are at the root of the expression and that only contains
- * variables or literals as arguments. More specifically, it will inline
+ * variables as arguments. More specifically, it will inline
  *  - let x1, ..., xn := f(a1, ..., am)
  *  - x1, ..., xn := f(a1, ..., am)
- *  - f(a1, ..., am)
+ * f(a1, ..., am)
  *
  * The transform changes code of the form
  *
@@ -58,8 +58,8 @@ class NameCollector;
  *
  * function f(a, b) -> c { ... }
  *
- * let f_b := y
  * let f_a := x
+ * let f_b := y
  * let f_c
  * code of f, with replacements: a -> f_a, b -> f_b, c -> f_c
  * let z := f_c
@@ -75,9 +75,9 @@ public:
 
 	/// Inlining heuristic.
 	/// @param _callSite the name of the function in which the function call is located.
-	bool shallInline(FunctionCall const& _funCall, YulName _callSite);
+	bool shallInline(FunctionCall const& _funCall, YulString _callSite);
 
-	FunctionDefinition* function(YulName _name)
+	FunctionDefinition* function(YulString _name)
 	{
 		auto it = m_functions.find(_name);
 		if (it != m_functions.end())
@@ -88,7 +88,7 @@ public:
 	/// Adds the size of _funCall to the size of _callSite. This is just
 	/// a rough estimate that is done during inlining. The proper size
 	/// should be determined after inlining is completed.
-	void tentativelyUpdateCodeSize(YulName _function, YulName _callSite);
+	void tentativelyUpdateCodeSize(YulString _function, YulString _callSite);
 
 private:
 	enum Pass { InlineTiny, InlineRest };
@@ -98,28 +98,24 @@ private:
 
 	/// @returns a map containing the maximum depths of a call chain starting at each
 	/// function. For recursive functions, the value is one larger than for all others.
-	std::map<FunctionHandle, size_t> callDepths() const;
+	std::map<YulString, size_t> callDepths() const;
 
 	void updateCodeSize(FunctionDefinition const& _fun);
-	void handleBlock(YulName _currentFunctionName, Block& _block);
+	void handleBlock(YulString _currentFunctionName, Block& _block);
 	bool recursive(FunctionDefinition const& _fun) const;
 
 	Pass m_pass;
 	/// The AST to be modified. The root block itself will not be modified, because
 	/// we store pointers to functions.
 	Block& m_ast;
-	std::map<YulName, FunctionDefinition*> m_functions;
+	std::map<YulString, FunctionDefinition*> m_functions;
 	/// Functions not to be inlined (because they contain the ``leave`` statement).
-	std::set<YulName> m_noInlineFunctions;
-	/// True, if the code contains a ``memoryguard`` and we can expect to be able to move variables to memory later.
-	bool m_hasMemoryGuard = false;
-	/// Set of recursive functions.
-	std::set<FunctionHandle> m_recursiveFunctions;
+	std::set<YulString> m_noInlineFunctions;
 	/// Names of functions to always inline.
-	std::set<YulName> m_singleUse;
+	std::set<YulString> m_singleUse;
 	/// Variables that are constants (used for inlining heuristic)
-	std::set<YulName> m_constants;
-	std::map<YulName, size_t> m_functionSizes;
+	std::set<YulString> m_constants;
+	std::map<YulString, size_t> m_functionSizes;
 	NameDispenser& m_nameDispenser;
 	Dialect const& m_dialect;
 };
@@ -131,7 +127,7 @@ private:
 class InlineModifier: public ASTModifier
 {
 public:
-	InlineModifier(FullInliner& _driver, NameDispenser& _nameDispenser, YulName _functionName, Dialect const& _dialect):
+	InlineModifier(FullInliner& _driver, NameDispenser& _nameDispenser, YulString _functionName, Dialect const& _dialect):
 		m_currentFunction(std::move(_functionName)),
 		m_driver(_driver),
 		m_nameDispenser(_nameDispenser),
@@ -144,7 +140,7 @@ private:
 	std::optional<std::vector<Statement>> tryInlineStatement(Statement& _statement);
 	std::vector<Statement> performInline(Statement& _statement, FunctionCall& _funCall);
 
-	YulName m_currentFunction;
+	YulString m_currentFunction;
 	FullInliner& m_driver;
 	NameDispenser& m_nameDispenser;
 	Dialect const& m_dialect;
@@ -160,7 +156,7 @@ class BodyCopier: public ASTCopier
 public:
 	BodyCopier(
 		NameDispenser& _nameDispenser,
-		std::map<YulName, YulName> _variableReplacements
+		std::map<YulString, YulString> _variableReplacements
 	):
 		m_nameDispenser(_nameDispenser),
 		m_variableReplacements(std::move(_variableReplacements))
@@ -171,10 +167,10 @@ public:
 	Statement operator()(VariableDeclaration const& _varDecl) override;
 	Statement operator()(FunctionDefinition const& _funDef) override;
 
-	YulName translateIdentifier(YulName _name) override;
+	YulString translateIdentifier(YulString _name) override;
 
 	NameDispenser& m_nameDispenser;
-	std::map<YulName, YulName> m_variableReplacements;
+	std::map<YulString, YulString> m_variableReplacements;
 };
 
 

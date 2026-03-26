@@ -8,4 +8,3 @@ contract C {
         f(this.callback);
     }
 }
-// ----

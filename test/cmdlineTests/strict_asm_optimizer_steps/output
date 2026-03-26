@@ -1,5 +1,5 @@
 
-======= input.yul (EVM) =======
+======= strict_asm_optimizer_steps/input.yul (EVM) =======
 
 Pretty printed source:
 object "C_6" {
@@ -15,7 +15,7 @@ object "C_6" {
         code {
             {
                 mstore(64, 128)
-                sstore(0, iszero(calldatasize()))
+                pop(iszero(lt(calldatasize(), 4)))
                 revert(0, 0)
             }
         }
@@ -24,61 +24,65 @@ object "C_6" {
 
 
 Binary representation:
-608060405234601357600c60185f39600c5ff35b5f80fdfe608060405236155f555f80fd
+60806040523415600f5760006000fd5b6010601d60003960106000f3fe608060405260043610155060006000fd
 
 Text representation:
-    /* "input.yul":59:62   */
+    /* "strict_asm_optimizer_steps/input.yul":45:48   */
   0x80
-    /* "input.yul":55:57   */
+    /* "strict_asm_optimizer_steps/input.yul":41:43   */
   0x40
-    /* "input.yul":48:63   */
+    /* "strict_asm_optimizer_steps/input.yul":34:49   */
   mstore
-    /* "input.yul":79:90   */
+    /* "strict_asm_optimizer_steps/input.yul":61:72   */
   callvalue
-    /* "input.yul":76:107   */
+    /* "strict_asm_optimizer_steps/input.yul":58:60   */
+  iszero
   tag_1
   jumpi
-    /* "input.yul":160:184   */
-  dataSize(sub_0)
-    /* "input.yul":132:158   */
-  dataOffset(sub_0)
-    /* "input.yul":129:130   */
+    /* "strict_asm_optimizer_steps/input.yul":85:86   */
   0x00
-    /* "input.yul":120:185   */
-  codecopy
-    /* "input.yul":208:232   */
-  dataSize(sub_0)
-    /* "input.yul":205:206   */
+    /* "strict_asm_optimizer_steps/input.yul":82:83   */
   0x00
-    /* "input.yul":198:233   */
-  return
-    /* "input.yul":91:107   */
-tag_1:
-    /* "input.yul":103:104   */
-  0x00
-    /* "input.yul":93:105   */
-  dup1
+    /* "strict_asm_optimizer_steps/input.yul":75:87   */
   revert
+    /* "strict_asm_optimizer_steps/input.yul":58:60   */
+tag_1:
+    /* "strict_asm_optimizer_steps/input.yul":98:163   */
+  dataSize(sub_0)
+  dataOffset(sub_0)
+    /* "strict_asm_optimizer_steps/input.yul":107:108   */
+  0x00
+    /* "strict_asm_optimizer_steps/input.yul":98:163   */
+  codecopy
+    /* "strict_asm_optimizer_steps/input.yul":172:207   */
+  dataSize(sub_0)
+    /* "strict_asm_optimizer_steps/input.yul":179:180   */
+  0x00
+    /* "strict_asm_optimizer_steps/input.yul":172:207   */
+  return
 stop
 
 sub_0: assembly {
-        /* "input.yul":334:337   */
+        /* "strict_asm_optimizer_steps/input.yul":298:301   */
       0x80
-        /* "input.yul":330:332   */
+        /* "strict_asm_optimizer_steps/input.yul":294:296   */
       0x40
-        /* "input.yul":323:338   */
+        /* "strict_asm_optimizer_steps/input.yul":287:302   */
       mstore
-        /* "input.yul":372:386   */
+        /* "strict_asm_optimizer_steps/input.yul":348:349   */
+      0x04
+        /* "strict_asm_optimizer_steps/input.yul":332:346   */
       calldatasize
-        /* "input.yul":365:387   */
+        /* "strict_asm_optimizer_steps/input.yul":329:350   */
+      lt
+        /* "strict_asm_optimizer_steps/input.yul":322:351   */
       iszero
-        /* "input.yul":362:363   */
+        /* "strict_asm_optimizer_steps/input.yul":319:321   */
+      pop
+        /* "strict_asm_optimizer_steps/input.yul":570:571   */
       0x00
-        /* "input.yul":355:388   */
-      sstore
-        /* "input.yul":415:416   */
+        /* "strict_asm_optimizer_steps/input.yul":567:568   */
       0x00
-        /* "input.yul":405:417   */
-      dup1
+        /* "strict_asm_optimizer_steps/input.yul":560:572   */
       revert
 }

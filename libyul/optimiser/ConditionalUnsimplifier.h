@@ -33,21 +33,20 @@ class ConditionalUnsimplifier: public ASTModifier
 {
 public:
 	static constexpr char const* name{"ConditionalUnsimplifier"};
-	static void run(OptimiserStepContext& _context, Block& _ast);
+	static void run(OptimiserStepContext& _context, Block& _ast)
+	{
+		ConditionalUnsimplifier{_context.dialect}(_ast);
+	}
 
 	using ASTModifier::operator();
 	void operator()(Switch& _switch) override;
 	void operator()(Block& _block) override;
 
 private:
-	explicit ConditionalUnsimplifier(
-		Dialect const& _dialect,
-		std::map<YulName, ControlFlowSideEffects> const& _sideEffects
-	):
-		m_dialect(_dialect), m_functionSideEffects(_sideEffects)
+	explicit ConditionalUnsimplifier(Dialect const& _dialect):
+		m_dialect(_dialect)
 	{}
 	Dialect const& m_dialect;
-	std::map<YulName, ControlFlowSideEffects> const& m_functionSideEffects;
 };
 
 }

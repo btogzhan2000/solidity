@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	function test() public pure {
 		uint x;
@@ -6,9 +8,6 @@ contract C {
 		assert(x == 0);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 3 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
-// Warning 6838: (60-110): BMC: Condition is always false.
-// Warning 6838: (125-175): BMC: Condition is always false.
+// Warning 6838: (93-143): BMC: Condition is always false.
+// Warning 6838: (158-208): BMC: Condition is always false.

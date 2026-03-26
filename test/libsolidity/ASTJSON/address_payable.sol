@@ -4,7 +4,7 @@ contract C {
         address payable a = m[arg];
         r = arg;
         address c = address(this);
-        m[c] = payable(0);
+        m[c] = address(0);
     }
 }
 

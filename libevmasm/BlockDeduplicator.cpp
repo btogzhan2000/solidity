@@ -30,6 +30,7 @@
 #include <functional>
 #include <set>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::evmasm;
 
@@ -48,7 +49,7 @@ bool BlockDeduplicator::deduplicate()
 	)
 		return false;
 
-	std::function<bool(size_t, size_t)> comparator = [&](size_t _i, size_t _j)
+	function<bool(size_t, size_t)> comparator = [&](size_t _i, size_t _j)
 	{
 		if (_i == _j)
 			return false;
@@ -80,7 +81,7 @@ bool BlockDeduplicator::deduplicate()
 	for (; ; ++iterations)
 	{
 		//@todo this should probably be optimized.
-		std::set<size_t, std::function<bool(size_t, size_t)>> blocksSeen(comparator);
+		set<size_t, function<bool(size_t, size_t)>> blocksSeen(comparator);
 		for (size_t i = 0; i < m_items.size(); ++i)
 		{
 			if (m_items.at(i).type() != Tag)
@@ -100,17 +101,17 @@ bool BlockDeduplicator::deduplicate()
 
 bool BlockDeduplicator::applyTagReplacement(
 	AssemblyItems& _items,
-	std::map<u256, u256> const& _replacements,
-	SubAssemblyID _subId
+	map<u256, u256> const& _replacements,
+	size_t _subId
 )
 {
 	bool changed = false;
 	for (AssemblyItem& item: _items)
-		if (item.type() == PushTag || item.type() == RelativeJump || item.type() == ConditionalRelativeJump)
+		if (item.type() == PushTag)
 		{
-			SubAssemblyID subId;
+			size_t subId;
 			size_t tagId;
-			std::tie(subId, tagId) = item.splitForeignPushTag();
+			tie(subId, tagId) = item.splitForeignPushTag();
 			if (subId != _subId)
 				continue;
 			auto it = _replacements.find(tagId);
@@ -131,7 +132,7 @@ BlockDeduplicator::BlockIterator& BlockDeduplicator::BlockIterator::operator++()
 {
 	if (it == end)
 		return *this;
-	if (SemanticInformation::altersControlFlow(*it) && *it != AssemblyItem{Instruction::JUMPI} && it->type() != ConditionalRelativeJump)
+	if (SemanticInformation::altersControlFlow(*it) && *it != AssemblyItem{Instruction::JUMPI})
 		it = end;
 	else
 	{

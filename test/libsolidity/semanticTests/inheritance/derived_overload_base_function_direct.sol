@@ -14,5 +14,9 @@ contract C is B {
         return f(1);
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // g() -> 2

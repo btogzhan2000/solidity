@@ -4,4 +4,3 @@ contract C {
     uint[] s;
     function f() m1(b = s) m2(b) internal view returns (uint[] storage b) {}
 }
-// ----

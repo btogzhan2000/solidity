@@ -10,6 +10,6 @@ contract C {
 	}
 }
 // ====
-// bytecodeFormat: legacy,>=EOFv1
+// compileViaYul: also
 // ----
 // f() -> 84, 23

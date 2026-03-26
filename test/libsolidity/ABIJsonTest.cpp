@@ -28,19 +28,20 @@
 
 #include <fstream>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::util;
 using namespace solidity::frontend;
 using namespace solidity::frontend::test;
 
-ABIJsonTest::ABIJsonTest(std::string const& _filename):
+ABIJsonTest::ABIJsonTest(string const& _filename):
 	TestCase(_filename)
 {
 	m_source = m_reader.source();
 	m_expectation = m_reader.simpleExpectations();
 }
 
-TestCase::TestResult ABIJsonTest::run(std::ostream& _stream, std::string const& _linePrefix, bool _formatted)
+TestCase::TestResult ABIJsonTest::run(ostream& _stream, string const& _linePrefix, bool _formatted)
 {
 	CompilerStack compiler;
 
@@ -51,11 +52,11 @@ TestCase::TestResult ABIJsonTest::run(std::ostream& _stream, std::string const& 
 	compiler.setEVMVersion(solidity::test::CommonOptions::get().evmVersion());
 	compiler.setOptimiserSettings(solidity::test::CommonOptions::get().optimize);
 	if (!compiler.parseAndAnalyze())
-		BOOST_THROW_EXCEPTION(std::runtime_error("Parsing contract failed"));
+		BOOST_THROW_EXCEPTION(runtime_error("Parsing contract failed"));
 
 	m_obtainedResult.clear();
 	bool first = true;
-	for (std::string const& contractName: compiler.contractNames())
+	for (string const& contractName: compiler.contractNames())
 	{
 		if (!first)
 			m_obtainedResult += "\n\n";

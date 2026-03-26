@@ -5,4 +5,3 @@ contract C {
     function h() public { x = 2; }
     function i() payable public { x = 2; }
 }
-// ----

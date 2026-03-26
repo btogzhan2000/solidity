@@ -60,13 +60,12 @@ DEV_SIMPLE_EXCEPTION(WhiskersError);
  *  - Condition parameter: <?name>...<!name>...</name>, where "<!name>" is optional
  *    replaced (and recursively expanded) by the first part if the condition is true
  *    and by the second (or empty string if missing) if the condition is false
+ *  - Conditional string parameter: <?+name>...<!+name>...</+name>
+ *    Works similar to a conditional parameter where the checked condition is
+ *    that the regular (string) parameter called "name" is non-empty.
  *  - List parameter: <#list>...</list>
  *    The part between the tags is repeated as often as values are provided
  *    in the mapping. Each list element can have its own parameter -> value mapping.
- *  - Conditional value parameter: <?+name>...<!+name>...</+name>
- *    Works similar to a conditional parameter where the checked condition is
- *    that the string or list parameter called "name" is non-empty or contains
- *    no elements respectively.
  */
 class Whiskers
 {
@@ -92,7 +91,6 @@ public:
 private:
 	// Prevent implicit cast to bool
 	Whiskers& operator()(std::string _parameter, long long);
-	void checkTemplateValid() const;
 	void checkParameterValid(std::string const& _parameter) const;
 	void checkParameterUnknown(std::string const& _parameter) const;
 

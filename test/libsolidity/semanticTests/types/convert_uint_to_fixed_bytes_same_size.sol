@@ -3,5 +3,8 @@ contract Test {
         return bytes32(h);
     }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // uintToBytes(uint256): left(0x616263) -> left(0x616263)

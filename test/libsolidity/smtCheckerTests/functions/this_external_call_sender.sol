@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
     address lastCaller;
 
@@ -22,9 +24,7 @@ contract C {
     }
 }
 // ====
-// SMTEngine: all
 // SMTIgnoreCex: yes
 // ----
-// Warning 6328: (314-346): CHC: Assertion violation happens here.
-// Warning 6328: (356-388): CHC: Assertion violation happens here.
-// Info 1391: CHC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (347-379): CHC: Assertion violation happens here.
+// Warning 6328: (389-421): CHC: Assertion violation happens here.

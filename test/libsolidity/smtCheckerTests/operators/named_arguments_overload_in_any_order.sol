@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract C {
 	function f(uint u, string memory s, bool b) internal {}
 	function f(uint u, uint s, uint b) internal {}
@@ -11,6 +12,4 @@ contract C {
 		f({b: true,  u: 1,     s: "abc"});
 	}
 }
-// ====
-// SMTEngine: all
 // ----

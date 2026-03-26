@@ -5,5 +5,7 @@ contract C {
         return (x, (-(-t % 3)) * 5);
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // f() -> 11, 10

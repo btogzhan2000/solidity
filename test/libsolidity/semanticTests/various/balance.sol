@@ -5,6 +5,9 @@ contract test {
         return address(this).balance;
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // constructor(), 23 wei ->
 // getBalance() -> 23

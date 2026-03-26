@@ -25,7 +25,6 @@
 #pragma once
 
 #include <libsolutil/CommonData.h>
-#include <libsolutil/Numeric.h>
 
 #include <boost/functional/hash.hpp>
 #include <boost/io/ios_state.hpp>
@@ -61,7 +60,7 @@ public:
 	explicit FixedHash() { m_data.fill(0); }
 
 	/// Construct from another hash, filling with zeroes or cropping as necessary.
-	template <unsigned M> explicit FixedHash(FixedHash<M> const& _h, ConstructFromHashType _t)
+	template <unsigned M> explicit FixedHash(FixedHash<M> const& _h, ConstructFromHashType _t = AlignLeft)
 	{
 		m_data.fill(0);
 		unsigned c = std::min(M, N);
@@ -159,7 +158,7 @@ public:
 	bytes asBytes() const { return bytes(data(), data() + N); }
 
 private:
-	std::array<uint8_t, N> m_data; ///< The binary data.
+	std::array<uint8_t, N> m_data;		///< The binary data.
 };
 
 /// Stream I/O for the FixedHash class.

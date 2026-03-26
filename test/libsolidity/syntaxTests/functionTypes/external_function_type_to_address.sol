@@ -3,4 +3,3 @@ contract C {
         return this.f.address;
     }
 }
-// ----

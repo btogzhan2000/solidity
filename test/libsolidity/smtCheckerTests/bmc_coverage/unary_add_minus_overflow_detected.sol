@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract C {
 	uint8 x;
 
@@ -23,5 +24,5 @@ contract C {
 // ====
 // SMTEngine: bmc
 // ----
-// Warning 2661: (55-58): BMC: Overflow (resulting value larger than 255) happens here.
-// Warning 4144: (95-98): BMC: Underflow (resulting value less than 0) happens here.
+// Warning 2661: (87-90): BMC: Overflow (resulting value larger than 255) happens here.
+// Warning 4144: (127-130): BMC: Underflow (resulting value less than 0) happens here.

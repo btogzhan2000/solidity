@@ -1,18 +1,14 @@
+pragma experimental SMTChecker;
+
 contract C
 {
 	uint[] b;
 	uint[] d;
 	uint[][] array2d;
-	function p() public {
-		array2d.push().push();
-	}
 	function g(uint x, uint[] memory c) public {
-		require(x < array2d.length);
-		// Disabled because of Spacer nondeterminism.
-		//f(array2d[0], c);
+		f(array2d[x], c);
 	}
 	function f(uint[] storage a, uint[] memory c) internal {
-		// Accesses are safe but oob is reported because of aliasing.
 		d[0] = 42;
 		c[0] = 42;
 		a[0] = 2;
@@ -31,8 +27,6 @@ contract C
 	}
 }
 // ====
-// SMTEngine: all
 // SMTIgnoreCex: yes
 // ----
-// Warning 5667: (125-140): Unused function parameter. Remove or comment out the variable name to silence this warning.
-// Warning 2018: (106-254): Function state mutability can be restricted to view
+// Warning 6328: (572-589): CHC: Assertion violation happens here.

@@ -12,4 +12,3 @@ contract C is A {
     A.E e;
     E f;
 }
-// ----

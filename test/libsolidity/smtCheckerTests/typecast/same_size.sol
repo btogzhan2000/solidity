@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 abstract contract D {}
 
 enum E {A, B}
@@ -68,7 +70,4 @@ contract C {
 		assert(y == -10);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 27 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

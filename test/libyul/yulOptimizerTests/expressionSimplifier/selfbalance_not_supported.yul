@@ -6,6 +6,4 @@
 // ----
 // step: expressionSimplifier
 //
-// {
-//     { sstore(0, balance(address())) }
-// }
+// { sstore(0, balance(address())) }

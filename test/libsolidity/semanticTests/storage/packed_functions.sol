@@ -38,6 +38,9 @@ contract C {
         return 8;
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // set() ->
 // t1() -> 7

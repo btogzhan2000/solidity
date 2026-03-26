@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	function f() public pure returns (bool) {
 		bool b;
@@ -8,9 +10,7 @@ contract C {
 		return b;
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 7737: (82-101): Inline assembly may cause SMTChecker to produce spurious warnings (false positives).
-// Warning 6328: (138-147): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 7737: (115-134): Inline assembly may cause SMTChecker to produce spurious warnings (false positives).
+// Warning 6328: (171-180): CHC: Assertion violation happens here.\nCounterexample:\n\n = false\n\nTransaction trace:\nC.constructor()\nC.f()
+// Warning 7737: (115-134): Inline assembly may cause SMTChecker to produce spurious warnings (false positives).

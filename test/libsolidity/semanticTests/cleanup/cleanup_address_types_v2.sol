@@ -13,6 +13,9 @@ contract C {
         return 0;
     }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f(address): 0xffff1234567890123456789012345678901234567890 -> FAILURE # We input longer data on purpose.#
 // g(address): 0xffff1234567890123456789012345678901234567890 -> FAILURE

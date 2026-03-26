@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	function f(bytes memory data) public pure {
 		bytes32 k = keccak256(data);
@@ -8,8 +10,5 @@ contract C {
 		assert(h == k);
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreCex: yes
 // ----
-// Warning 6328: (196-210): CHC: Assertion violation happens here.
+// Warning 6328: (229-243): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nC.constructor()\nC.f(data)\n    C.fi(data, 2437) -- internal call

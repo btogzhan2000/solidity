@@ -21,8 +21,6 @@
  */
 #pragma once
 
-#include <libevmasm/SubAssemblyID.h>
-
 #include <vector>
 #include <cstddef>
 #include <set>
@@ -41,7 +39,7 @@ public:
 
 	/// @returns a set of all tags from the given sub-assembly that are referenced
 	/// from the given list of items.
-	static std::set<size_t> referencedTags(AssemblyItems const& _items, SubAssemblyID _subId);
+	static std::set<size_t> referencedTags(AssemblyItems const& _items, size_t _subId);
 
 private:
 	AssemblyItems& m_items;

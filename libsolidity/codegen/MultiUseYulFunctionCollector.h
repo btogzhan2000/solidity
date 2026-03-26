@@ -25,7 +25,6 @@
 #include <functional>
 #include <map>
 #include <string>
-#include <set>
 
 namespace solidity::frontend
 {
@@ -42,13 +41,9 @@ public:
 	/// cases.
 	std::string createFunction(std::string const& _name, std::function<std::string()> const& _creator);
 
-	std::string createFunction(
-		std::string const& _name,
-		std::function<std::string(std::vector<std::string>&, std::vector<std::string>&)> const& _creator
-	);
-
-	/// @returns concatenation of all generated functions in the order in which they were
-	/// generated.
+	/// @returns concatenation of all generated functions.
+	/// Guarantees that the order of functions in the generated code is deterministic and
+	/// platform-independent.
 	/// Clears the internal list, i.e. calling it again will result in an
 	/// empty return value.
 	std::string requestedFunctions();
@@ -57,8 +52,8 @@ public:
 	bool contains(std::string const& _name) const { return m_requestedFunctions.count(_name) > 0; }
 
 private:
-	std::set<std::string> m_requestedFunctions;
-	std::string m_code;
+	/// Map from function name to code for a multi-use function.
+	std::map<std::string, std::string> m_requestedFunctions;
 };
 
 }

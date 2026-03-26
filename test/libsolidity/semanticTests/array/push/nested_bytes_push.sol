@@ -4,15 +4,12 @@ contract C {
 
     function f() public {
         a.push("abc");
-        a.push("abcdefghabcdefghabcdefghabcdefgh");
-        a.push("abcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefghabcdefgh");
+        a.push("def");
         assert(a[0][0] == "a");
-        assert(a[1][31] == "h");
-        assert(a[2][32] == "a");
+        assert(a[1][0] == "d");
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // f() ->
-// gas irOptimized: 179534
-// gas legacy: 181013
-// gas legacyOptimized: 180406

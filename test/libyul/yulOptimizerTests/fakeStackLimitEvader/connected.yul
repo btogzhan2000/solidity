@@ -20,8 +20,6 @@
 	sstore(0, f())
 	let x, y := g()
 }
-// ====
-// bytecodeFormat: legacy
 // ----
 // step: fakeStackLimitEvader
 //
@@ -38,13 +36,13 @@
 //     }
 //     function f() -> x
 //     {
-//         mstore(0x40, 0)
-//         mstore(0x40, 42)
+//         mstore(0x20, 0)
+//         mstore(0x20, 42)
 //         let $x3_4, $x4_5 := g()
 //         mstore(0x00, $x4_5)
-//         mstore(0x20, $x3_4)
-//         x := mul(add(mload(0x40), mload(0x20)), h(mload(0x00)))
-//         sstore(mload(0x20), mload(0x00))
+//         mstore(0x40, $x3_4)
+//         x := mul(add(mload(0x20), mload(0x40)), h(mload(0x00)))
+//         sstore(mload(0x40), mload(0x00))
 //     }
 //     function h(v) -> a_1
 //     {

@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	function () external returns (uint) public g;
 
@@ -12,9 +14,6 @@ contract C {
 		return 42;
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 8364: (140-146): Assertion checker does not yet implement type function () view external returns (function () external returns (uint256))
-// Warning 6328: (152-170): CHC: Assertion violation happens here.
-// Warning 6328: (262-278): CHC: Assertion violation happens here.
+// Warning 6328: (185-203): CHC: Assertion violation happens here.\nCounterexample:\ng = 0\n\nTransaction trace:\nC.constructor()\nState: g = 0\nC.f()
+// Warning 6328: (295-311): CHC: Assertion violation happens here.\nCounterexample:\ng = 0\n\nTransaction trace:\nC.constructor()\nState: g = 0\nC.f()

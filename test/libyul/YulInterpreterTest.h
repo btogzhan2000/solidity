@@ -20,9 +20,17 @@
 
 #include <test/TestCase.h>
 
+namespace solidity::langutil
+{
+class Scanner;
+class Error;
+using ErrorList = std::vector<std::shared_ptr<Error const>>;
+}
+
 namespace solidity::yul
 {
-class Object;
+struct AsmAnalysisInfo;
+struct Block;
 }
 
 namespace solidity::yul::test
@@ -41,9 +49,13 @@ public:
 	TestResult run(std::ostream& _stream, std::string const& _linePrefix = "", bool const _formatted = false) override;
 
 private:
-	std::string interpret(std::shared_ptr<Object const> const& _object);
+	bool parse(std::ostream& _stream, std::string const& _linePrefix, bool const _formatted);
+	std::string interpret();
 
-	bool m_simulateExternalCallsToSelf = false;
+	static void printErrors(std::ostream& _stream, langutil::ErrorList const& _errors);
+
+	std::shared_ptr<Block> m_ast;
+	std::shared_ptr<AsmAnalysisInfo> m_analysisInfo;
 };
 
 }

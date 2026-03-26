@@ -8,8 +8,6 @@
 // step: expressionJoiner
 //
 // {
-//     {
-//         let a := mload(2)
-//         sstore(mul(add(a, mload(6)), 2), 3)
-//     }
+//     let a := mload(2)
+//     sstore(mul(add(a, mload(6)), 2), 3)
 // }

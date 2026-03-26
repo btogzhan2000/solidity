@@ -10,8 +10,6 @@
   }
 }
 // ====
-// bytecodeFormat: legacy
-// ====
 // EVMVersion: >=byzantium
 // ----
 // step: loopInvariantCodeMotion

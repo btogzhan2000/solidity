@@ -19,6 +19,7 @@
 #pragma once
 
 #include <libsolidity/formal/SymbolicVariables.h>
+#include <libsolidity/ast/AST.h>
 #include <libsolidity/ast/Types.h>
 
 namespace solidity::frontend::smt
@@ -28,11 +29,11 @@ class EncodingContext;
 
 /// Returns the SMT sort that models the Solidity type _type.
 smtutil::SortPointer smtSort(frontend::Type const& _type);
-std::vector<smtutil::SortPointer> smtSort(std::vector<frontend::Type const*> const& _types);
+std::vector<smtutil::SortPointer> smtSort(std::vector<frontend::TypePointer> const& _types);
 /// If _type has type Function, abstract it to Integer.
 /// Otherwise return smtSort(_type).
 smtutil::SortPointer smtSortAbstractFunction(frontend::Type const& _type);
-std::vector<smtutil::SortPointer> smtSortAbstractFunction(std::vector<frontend::Type const*> const& _types);
+std::vector<smtutil::SortPointer> smtSortAbstractFunction(std::vector<frontend::TypePointer> const& _types);
 /// Returns the SMT kind that models the Solidity type type category _category.
 smtutil::Kind smtKind(frontend::Type const& _type);
 
@@ -58,7 +59,6 @@ bool isArray(frontend::Type const& _type);
 bool isTuple(frontend::Type const& _type);
 bool isStringLiteral(frontend::Type const& _type);
 bool isNonRecursiveStruct(frontend::Type const& _type);
-bool isInaccessibleDynamic(frontend::Type const& _type);
 
 /// Returns a new symbolic variable, according to _type.
 /// Also returns whether the type is abstract or not,
@@ -66,25 +66,19 @@ bool isInaccessibleDynamic(frontend::Type const& _type);
 std::pair<bool, std::shared_ptr<SymbolicVariable>> newSymbolicVariable(frontend::Type const& _type, std::string const& _uniqueName, EncodingContext& _context);
 
 smtutil::Expression minValue(frontend::IntegerType const& _type);
-smtutil::Expression minValue(frontend::Type const* _type);
+smtutil::Expression minValue(frontend::TypePointer _type);
 smtutil::Expression maxValue(frontend::IntegerType const& _type);
-smtutil::Expression maxValue(frontend::Type const* _type);
-smtutil::Expression zeroValue(frontend::Type const* _type);
-bool isSigned(frontend::Type const* _type);
+smtutil::Expression maxValue(frontend::TypePointer _type);
+smtutil::Expression zeroValue(frontend::TypePointer const& _type);
+bool isSigned(frontend::TypePointer const& _type);
 
-std::pair<unsigned, bool> typeBvSizeAndSignedness(frontend::Type const* type);
+std::pair<unsigned, bool> typeBvSizeAndSignedness(frontend::TypePointer const& type);
 
 void setSymbolicZeroValue(SymbolicVariable const& _variable, EncodingContext& _context);
-void setSymbolicZeroValue(smtutil::Expression _expr, frontend::Type const* _type, EncodingContext& _context);
+void setSymbolicZeroValue(smtutil::Expression _expr, frontend::TypePointer const& _type, EncodingContext& _context);
 void setSymbolicUnknownValue(SymbolicVariable const& _variable, EncodingContext& _context);
-void setSymbolicUnknownValue(smtutil::Expression _expr, frontend::Type const* _type, EncodingContext& _context);
-smtutil::Expression symbolicUnknownConstraints(smtutil::Expression _expr, frontend::Type const* _type);
+void setSymbolicUnknownValue(smtutil::Expression _expr, frontend::TypePointer const& _type, EncodingContext& _context);
+smtutil::Expression symbolicUnknownConstraints(smtutil::Expression _expr, frontend::TypePointer const& _type);
 
-std::optional<smtutil::Expression> symbolicTypeConversion(frontend::Type const* _from, frontend::Type const* _to);
-
-smtutil::Expression member(smtutil::Expression const& _tuple, std::string const& _member);
-smtutil::Expression assignMember(smtutil::Expression const _tuple, std::map<std::string, smtutil::Expression> const& _values);
-
-std::map<std::string, frontend::Type const*> transactionMemberTypes();
-std::map<std::string, smtutil::SortPointer> transactionMemberSorts();
+std::optional<smtutil::Expression> symbolicTypeConversion(TypePointer _from, TypePointer _to);
 }

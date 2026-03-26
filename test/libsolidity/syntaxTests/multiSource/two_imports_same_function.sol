@@ -7,4 +7,3 @@ contract C {
     return f();
   }
 }
-// ----

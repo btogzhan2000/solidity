@@ -16,7 +16,8 @@ contract C {
         return x();
     }
 }
+
 // ====
-// bytecodeFormat: legacy,>=EOFv1
+// compileViaYul: also
 // ----
 // t() -> 7

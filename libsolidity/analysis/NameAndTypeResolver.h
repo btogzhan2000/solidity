@@ -31,6 +31,8 @@
 
 #include <liblangutil/EVMVersion.h>
 
+#include <boost/noncopyable.hpp>
+
 #include <list>
 #include <map>
 
@@ -46,21 +48,16 @@ namespace solidity::frontend
  * Resolves name references, typenames and sets the (explicitly given) types for all variable
  * declarations.
  */
-class NameAndTypeResolver
+class NameAndTypeResolver: private boost::noncopyable
 {
 public:
-	/// Noncopyable.
-	NameAndTypeResolver(NameAndTypeResolver const&) = delete;
-	NameAndTypeResolver& operator=(NameAndTypeResolver const&) = delete;
-
 	/// Creates the resolver with the given declarations added to the global scope.
 	/// @param _scopes mapping of scopes to be used (usually default constructed), these
 	/// are filled during the lifetime of this object.
 	NameAndTypeResolver(
 		GlobalContext& _globalContext,
 		langutil::EVMVersion _evmVersion,
-		langutil::ErrorReporter& _errorReporter,
-		bool _experimentalSolidity
+		langutil::ErrorReporter& _errorReporter
 	);
 	/// Registers all declarations found in the AST node, usually a source unit.
 	/// @returns false in case of error.
@@ -94,10 +91,9 @@ public:
 	/// Should only be called during the initial resolving phase.
 	/// @note Returns a null pointer if any component in the path was not unique or not found.
 	Declaration const* pathFromCurrentScope(std::vector<ASTString> const& _path) const;
-	/// Resolves a path starting from the "current" scope, but also searches parent scopes.
-	/// Should only be called during the initial resolving phase.
-	/// @note Returns an empty vector if any component in the path was non-unique or not found. Otherwise, all declarations along the path are returned.
-	std::vector<Declaration const*> pathFromCurrentScopeWithAllDeclarations(std::vector<ASTString> const& _path, bool _includeInvisibles = false) const;
+
+	/// Generate and store warnings about variables that are named like instructions.
+	void warnVariablesNamedLikeInstructions() const;
 
 	/// Generate and store warnings about declarations with the same name.
 	void warnHomonymDeclarations() const;
@@ -108,7 +104,6 @@ public:
 	/// Sets the current scope.
 	void setScope(ASTNode const* _node);
 
-	bool experimentalSolidity() const { return m_experimentalSolidity; }
 private:
 	/// Internal version of @a resolveNamesAndTypes (called from there) throws exceptions on fatal errors.
 	bool resolveNamesAndTypesInternal(ASTNode& _node, bool _resolveInsideCode = true);
@@ -134,7 +129,6 @@ private:
 	DeclarationContainer* m_currentScope = nullptr;
 	langutil::ErrorReporter& m_errorReporter;
 	GlobalContext& m_globalContext;
-	bool m_experimentalSolidity = false;
 };
 
 /**
@@ -182,6 +176,9 @@ private:
 	void registerDeclaration(Declaration& _declaration);
 
 	static bool isOverloadedFunction(Declaration const& _declaration1, Declaration const& _declaration2);
+
+	/// @returns the canonical name of the current scope.
+	std::string currentCanonicalName() const;
 
 	std::map<ASTNode const*, std::shared_ptr<DeclarationContainer>>& m_scopes;
 	ASTNode const* m_currentScope = nullptr;

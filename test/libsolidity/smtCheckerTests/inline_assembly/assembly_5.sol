@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	struct S {
 		uint x;
@@ -19,8 +21,6 @@ contract C {
 		assert(i == 7); // should hold, not changed by the assembly
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 7737: (156-187): Inline assembly may cause SMTChecker to produce spurious warnings (false positives).
-// Info 1391: CHC: 4 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 7737: (189-220): Inline assembly may cause SMTChecker to produce spurious warnings (false positives).
+// Warning 7737: (189-220): Inline assembly may cause SMTChecker to produce spurious warnings (false positives).

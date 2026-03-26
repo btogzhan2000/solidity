@@ -7,10 +7,8 @@
 // step: expressionSimplifier
 //
 // {
-//     {
-//         let _1 := 0
-//         let x := mload(_1)
-//         x := _1
-//         mstore(_1, 7)
-//     }
+//     let _1 := 0
+//     let x := mload(_1)
+//     x := _1
+//     mstore(_1, 7)
 // }

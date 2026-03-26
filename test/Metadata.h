@@ -21,7 +21,6 @@
  */
 
 #include <libsolutil/CommonData.h>
-#include <libsolutil/JSON.h>
 
 #include <map>
 #include <optional>
@@ -49,10 +48,8 @@ std::string bytecodeSansMetadata(std::string const& _bytecode);
 /// - everything else is invalid
 std::optional<std::map<std::string, std::string>> parseCBORMetadata(bytes const& _metadata);
 
-/// Expects a serialised metadata JSON and returns true if the content is valid metadata.
-bool isValidMetadata(std::string const& _serialisedMetadata);
-
-/// Expects a deserialised metadata JSON and returns true if the content is valid metadata.
-bool isValidMetadata(Json const& _metadata);
+/// Expects a serialised metadata JSON and returns true if the
+/// content is valid metadata.
+bool isValidMetadata(std::string const& _metadata);
 
 } // end namespaces

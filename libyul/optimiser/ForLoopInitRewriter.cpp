@@ -22,6 +22,7 @@
 
 #include <functional>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::yul;
 
@@ -29,17 +30,17 @@ void ForLoopInitRewriter::operator()(Block& _block)
 {
 	util::iterateReplacing(
 		_block.statements,
-		[&](Statement& _stmt) -> std::optional<std::vector<Statement>>
+		[&](Statement& _stmt) -> std::optional<vector<Statement>>
 		{
-			if (std::holds_alternative<ForLoop>(_stmt))
+			if (holds_alternative<ForLoop>(_stmt))
 			{
 				auto& forLoop = std::get<ForLoop>(_stmt);
 				(*this)(forLoop.pre);
 				(*this)(forLoop.body);
 				(*this)(forLoop.post);
-				std::vector<Statement> rewrite;
+				vector<Statement> rewrite;
 				swap(rewrite, forLoop.pre.statements);
-				rewrite.emplace_back(std::move(forLoop));
+				rewrite.emplace_back(move(forLoop));
 				return { std::move(rewrite) };
 			}
 			else

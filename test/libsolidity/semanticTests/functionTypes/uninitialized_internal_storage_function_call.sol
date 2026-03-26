@@ -6,5 +6,9 @@ contract Test {
         return 2;
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> FAILURE, hex"4e487b71", 0x51

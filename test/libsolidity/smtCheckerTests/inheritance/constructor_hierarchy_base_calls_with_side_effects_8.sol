@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract A {
 	uint public x;
 	constructor(uint) {}
@@ -15,9 +17,6 @@ contract C is A {
 		assert(x > 2000); // should fail
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (185-199): CHC: Assertion violation happens here.
-// Warning 6328: (218-234): CHC: Assertion violation happens here.
-// Info 1391: CHC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (218-232): CHC: Assertion violation happens here.\nCounterexample:\nx = 1\n\nTransaction trace:\nC.constructor()
+// Warning 6328: (251-267): CHC: Assertion violation happens here.\nCounterexample:\nx = 1\n\nTransaction trace:\nC.constructor()

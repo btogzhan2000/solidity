@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
     function g() external pure {
     }
@@ -6,7 +8,5 @@ contract C {
         assert(msg.sig == this.g.selector);
     }
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (92-126): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nC.constructor()\nC.f(){ msg.sig: 0x26121ff0 }
+// Warning 6328: (125-159): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nC.constructor()\nC.f()

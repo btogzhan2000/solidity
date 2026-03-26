@@ -1,5 +1,3 @@
-pragma abicoder v2;
-
 library Pairing {
 	struct G1Point {
 		uint X;
@@ -42,9 +40,13 @@ library Pairing {
 		input[1] = p1.Y;
 		input[2] = p2.X;
 		input[3] = p2.Y;
-		(bool success, bytes memory encodedResult) = address(6).call(abi.encode(input));
+		bool success;
+		assembly {
+			success := call(sub(gas(), 2000), 6, 0, input, 0xc0, r, 0x60)
+			// Use "invalid" to make gas estimation work
+			switch success case 0 { invalid() }
+		}
 		require(success);
-		r = abi.decode(encodedResult, (G1Point));
 	}
 
 	/// @return r the product of a point on G1 and a scalar, i.e.
@@ -54,9 +56,13 @@ library Pairing {
 		input[0] = p.X;
 		input[1] = p.Y;
 		input[2] = s;
-		(bool success, bytes memory encodedResult) = address(7).call(abi.encode(input));
+		bool success;
+		assembly {
+			success := call(sub(gas(), 2000), 7, 0, input, 0x80, r, 0x60)
+			// Use "invalid" to make gas estimation work
+			switch success case 0 { invalid() }
+		}
 		require(success);
-		r = abi.decode(encodedResult, (G1Point));
 	}
 
 	/// @return the result of computing the pairing check
@@ -77,19 +83,15 @@ library Pairing {
 			input[i * 6 + 4] = p2[i].Y[0];
 			input[i * 6 + 5] = p2[i].Y[1];
 		}
-
-		bytes memory encodedInput = new bytes(inputSize * 32);
-		for (uint i = 0; i < inputSize; i++)
-		{
-			uint offset = (i + 1) * 32;
-			uint item = input[i];
-			assembly ("memory-safe") {
-				mstore(add(encodedInput, offset), item)
-			}
+		uint[1] memory out;
+		bool success;
+		assembly {
+			success := call(sub(gas(), 2000), 8, 0, add(input, 0x20), mul(inputSize, 0x20), out, 0x20)
+			// Use "invalid" to make gas estimation work
+			switch success case 0 { invalid() }
 		}
-		(bool success, bytes memory encodedResult) = address(8).call(encodedInput);
 		require(success);
-		return abi.decode(encodedResult, (bool));
+		return out[0] != 0;
 	}
 	function pairingProd2(G1Point memory a1, G2Point memory a2, G1Point memory b1, G2Point memory b2) internal returns (bool) {
 		G1Point[] memory p1 = new G1Point[](2);
@@ -162,10 +164,10 @@ contract Test {
 		Pairing.G1Point memory p2;
 		p1.X = 1; p1.Y = 2;
 		p2.X = 1; p2.Y = 2;
-		Pairing.G1Point memory explicit_sum = Pairing.add(p1, p2);
+		Pairing.G1Point memory explict_sum = Pairing.add(p1, p2);
 		Pairing.G1Point memory scalar_prod = Pairing.mul(p1, 2);
-		return (explicit_sum.X == scalar_prod.X &&
-			explicit_sum.Y == scalar_prod.Y);
+		return (explict_sum.X == scalar_prod.X &&
+			explict_sum.Y == scalar_prod.Y);
 	}
 	function g() public returns (bool) {
 		Pairing.G1Point memory x = Pairing.add(Pairing.P1(), Pairing.negate(Pairing.P1()));
@@ -275,7 +277,7 @@ contract Test {
 		input[7] = 9643208548031422463313148630985736896287522941726746581856185889848792022807;
 		input[8] = 18066496933330839731877828156604;
 		if (verify(input, proof) == 0) {
-			emit Verified("Successfully verified.");
+			emit Verified("Transaction successfully verified.");
 			return true;
 		} else {
 			return false;
@@ -286,21 +288,11 @@ contract Test {
 /// testMul() -> true
 //
 // ====
+// compileViaYul: also
 // EVMVersion: >=constantinople
-// compileViaSSACFG: true
-// experimental: true
 // ----
 // library: Pairing
 // f() -> true
 // g() -> true
 // pair() -> true
-// gas irOptimized: 275229
-// gas legacy: 293579
-// gas legacyOptimized: 276313
-// gas ssaCFGOptimized: 275439
 // verifyTx() -> true
-// ~ emit Verified(string): 0x20, 0x16, "Successfully verified."
-// gas irOptimized: 818076
-// gas legacy: 904397
-// gas legacyOptimized: 816770
-// gas ssaCFGOptimized: 819542

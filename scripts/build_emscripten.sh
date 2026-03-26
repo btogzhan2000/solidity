@@ -28,14 +28,13 @@
 
 set -e
 
-params=""
-if (( $# != 0 )); then
-    params="$(printf "%q " "${@}")"
+if test -z "$1"; then
+    BUILD_DIR="emscripten_build"
+else
+    BUILD_DIR="$1"
 fi
 
-# ghcr.io/argotorg/solidity-buildpack-deps:emscripten-22
-# NOTE: Without `safe.directory` git would assume it's not safe to operate on /root/project since it's owned by a different user.
-# See https://github.blog/2022-04-12-git-security-vulnerability-announced/
-docker run -v "$(pwd):/root/project" -w /root/project \
-    ghcr.io/argotorg/solidity-buildpack-deps@sha256:b9c953144d82cca5553f65626bc43b8af456dbc8966f8732ff9522f33ca8d722 \
-    /bin/bash -c "git config --global --add safe.directory /root/project && ./scripts/ci/build_emscripten.sh ${params}"
+# solbuildpackpusher/solidity-buildpack-deps:emscripten-4
+docker run -v $(pwd):/root/project -w /root/project \
+    solbuildpackpusher/solidity-buildpack-deps@sha256:434719d8104cab47712dd1f56f255994d04eb65b802c0d382790071c1a0c074b \
+    ./scripts/ci/build_emscripten.sh $BUILD_DIR

@@ -23,6 +23,8 @@ contract C {
     }
 }
 // ====
+// compileViaYul: also
+// compileToEwasm: also
 // EVMVersion: >=byzantium
 // ----
 // test_eq_ok() -> 1

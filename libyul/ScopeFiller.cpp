@@ -33,6 +33,7 @@
 #include <memory>
 #include <functional>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::yul;
 using namespace solidity::util;
@@ -52,14 +53,14 @@ bool ScopeFiller::operator()(ExpressionStatement const& _expr)
 bool ScopeFiller::operator()(VariableDeclaration const& _varDecl)
 {
 	for (auto const& variable: _varDecl.variables)
-		if (!registerVariable(variable, nativeLocationOf(_varDecl), *m_currentScope))
+		if (!registerVariable(variable, _varDecl.location, *m_currentScope))
 			return false;
 	return true;
 }
 
 bool ScopeFiller::operator()(FunctionDefinition const& _funDef)
 {
-	auto virtualBlock = m_info.virtualBlocks[&_funDef] = std::make_shared<Block>();
+	auto virtualBlock = m_info.virtualBlocks[&_funDef] = make_shared<Block>();
 	Scope& varScope = scope(virtualBlock.get());
 	varScope.superScope = m_currentScope;
 	m_currentScope = &varScope;
@@ -67,7 +68,7 @@ bool ScopeFiller::operator()(FunctionDefinition const& _funDef)
 
 	bool success = true;
 	for (auto const& var: _funDef.parameters + _funDef.returnVariables)
-		if (!registerVariable(var, nativeLocationOf(_funDef), varScope))
+		if (!registerVariable(var, _funDef.location, varScope))
 			success = false;
 
 	if (!(*this)(_funDef.body))
@@ -122,7 +123,7 @@ bool ScopeFiller::operator()(Block const& _block)
 	// First visit all functions to make them create
 	// an entry in the scope according to their visibility.
 	for (auto const& s: _block.statements)
-		if (std::holds_alternative<FunctionDefinition>(s))
+		if (holds_alternative<FunctionDefinition>(s))
 			if (!registerFunction(std::get<FunctionDefinition>(s)))
 				success = false;
 	for (auto const& s: _block.statements)
@@ -133,9 +134,9 @@ bool ScopeFiller::operator()(Block const& _block)
 	return success;
 }
 
-bool ScopeFiller::registerVariable(NameWithDebugData const& _name, SourceLocation const& _location, Scope& _scope)
+bool ScopeFiller::registerVariable(TypedName const& _name, SourceLocation const& _location, Scope& _scope)
 {
-	if (!_scope.registerVariable(_name.name))
+	if (!_scope.registerVariable(_name.name, _name.type))
 	{
 		//@TODO secondary location
 		m_errorReporter.declarationError(
@@ -150,12 +151,18 @@ bool ScopeFiller::registerVariable(NameWithDebugData const& _name, SourceLocatio
 
 bool ScopeFiller::registerFunction(FunctionDefinition const& _funDef)
 {
-	if (!m_currentScope->registerFunction(_funDef.name, _funDef.parameters.size(), _funDef.returnVariables.size()))
+	vector<Scope::YulType> parameters;
+	for (auto const& parameter: _funDef.parameters)
+		parameters.emplace_back(parameter.type);
+	vector<Scope::YulType> returns;
+	for (auto const& returnVariable: _funDef.returnVariables)
+		returns.emplace_back(returnVariable.type);
+	if (!m_currentScope->registerFunction(_funDef.name, std::move(parameters), std::move(returns)))
 	{
 		//@TODO secondary location
 		m_errorReporter.declarationError(
 			6052_error,
-			nativeLocationOf(_funDef),
+			_funDef.location,
 			"Function name " + _funDef.name.str() + " already taken in this scope."
 		);
 		return false;
@@ -167,6 +174,6 @@ Scope& ScopeFiller::scope(Block const* _block)
 {
 	auto& scope = m_info.scopes[_block];
 	if (!scope)
-		scope = std::make_shared<Scope>();
+		scope = make_shared<Scope>();
 	return *scope;
 }

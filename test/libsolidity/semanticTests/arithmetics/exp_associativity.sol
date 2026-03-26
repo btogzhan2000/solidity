@@ -29,6 +29,9 @@ contract C {
             (b**a**a/b**a**b == (b**(a**a))/(b**(a**b)));
      }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // test_hardcode1(uint256,uint256,uint256): 2, 3, 4 -> 2417851639229258349412352
 // test_hardcode2(uint256,uint256,uint256,uint256): 3, 2, 2, 2 -> 43046721

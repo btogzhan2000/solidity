@@ -4,5 +4,9 @@ contract C {
         return abi.encode(1, -2);
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> 0x20, 0x40, 0x1, -2

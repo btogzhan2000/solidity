@@ -23,12 +23,6 @@ contract Creator {
     }
 }
 // ====
-// bytecodeFormat: legacy,>=EOFv1
+// compileViaYul: also
 // ----
 // f(uint256,address[]): 7, 0x40, 10, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 -> 7, 8
-// gas irOptimized: 327784
-// gas irOptimized code: 94000
-// gas legacy: 338477
-// gas legacy code: 244800
-// gas legacyOptimized: 329166
-// gas legacyOptimized code: 117000

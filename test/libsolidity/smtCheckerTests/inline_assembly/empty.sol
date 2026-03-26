@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C
 {
 	function f() public pure {
@@ -5,7 +7,6 @@ contract C
 		}
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 7737: (43-57): Inline assembly may cause SMTChecker to produce spurious warnings (false positives).
+// Warning 7737: (76-90): Inline assembly may cause SMTChecker to produce spurious warnings (false positives).
+// Warning 7737: (76-90): Inline assembly may cause SMTChecker to produce spurious warnings (false positives).

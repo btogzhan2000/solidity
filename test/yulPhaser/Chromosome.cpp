@@ -30,7 +30,7 @@
 #include <libyul/optimiser/ForLoopInitRewriter.h>
 #include <libyul/optimiser/FunctionHoister.h>
 #include <libyul/optimiser/LoopInvariantCodeMotion.h>
-#include <libyul/optimiser/UnusedAssignEliminator.h>
+#include <libyul/optimiser/RedundantAssignEliminator.h>
 #include <libyul/optimiser/Rematerialiser.h>
 #include <libyul/optimiser/Suite.h>
 #include <libyul/optimiser/StructuralSimplifier.h>
@@ -40,16 +40,17 @@
 
 #include <boost/test/unit_test.hpp>
 
+using namespace std;
 using namespace solidity::yul;
 using namespace solidity::util;
 
 namespace solidity::phaser::test
 {
 
-std::vector<std::string> const ChrOmOsoMeSteps{
+vector<string> const ChrOmOsoMeSteps{
 	ConditionalSimplifier::name,
 	FunctionHoister::name,
-	UnusedAssignEliminator::name,
+	RedundantAssignEliminator::name,
 	ForLoopConditionOutOfBody::name,
 	Rematerialiser::name,
 	ForLoopConditionOutOfBody::name,
@@ -75,18 +76,18 @@ BOOST_AUTO_TEST_CASE(makeRandom_should_use_every_possible_step_with_the_same_pro
 	constexpr int samplesPerStep = 500;
 	constexpr double relativeTolerance = 0.02;
 
-	std::map<std::string, size_t> stepIndices = enumerateOptimisationSteps();
+	map<string, size_t> stepIndices = enumerateOptmisationSteps();
 	auto chromosome = Chromosome::makeRandom(stepIndices.size() * samplesPerStep);
 
-	std::vector<size_t> samples;
+	vector<size_t> samples;
 	for (auto& step: chromosome.optimisationSteps())
 		samples.push_back(stepIndices.at(step));
 
 	const double expectedValue = double(stepIndices.size() - 1) / 2.0;
 	const double variance = double(stepIndices.size() * stepIndices.size() - 1) / 12.0;
 
-	BOOST_TEST(fabs(mean(samples) - expectedValue) < expectedValue * relativeTolerance);
-	BOOST_TEST(fabs(meanSquaredError(samples, expectedValue) - variance) < variance * relativeTolerance);
+	BOOST_TEST(abs(mean(samples) - expectedValue) < expectedValue * relativeTolerance);
+	BOOST_TEST(abs(meanSquaredError(samples, expectedValue) - variance) < variance * relativeTolerance);
 }
 
 BOOST_AUTO_TEST_CASE(constructor_should_store_genes)
@@ -96,7 +97,7 @@ BOOST_AUTO_TEST_CASE(constructor_should_store_genes)
 
 BOOST_AUTO_TEST_CASE(constructor_should_store_optimisation_steps)
 {
-	std::vector<std::string> steps = {
+	vector<string> steps = {
 		StructuralSimplifier::name,
 		BlockFlattener::name,
 		UnusedPruner::name,
@@ -107,7 +108,7 @@ BOOST_AUTO_TEST_CASE(constructor_should_store_optimisation_steps)
 
 BOOST_AUTO_TEST_CASE(constructor_should_allow_duplicate_steps)
 {
-	std::vector<std::string> steps = {
+	vector<string> steps = {
 		StructuralSimplifier::name,
 		StructuralSimplifier::name,
 		BlockFlattener::name,
@@ -130,14 +131,14 @@ BOOST_AUTO_TEST_CASE(constructor_should_allow_genes_that_do_not_correspond_to_an
 
 BOOST_AUTO_TEST_CASE(output_operator_should_create_concise_and_unambiguous_string_representation)
 {
-	std::vector<std::string> allSteps;
+	vector<string> allSteps;
 	for (auto const& step: OptimiserSuite::allSteps())
 		allSteps.push_back(step.first);
 	Chromosome chromosome(allSteps);
 
 	BOOST_TEST(chromosome.length() == allSteps.size());
 	BOOST_TEST(chromosome.optimisationSteps() == allSteps);
-	BOOST_TEST(toString(chromosome) == "flcCUnDEvejsxIOoighFTLMmVatrpuSd");
+	BOOST_TEST(toString(chromosome) == "flcCUnDvejsxIOoighTLMRrmVatpud");
 }
 
 BOOST_AUTO_TEST_CASE(optimisationSteps_should_translate_chromosomes_genes_to_optimisation_step_names)
@@ -151,16 +152,16 @@ BOOST_AUTO_TEST_CASE(randomOptimisationStep_should_return_each_step_with_same_pr
 	constexpr int samplesPerStep = 500;
 	constexpr double relativeTolerance = 0.02;
 
-	std::map<std::string, size_t> stepIndices = enumerateOptimisationSteps();
-	std::vector<size_t> samples;
+	map<string, size_t> stepIndices = enumerateOptmisationSteps();
+	vector<size_t> samples;
 	for (size_t i = 0; i <= stepIndices.size() * samplesPerStep; ++i)
 		samples.push_back(stepIndices.at(Chromosome::randomOptimisationStep()));
 
 	const double expectedValue = double(stepIndices.size() - 1) / 2.0;
 	const double variance = double(stepIndices.size() * stepIndices.size() - 1) / 12.0;
 
-	BOOST_TEST(fabs(mean(samples) - expectedValue) < expectedValue * relativeTolerance);
-	BOOST_TEST(fabs(meanSquaredError(samples, expectedValue) - variance) < variance * relativeTolerance);
+	BOOST_TEST(abs(mean(samples) - expectedValue) < expectedValue * relativeTolerance);
+	BOOST_TEST(abs(meanSquaredError(samples, expectedValue) - variance) < variance * relativeTolerance);
 }
 
 BOOST_AUTO_TEST_CASE(stepsToGenes_should_translate_optimisation_step_names_to_abbreviations)
@@ -171,7 +172,7 @@ BOOST_AUTO_TEST_CASE(stepsToGenes_should_translate_optimisation_step_names_to_ab
 
 BOOST_AUTO_TEST_CASE(genesToSteps_should_translate_optimisation_step_abbreviations_to_names)
 {
-	BOOST_TEST(Chromosome::genesToSteps("") == std::vector<std::string>{});
+	BOOST_TEST(Chromosome::genesToSteps("") == vector<string>{});
 	BOOST_TEST(Chromosome::genesToSteps("ChrOmOsoMe") == ChrOmOsoMeSteps);
 }
 

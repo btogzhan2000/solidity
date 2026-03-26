@@ -41,7 +41,8 @@ class Type;
 class ArrayType;
 class StructType;
 class FunctionType;
-using TypePointers = std::vector<Type const*>;
+using TypePointer = Type const*;
+using TypePointers = std::vector<TypePointer>;
 
 /**
  * Class to generate encoding and decoding functions. Also maintains a collection
@@ -56,14 +57,13 @@ class ABIFunctions
 public:
 	explicit ABIFunctions(
 		langutil::EVMVersion _evmVersion,
-		std::optional<uint8_t> _eofVersion,
 		RevertStrings _revertStrings,
 		MultiUseYulFunctionCollector& _functionCollector
 	):
 		m_evmVersion(_evmVersion),
 		m_revertStrings(_revertStrings),
 		m_functionCollector(_functionCollector),
-		m_utils(_evmVersion, _eofVersion, m_revertStrings, m_functionCollector)
+		m_utils(_evmVersion, m_revertStrings, m_functionCollector)
 	{}
 
 	/// @returns name of an assembly function to ABI-encode values of @a _givenTypes
@@ -244,7 +244,7 @@ private:
 	std::string abiDecodingFunctionArray(ArrayType const& _type, bool _fromMemory);
 	/// Part of @a abiDecodingFunction for calldata array types.
 	std::string abiDecodingFunctionCalldataArray(ArrayType const& _type);
-	/// Part of @a abiDecodingFunctionArrayAvailableLength
+	/// Part of @a abiDecodingFunctionArrayWithAvailableLength
 	std::string abiDecodingFunctionByteArrayAvailableLength(ArrayType const& _type, bool _fromMemory);
 	/// Part of @a abiDecodingFunction for calldata struct types.
 	std::string abiDecodingFunctionCalldataStruct(StructType const& _type);
@@ -274,9 +274,9 @@ private:
 	/// is true), for which it is two.
 	static size_t numVariablesForType(Type const& _type, EncodingOptions const& _options);
 
-	/// @returns the name of a function that uses @param _message for revert reason
+	/// @returns code that stores @param _message for revert reason
 	/// if m_revertStrings is debug.
-	std::string revertReasonIfDebugFunction(std::string const& _message = "");
+	std::string revertReasonIfDebug(std::string const& _message = "");
 
 	langutil::EVMVersion m_evmVersion;
 	RevertStrings const m_revertStrings;

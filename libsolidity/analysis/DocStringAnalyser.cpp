@@ -25,11 +25,10 @@
 #include <libsolidity/analysis/DocStringAnalyser.h>
 
 #include <libsolidity/ast/AST.h>
-#include <libsolidity/ast/TypeProvider.h>
+#include <libsolidity/parsing/DocStringParser.h>
 #include <liblangutil/ErrorReporter.h>
 
-#include <boost/algorithm/string.hpp>
-
+using namespace std;
 using namespace solidity;
 using namespace solidity::langutil;
 using namespace solidity::frontend;
@@ -37,7 +36,7 @@ using namespace solidity::frontend;
 namespace
 {
 
-void copyMissingTags(std::set<CallableDeclaration const*> const& _baseFunctions, StructurallyDocumentedAnnotation& _target, FunctionType const* _functionType = nullptr)
+void copyMissingTags(set<CallableDeclaration const*> const& _baseFunctions, StructurallyDocumentedAnnotation& _target, CallableDeclaration const* _declaration = nullptr)
 {
 	// Only copy if there is exactly one direct base function.
 	if (_baseFunctions.size() != 1)
@@ -45,13 +44,19 @@ void copyMissingTags(std::set<CallableDeclaration const*> const& _baseFunctions,
 
 	CallableDeclaration const& baseFunction = **_baseFunctions.begin();
 
+	auto hasReturnParameter = [](CallableDeclaration const& declaration, size_t _n)
+	{
+		return declaration.returnParameterList() &&
+			declaration.returnParameters().size() > _n;
+	};
+
 	auto& sourceDoc = dynamic_cast<StructurallyDocumentedAnnotation const&>(baseFunction.annotation());
 
 	for (auto it = sourceDoc.docTags.begin(); it != sourceDoc.docTags.end();)
 	{
-		std::string const& tag = it->first;
-		// Don't copy tag "inheritdoc", custom tags or already existing tags
-		if (tag == "inheritdoc" || _target.docTags.count(tag) || boost::starts_with(tag, "custom"))
+		string const& tag = it->first;
+		// Don't copy tag "inheritdoc" or already existing tags
+		if (tag == "inheritdoc" || _target.docTags.count(tag))
 		{
 			it++;
 			continue;
@@ -64,25 +69,24 @@ void copyMissingTags(std::set<CallableDeclaration const*> const& _baseFunctions,
 			DocTag content = it->second;
 
 			// Update the parameter name for @return tags
-			if (_functionType && tag == "return")
+			if (_declaration && tag == "return")
 			{
 				size_t docParaNameEndPos = content.content.find_first_of(" \t");
-				std::string const docParameterName = content.content.substr(0, docParaNameEndPos);
+				string const docParameterName = content.content.substr(0, docParaNameEndPos);
 
 				if (
-					_functionType->returnParameterNames().size() > n &&
-					docParameterName != _functionType->returnParameterNames().at(n)
+					hasReturnParameter(*_declaration, n) &&
+					docParameterName != _declaration->returnParameters().at(n)->name()
 				)
 				{
 					bool baseHasNoName =
-						baseFunction.returnParameterList() &&
-						baseFunction.returnParameters().size() > n &&
+						hasReturnParameter(baseFunction, n) &&
 						baseFunction.returnParameters().at(n)->name().empty();
 
-					std::string paramName = _functionType->returnParameterNames().at(n);
+					string paramName = _declaration->returnParameters().at(n)->name();
 					content.content =
 						(paramName.empty() ? "" : std::move(paramName) + " ") + (
-							std::string::npos == docParaNameEndPos || baseHasNoName ?
+							string::npos == docParaNameEndPos || baseHasNoName ?
 							content.content :
 							content.content.substr(docParaNameEndPos + 1)
 						);
@@ -94,7 +98,7 @@ void copyMissingTags(std::set<CallableDeclaration const*> const& _baseFunctions,
 	}
 }
 
-CallableDeclaration const* findBaseCallable(std::set<CallableDeclaration const*> const& _baseFunctions, int64_t _contractId)
+CallableDeclaration const* findBaseCallable(set<CallableDeclaration const*> const& _baseFunctions, int64_t _contractId)
 {
 	for (CallableDeclaration const* baseFuncCandidate: _baseFunctions)
 		if (baseFuncCandidate->annotation().contract->id() == _contractId)
@@ -122,7 +126,7 @@ bool DocStringAnalyser::analyseDocStrings(SourceUnit const& _sourceUnit)
 bool DocStringAnalyser::visit(FunctionDefinition const& _function)
 {
 	if (!_function.isConstructor())
-		handleCallable(_function, _function, _function.annotation(), TypeProvider::function(_function));
+		handleCallable(_function, _function, _function.annotation());
 	return true;
 }
 
@@ -131,12 +135,10 @@ bool DocStringAnalyser::visit(VariableDeclaration const& _variable)
 	if (!_variable.isStateVariable() && !_variable.isFileLevelVariable())
 		return false;
 
-	auto const* getterType = TypeProvider::function(_variable);
-
 	if (CallableDeclaration const* baseFunction = resolveInheritDoc(_variable.annotation().baseFunctions, _variable, _variable.annotation()))
-		copyMissingTags({baseFunction}, _variable.annotation(), getterType);
+		copyMissingTags({baseFunction}, _variable.annotation());
 	else if (_variable.annotation().docTags.empty())
-		copyMissingTags(_variable.annotation().baseFunctions, _variable.annotation(), getterType);
+		copyMissingTags(_variable.annotation().baseFunctions, _variable.annotation());
 
 	return false;
 }
@@ -155,32 +157,24 @@ bool DocStringAnalyser::visit(EventDefinition const& _event)
 	return true;
 }
 
-bool DocStringAnalyser::visit(ErrorDefinition const& _error)
-{
-	handleCallable(_error, _error, _error.annotation());
-
-	return true;
-}
-
 void DocStringAnalyser::handleCallable(
 	CallableDeclaration const& _callable,
 	StructurallyDocumented const& _node,
-	StructurallyDocumentedAnnotation& _annotation,
-	FunctionType const* _functionType
+	StructurallyDocumentedAnnotation& _annotation
 )
 {
 	if (CallableDeclaration const* baseFunction = resolveInheritDoc(_callable.annotation().baseFunctions, _node, _annotation))
-		copyMissingTags({baseFunction}, _annotation, _functionType);
+		copyMissingTags({baseFunction}, _annotation, &_callable);
 	else if (
 		_annotation.docTags.empty() &&
 		_callable.annotation().baseFunctions.size() == 1 &&
 		parameterNamesEqual(_callable, **_callable.annotation().baseFunctions.begin())
 	)
-		copyMissingTags(_callable.annotation().baseFunctions, _annotation, _functionType);
+		copyMissingTags(_callable.annotation().baseFunctions, _annotation, &_callable);
 }
 
 CallableDeclaration const* DocStringAnalyser::resolveInheritDoc(
-	std::set<CallableDeclaration const*> const& _baseFuncs,
+	set<CallableDeclaration const*> const& _baseFuncs,
 	StructurallyDocumented const& _node,
 	StructurallyDocumentedAnnotation& _annotation
 )

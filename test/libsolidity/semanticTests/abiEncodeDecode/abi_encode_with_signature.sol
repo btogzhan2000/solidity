@@ -20,11 +20,13 @@ contract C {
 		y[2] = type(uint).max - 2;
 		y[3] = type(uint).max - 3;
 		r = abi.encodeWithSignature(x, y);
-		// The hash uses temporary memory. This allocation reuses the memory
+		// The hash uses temporary memory. This allocation re-uses the memory
 		// and should initialize it properly.
 		ar = new uint[](2);
 	}
 }
+// ====
+// compileViaYul: also
 // ----
 // f0() -> 0x20, 4, -34435155370463444793260793355178157075203752403645521721995013737368954863616
 // f1() -> 0x20, 0x64, -34435155370463444793260793355178157075203752403645521721995013737368954863616, 862718293348820473429344482784628181556388621521298319395315527974912, 91135606241822717681769169345594720818313984248279388438121731325952, 0

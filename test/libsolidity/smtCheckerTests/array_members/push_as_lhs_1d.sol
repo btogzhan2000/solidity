@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint[] b;
 
@@ -15,10 +17,5 @@ contract C {
 	}
 
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreCex: yes
-// SMTIgnoreOS: macos
 // ----
-// Warning 6328: (199-229): CHC: Assertion violation happens here.
-// Info 1391: CHC: 7 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (232-262): CHC: Assertion violation happens here.\nCounterexample:\nb = [1]\n\nTransaction trace:\nC.constructor()\nState: b = []\nC.g()

@@ -1,11 +1,11 @@
 {
     function f() -> x {
-        // can reuse x
+        // can re-use x
         let y := 0
         mstore(y, 7)
     }
     let a
-    // can reuse a
+    // can re-use a
     let b := 0
     sstore(a, b)
 }
@@ -18,7 +18,7 @@
 //     sstore(a, a)
 //     function f() -> x
 //     {
-//         let y := 0
-//         mstore(y, 7)
+//         let y := x
+//         mstore(x, 7)
 //     }
 // }

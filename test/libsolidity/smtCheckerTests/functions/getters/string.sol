@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	string public str1 = 'b';
 
@@ -7,8 +9,5 @@ contract C {
 		assert(keccak256(bytes(a1)) == keccak256('a')); // should fail
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (178-224): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (211-257): CHC: Assertion violation happens here.

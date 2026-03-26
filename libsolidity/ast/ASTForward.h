@@ -51,14 +51,12 @@ class UsingForDirective;
 class StructDefinition;
 class EnumDefinition;
 class EnumValue;
-class UserDefinedValueTypeDefinition;
 class ParameterList;
 class FunctionDefinition;
 class VariableDeclaration;
 class ModifierDefinition;
 class ModifierInvocation;
 class EventDefinition;
-class ErrorDefinition;
 class MagicVariableDeclaration;
 class TypeName;
 class ElementaryTypeName;
@@ -98,38 +96,8 @@ class Identifier;
 class ElementaryTypeNameExpression;
 class Literal;
 class StructuredDocumentation;
-class StorageLayoutSpecifier;
-
-/// Experimental Solidity nodes
-/// @{
-class TypeClassDefinition;
-class TypeClassInstantiation;
-class TypeClassName;
-class TypeDefinition;
-class Builtin;
-class ForAllQuantifier;
-/// @}
 
 class VariableScope;
-
-template <class T>
-struct ASTCompareByID
-{
-	using is_transparent = void;
-
-	bool operator()(T const* _lhs, T const* _rhs) const
-	{
-		return _lhs->id() < _rhs->id();
-	}
-	bool operator()(T const* _lhs, int64_t _rhs) const
-	{
-		return _lhs->id() < _rhs;
-	}
-	bool operator()(int64_t _lhs, T const* _rhs) const
-	{
-		return _lhs < _rhs->id();
-	}
-};
 
 // Used as pointers to AST nodes, to be replaced by more clever pointers, e.g. pointers which do
 // not do reference counting but point to a special memory area that is completely released

@@ -18,8 +18,7 @@ contract c {
         return (data[0].a, data[0].b, data[0].c[2], data[0].d[2]);
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // test() -> 2, 3, 4, 5
-// gas irOptimized: 135329
-// gas legacy: 139481
-// gas legacyOptimized: 135795

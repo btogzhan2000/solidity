@@ -2,7 +2,8 @@
   "absolutePath": "a",
   "id": 14,
   "nodeType": "SourceUnit",
-  "nodes": [
+  "nodes":
+  [
     {
       "abstract": false,
       "baseContracts": [],
@@ -10,23 +11,19 @@
       "contractKind": "contract",
       "id": 1,
       "name": "A",
-      "nameLocation": "9:1:1",
       "nodeType": "ContractDefinition",
       "nodes": [],
-      "src": "0:14:1",
-      "usedErrors": [],
-      "usedEvents": []
+      "src": "0:14:1"
     },
     {
       "abstract": false,
-      "baseContracts": [
+      "baseContracts":
+      [
         {
-          "baseName": {
+          "baseName":
+          {
             "id": 2,
             "name": "A",
-            "nameLocations": [
-              "29:1:1"
-            ],
             "nodeType": "IdentifierPath",
             "src": "29:1:1"
           },
@@ -39,23 +36,19 @@
       "contractKind": "contract",
       "id": 4,
       "name": "B",
-      "nameLocation": "24:1:1",
       "nodeType": "ContractDefinition",
       "nodes": [],
-      "src": "15:19:1",
-      "usedErrors": [],
-      "usedEvents": []
+      "src": "15:19:1"
     },
     {
       "abstract": false,
-      "baseContracts": [
+      "baseContracts":
+      [
         {
-          "baseName": {
+          "baseName":
+          {
             "id": 5,
             "name": "B",
-            "nameLocations": [
-              "49:1:1"
-            ],
             "nodeType": "IdentifierPath",
             "src": "49:1:1"
           },
@@ -68,23 +61,19 @@
       "contractKind": "contract",
       "id": 7,
       "name": "C",
-      "nameLocation": "44:1:1",
       "nodeType": "ContractDefinition",
       "nodes": [],
-      "src": "35:19:1",
-      "usedErrors": [],
-      "usedEvents": []
+      "src": "35:19:1"
     },
     {
       "abstract": false,
-      "baseContracts": [
+      "baseContracts":
+      [
         {
-          "baseName": {
+          "baseName":
+          {
             "id": 8,
             "name": "C",
-            "nameLocations": [
-              "69:1:1"
-            ],
             "nodeType": "IdentifierPath",
             "src": "69:1:1"
           },
@@ -97,23 +86,19 @@
       "contractKind": "contract",
       "id": 10,
       "name": "D",
-      "nameLocation": "64:1:1",
       "nodeType": "ContractDefinition",
       "nodes": [],
-      "src": "55:19:1",
-      "usedErrors": [],
-      "usedEvents": []
+      "src": "55:19:1"
     },
     {
       "abstract": false,
-      "baseContracts": [
+      "baseContracts":
+      [
         {
-          "baseName": {
+          "baseName":
+          {
             "id": 11,
             "name": "D",
-            "nameLocations": [
-              "89:1:1"
-            ],
             "nodeType": "IdentifierPath",
             "src": "89:1:1"
           },
@@ -126,12 +111,9 @@
       "contractKind": "contract",
       "id": 13,
       "name": "E",
-      "nameLocation": "84:1:1",
       "nodeType": "ContractDefinition",
       "nodes": [],
-      "src": "75:19:1",
-      "usedErrors": [],
-      "usedEvents": []
+      "src": "75:19:1"
     }
   ],
   "src": "0:95:1"

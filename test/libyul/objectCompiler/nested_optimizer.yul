@@ -15,30 +15,27 @@ object "a" {
   }
 }
 // ====
-// EVMVersion: >=shanghai
-// optimizationPreset: full
-// outputs: Assembly
+// optimize: true
 // ----
 // Assembly:
-//     /* "source":58:59   */
+//     /* "source":48:49   */
 //   0x00
-//     /* "source":41:56   */
-//   dup1
+//   0x00
+//     /* "source":35:50   */
 //   calldataload
-//     /* "source":34:60   */
+//     /* "source":107:127   */
 //   sstore
-//     /* "source":22:68   */
-//   stop
 // stop
 //
 // sub_0: assembly {
-//         /* "source":141:142   */
+//         /* "source":188:189   */
 //       0x00
-//         /* "source":124:139   */
-//       dup1
+//       0x00
+//         /* "source":175:190   */
 //       calldataload
-//         /* "source":117:143   */
+//         /* "source":253:273   */
 //       sstore
-//         /* "source":101:155   */
-//       stop
 // }
+// Bytecode: 600060003555fe
+// Opcodes: PUSH1 0x0 PUSH1 0x0 CALLDATALOAD SSTORE INVALID
+// SourceMappings: 48:1:0:-:0;;35:15;107:20

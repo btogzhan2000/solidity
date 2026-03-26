@@ -11,5 +11,7 @@ contract C {
         assert(s[0][0] == 0);
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // f() ->

@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	function add(uint x, uint y) internal pure returns (uint) {
 		if (y == 0)
@@ -17,11 +19,9 @@ contract C {
 	}
 }
 // ====
-// SMTEngine: all
 // SMTIgnoreCex: yes
 // ----
-// Warning 6328: (211-237): CHC: Assertion violation happens here.
-// Warning 6328: (241-267): CHC: Assertion violation happens here.
-// Warning 6328: (271-297): CHC: Assertion violation happens here.
-// Warning 6328: (301-329): CHC: Assertion violation happens here.
-// Info 1391: CHC: 3 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (244-270): CHC: Assertion violation happens here.
+// Warning 6328: (274-300): CHC: Assertion violation happens here.
+// Warning 6328: (304-330): CHC: Assertion violation happens here.
+// Warning 6328: (334-362): CHC: Assertion violation happens here.

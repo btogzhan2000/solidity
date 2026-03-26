@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	function f() public pure {
 		bytes32 x = 0x00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff;
@@ -9,8 +11,5 @@ contract C {
 		assert(x[0] == x[23]);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (231-252): CHC: Assertion violation happens here.
-// Info 1391: CHC: 9 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (264-285): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nC.constructor()\nC.f()

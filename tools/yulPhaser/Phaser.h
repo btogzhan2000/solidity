@@ -25,10 +25,8 @@
 #include <tools/yulPhaser/AlgorithmRunner.h>
 #include <tools/yulPhaser/GeneticAlgorithms.h>
 
-#include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
 
-#include <cstddef>
 #include <istream>
 #include <memory>
 #include <optional>
@@ -243,7 +241,7 @@ public:
 	static std::vector<Program> build(Options const& _options);
 
 private:
-	static langutil::CharStream loadSource(boost::filesystem::path const& _sourcePath);
+	static langutil::CharStream loadSource(std::string const& _sourcePath);
 };
 
 /**

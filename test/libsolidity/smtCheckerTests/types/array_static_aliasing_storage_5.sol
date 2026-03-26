@@ -1,9 +1,10 @@
+pragma experimental SMTChecker;
+
 contract C
 {
 	uint[2] b1;
 	uint[2] b2;
 	function f(uint[2] storage a, uint[2] memory c) internal {
-		// Accesses are safe but oob is reported because of aliasing.
 		c[0] = 42;
 		a[0] = 2;
 		b1[0] = 1;
@@ -21,7 +22,5 @@ contract C
 	}
 }
 // ====
-// SMTEngine: all
 // SMTIgnoreCex: yes
 // ----
-// Info 1391: CHC: 7 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

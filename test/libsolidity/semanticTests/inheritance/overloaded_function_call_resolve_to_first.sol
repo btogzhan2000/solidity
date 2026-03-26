@@ -11,5 +11,9 @@ contract test {
         return f(3);
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // g() -> 3

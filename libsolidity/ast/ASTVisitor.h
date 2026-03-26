@@ -61,7 +61,6 @@ public:
 	virtual bool visit(IdentifierPath& _node) { return visitNode(_node); }
 	virtual bool visit(InheritanceSpecifier& _node) { return visitNode(_node); }
 	virtual bool visit(UsingForDirective& _node) { return visitNode(_node); }
-	virtual bool visit(UserDefinedValueTypeDefinition& _node) { return visitNode(_node); }
 	virtual bool visit(StructDefinition& _node) { return visitNode(_node); }
 	virtual bool visit(EnumDefinition& _node) { return visitNode(_node); }
 	virtual bool visit(EnumValue& _node) { return visitNode(_node); }
@@ -72,7 +71,6 @@ public:
 	virtual bool visit(ModifierDefinition& _node) { return visitNode(_node); }
 	virtual bool visit(ModifierInvocation& _node) { return visitNode(_node); }
 	virtual bool visit(EventDefinition& _node) { return visitNode(_node); }
-	virtual bool visit(ErrorDefinition& _node) { return visitNode(_node); }
 	virtual bool visit(ElementaryTypeName& _node) { return visitNode(_node); }
 	virtual bool visit(UserDefinedTypeName& _node) { return visitNode(_node); }
 	virtual bool visit(FunctionTypeName& _node) { return visitNode(_node); }
@@ -91,7 +89,6 @@ public:
 	virtual bool visit(Return& _node) { return visitNode(_node); }
 	virtual bool visit(Throw& _node) { return visitNode(_node); }
 	virtual bool visit(EmitStatement& _node) { return visitNode(_node); }
-	virtual bool visit(RevertStatement& _node) { return visitNode(_node); }
 	virtual bool visit(VariableDeclarationStatement& _node) { return visitNode(_node); }
 	virtual bool visit(ExpressionStatement& _node) { return visitNode(_node); }
 	virtual bool visit(Conditional& _node) { return visitNode(_node); }
@@ -109,16 +106,6 @@ public:
 	virtual bool visit(ElementaryTypeNameExpression& _node) { return visitNode(_node); }
 	virtual bool visit(Literal& _node) { return visitNode(_node); }
 	virtual bool visit(StructuredDocumentation& _node) { return visitNode(_node); }
-	virtual bool visit(StorageLayoutSpecifier& _node) { return visitNode(_node); }
-	/// Experimental Solidity nodes
-	/// @{
-	virtual bool visit(TypeClassDefinition& _node) { return visitNode(_node); }
-	virtual bool visit(TypeClassInstantiation& _node) { return visitNode(_node); }
-	virtual bool visit(TypeDefinition& _node) { return visitNode(_node); }
-	virtual bool visit(TypeClassName& _node) { return visitNode(_node); }
-	virtual bool visit(Builtin& _node) { return visitNode(_node); }
-	virtual bool visit(ForAllQuantifier& _node) { return visitNode(_node); }
-	///  @}
 
 	virtual void endVisit(SourceUnit& _node) { endVisitNode(_node); }
 	virtual void endVisit(PragmaDirective& _node) { endVisitNode(_node); }
@@ -127,7 +114,6 @@ public:
 	virtual void endVisit(IdentifierPath& _node) { endVisitNode(_node); }
 	virtual void endVisit(InheritanceSpecifier& _node) { endVisitNode(_node); }
 	virtual void endVisit(UsingForDirective& _node) { endVisitNode(_node); }
-	virtual void endVisit(UserDefinedValueTypeDefinition& _node) { endVisitNode(_node); }
 	virtual void endVisit(StructDefinition& _node) { endVisitNode(_node); }
 	virtual void endVisit(EnumDefinition& _node) { endVisitNode(_node); }
 	virtual void endVisit(EnumValue& _node) { endVisitNode(_node); }
@@ -138,7 +124,6 @@ public:
 	virtual void endVisit(ModifierDefinition& _node) { endVisitNode(_node); }
 	virtual void endVisit(ModifierInvocation& _node) { endVisitNode(_node); }
 	virtual void endVisit(EventDefinition& _node) { endVisitNode(_node); }
-	virtual void endVisit(ErrorDefinition& _node) { endVisitNode(_node); }
 	virtual void endVisit(ElementaryTypeName& _node) { endVisitNode(_node); }
 	virtual void endVisit(UserDefinedTypeName& _node) { endVisitNode(_node); }
 	virtual void endVisit(FunctionTypeName& _node) { endVisitNode(_node); }
@@ -157,7 +142,6 @@ public:
 	virtual void endVisit(Return& _node) { endVisitNode(_node); }
 	virtual void endVisit(Throw& _node) { endVisitNode(_node); }
 	virtual void endVisit(EmitStatement& _node) { endVisitNode(_node); }
-	virtual void endVisit(RevertStatement& _node) { endVisitNode(_node); }
 	virtual void endVisit(VariableDeclarationStatement& _node) { endVisitNode(_node); }
 	virtual void endVisit(ExpressionStatement& _node) { endVisitNode(_node); }
 	virtual void endVisit(Conditional& _node) { endVisitNode(_node); }
@@ -175,16 +159,6 @@ public:
 	virtual void endVisit(ElementaryTypeNameExpression& _node) { endVisitNode(_node); }
 	virtual void endVisit(Literal& _node) { endVisitNode(_node); }
 	virtual void endVisit(StructuredDocumentation& _node) { endVisitNode(_node); }
-	virtual void endVisit(StorageLayoutSpecifier& _node) { endVisitNode(_node); }
-	/// Experimental Solidity nodes
-	/// @{
-	virtual void endVisit(TypeClassDefinition& _node) { endVisitNode(_node); }
-	virtual void endVisit(TypeClassInstantiation& _node) { endVisitNode(_node); }
-	virtual void endVisit(TypeDefinition& _node) { endVisitNode(_node); }
-	virtual void endVisit(TypeClassName& _node) { endVisitNode(_node); }
-	virtual void endVisit(Builtin& _node) { endVisitNode(_node); }
-	virtual void endVisit(ForAllQuantifier& _node) { endVisitNode(_node); }
-	///  @}
 
 protected:
 	/// Generic function called by default for each node, to be overridden by derived classes
@@ -216,7 +190,6 @@ public:
 	virtual bool visit(InheritanceSpecifier const& _node) { return visitNode(_node); }
 	virtual bool visit(StructDefinition const& _node) { return visitNode(_node); }
 	virtual bool visit(UsingForDirective const& _node) { return visitNode(_node); }
-	virtual bool visit(UserDefinedValueTypeDefinition const& _node) { return visitNode(_node); }
 	virtual bool visit(EnumDefinition const& _node) { return visitNode(_node); }
 	virtual bool visit(EnumValue const& _node) { return visitNode(_node); }
 	virtual bool visit(ParameterList const& _node) { return visitNode(_node); }
@@ -226,7 +199,6 @@ public:
 	virtual bool visit(ModifierDefinition const& _node) { return visitNode(_node); }
 	virtual bool visit(ModifierInvocation const& _node) { return visitNode(_node); }
 	virtual bool visit(EventDefinition const& _node) { return visitNode(_node); }
-	virtual bool visit(ErrorDefinition const& _node) { return visitNode(_node); }
 	virtual bool visit(ElementaryTypeName const& _node) { return visitNode(_node); }
 	virtual bool visit(UserDefinedTypeName const& _node) { return visitNode(_node); }
 	virtual bool visit(FunctionTypeName const& _node) { return visitNode(_node); }
@@ -245,7 +217,6 @@ public:
 	virtual bool visit(Return const& _node) { return visitNode(_node); }
 	virtual bool visit(Throw const& _node) { return visitNode(_node); }
 	virtual bool visit(EmitStatement const& _node) { return visitNode(_node); }
-	virtual bool visit(RevertStatement const& _node) { return visitNode(_node); }
 	virtual bool visit(VariableDeclarationStatement const& _node) { return visitNode(_node); }
 	virtual bool visit(ExpressionStatement const& _node) { return visitNode(_node); }
 	virtual bool visit(Conditional const& _node) { return visitNode(_node); }
@@ -263,16 +234,6 @@ public:
 	virtual bool visit(ElementaryTypeNameExpression const& _node) { return visitNode(_node); }
 	virtual bool visit(Literal const& _node) { return visitNode(_node); }
 	virtual bool visit(StructuredDocumentation const& _node) { return visitNode(_node); }
-	virtual bool visit(StorageLayoutSpecifier const& _node) { return visitNode(_node); }
-	/// Experimental Solidity nodes
-	/// @{
-	virtual bool visit(TypeClassDefinition const& _node) { return visitNode(_node); }
-	virtual bool visit(TypeClassInstantiation const& _node) { return visitNode(_node); }
-	virtual bool visit(TypeDefinition const& _node) { return visitNode(_node); }
-	virtual bool visit(TypeClassName const& _node) { return visitNode(_node); }
-	virtual bool visit(Builtin const& _node) { return visitNode(_node); }
-	virtual bool visit(ForAllQuantifier const& _node) { return visitNode(_node); }
-	///  @}
 
 	virtual void endVisit(SourceUnit const& _node) { endVisitNode(_node); }
 	virtual void endVisit(PragmaDirective const& _node) { endVisitNode(_node); }
@@ -281,7 +242,6 @@ public:
 	virtual void endVisit(IdentifierPath const& _node) { endVisitNode(_node); }
 	virtual void endVisit(InheritanceSpecifier const& _node) { endVisitNode(_node); }
 	virtual void endVisit(UsingForDirective const& _node) { endVisitNode(_node); }
-	virtual void endVisit(UserDefinedValueTypeDefinition const& _node) { endVisitNode(_node); }
 	virtual void endVisit(StructDefinition const& _node) { endVisitNode(_node); }
 	virtual void endVisit(EnumDefinition const& _node) { endVisitNode(_node); }
 	virtual void endVisit(EnumValue const& _node) { endVisitNode(_node); }
@@ -292,7 +252,6 @@ public:
 	virtual void endVisit(ModifierDefinition const& _node) { endVisitNode(_node); }
 	virtual void endVisit(ModifierInvocation const& _node) { endVisitNode(_node); }
 	virtual void endVisit(EventDefinition const& _node) { endVisitNode(_node); }
-	virtual void endVisit(ErrorDefinition const& _node) { endVisitNode(_node); }
 	virtual void endVisit(ElementaryTypeName const& _node) { endVisitNode(_node); }
 	virtual void endVisit(UserDefinedTypeName const& _node) { endVisitNode(_node); }
 	virtual void endVisit(FunctionTypeName const& _node) { endVisitNode(_node); }
@@ -311,7 +270,6 @@ public:
 	virtual void endVisit(Return const& _node) { endVisitNode(_node); }
 	virtual void endVisit(Throw const& _node) { endVisitNode(_node); }
 	virtual void endVisit(EmitStatement const& _node) { endVisitNode(_node); }
-	virtual void endVisit(RevertStatement const& _node) { endVisitNode(_node); }
 	virtual void endVisit(VariableDeclarationStatement const& _node) { endVisitNode(_node); }
 	virtual void endVisit(ExpressionStatement const& _node) { endVisitNode(_node); }
 	virtual void endVisit(Conditional const& _node) { endVisitNode(_node); }
@@ -329,16 +287,6 @@ public:
 	virtual void endVisit(ElementaryTypeNameExpression const& _node) { endVisitNode(_node); }
 	virtual void endVisit(Literal const& _node) { endVisitNode(_node); }
 	virtual void endVisit(StructuredDocumentation const& _node) { endVisitNode(_node); }
-	virtual void endVisit(StorageLayoutSpecifier const& _node) { endVisitNode(_node); }
-	/// Experimental Solidity nodes
-	/// @{
-	virtual void endVisit(TypeClassDefinition const& _node) { endVisitNode(_node); }
-	virtual void endVisit(TypeClassInstantiation const& _node) { endVisitNode(_node); }
-	virtual void endVisit(TypeDefinition const& _node) { endVisitNode(_node); }
-	virtual void endVisit(TypeClassName const& _node) { endVisitNode(_node); }
-	virtual void endVisit(Builtin const& _node) { endVisitNode(_node); }
-	virtual void endVisit(ForAllQuantifier const& _node) { endVisitNode(_node); }
-	///  @}
 
 protected:
 	/// Generic function called by default for each node, to be overridden by derived classes

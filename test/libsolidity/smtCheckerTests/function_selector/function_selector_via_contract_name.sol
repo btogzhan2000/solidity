@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract A {
     function f() external {}
     function g(uint256) external {}
@@ -16,5 +18,3 @@ contract C {
     }
 }
 // ====
-// SMTEngine: all
-// ----

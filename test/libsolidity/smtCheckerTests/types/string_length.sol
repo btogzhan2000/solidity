@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	function f() public pure {
 		string memory x = "Hello World";
@@ -13,7 +15,4 @@ contract C {
 		assert(bytes(y).length == 11);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 3 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

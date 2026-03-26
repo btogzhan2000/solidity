@@ -11,4 +11,3 @@ abstract contract C {
 contract D is C {
 	S public override f;
 }
-// ----

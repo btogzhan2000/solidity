@@ -32,8 +32,9 @@ contract Main {
         return h.getName();
     }
 }
+
 // ====
-// bytecodeFormat: legacy,>=EOFv1
+// compileViaYul: also
 // ----
 // getFlag() -> true
 // getName() -> "abc"

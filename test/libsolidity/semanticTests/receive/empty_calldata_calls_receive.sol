@@ -2,6 +2,9 @@ contract A {
     uint public x;
     receive () external payable { ++x; }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // x() -> 0
 // ()

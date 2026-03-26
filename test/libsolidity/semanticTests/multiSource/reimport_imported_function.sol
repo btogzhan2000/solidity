@@ -9,5 +9,8 @@ contract C {
     return h();
   }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // foo() -> 1337

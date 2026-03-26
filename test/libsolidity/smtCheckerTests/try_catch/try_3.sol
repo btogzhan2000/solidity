@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract C {
 	int x;
 
@@ -19,10 +20,6 @@ contract C {
 		}
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreCex: no
 // ----
-// Warning 5667: (259-273): Unused try/catch parameter. Remove or comment out the variable name to silence this warning.
-// Warning 6328: (280-294): CHC: Assertion violation happens here.\nCounterexample:\nx = 1\ns = []\n\nTransaction trace:\nC.constructor()\nState: x = 0\nC.f()\n    C.postinc() -- internal call
-// Info 1391: CHC: 3 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 5667: (291-305): Unused try/catch parameter. Remove or comment out the variable name to silence this warning.
+// Warning 6328: (312-326): CHC: Assertion violation happens here.\nCounterexample:\nx = 1\n\nTransaction trace:\nC.constructor()\nState: x = 0\nC.f()\n    C.postinc() -- internal call

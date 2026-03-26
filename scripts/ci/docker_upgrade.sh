@@ -1,13 +1,11 @@
 #!/usr/bin/env bash
 set -e
 
-function error
-{
+function error() {
   echo >&2 "ERROR: ${1} Aborting." && false
 }
 
-function warning
-{
+function warning() {
   echo >&2 "WARNING: ${1}"
 }
 
@@ -51,13 +49,7 @@ docker build "scripts/docker/${IMAGE_NAME}" --file "scripts/docker/${IMAGE_NAME}
 
 echo "-- test_docker @ '${PWD}'"
 
-docker run \
-  --rm \
-  --volume "${PWD}:/project" \
-  -u "$(id -u "${USER}"):$(id -g "${USER}")" \
-  -e CCACHE_DIR=/tmp/ccache \
-  "${IMAGE_NAME}" \
-  bash -c "/project/scripts/ci/${IMAGE_NAME}_test_${IMAGE_VARIANT}.sh"
+docker run --rm --volume "${PWD}:/root/project" "${IMAGE_NAME}" "/root/project/scripts/ci/${IMAGE_NAME}_test_${IMAGE_VARIANT}.sh"
 
 echo "-- push_docker"
 

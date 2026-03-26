@@ -16,5 +16,8 @@ contract C {
         return (m.a, m.b[0], m.b[1], m.c);
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // f((uint256,uint256[2],uint256)): 42, 1, 2, 23 -> 42, 1, 2, 23

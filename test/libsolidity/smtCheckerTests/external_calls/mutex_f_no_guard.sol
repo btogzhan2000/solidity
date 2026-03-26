@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 abstract contract D {
 	function d() external virtual;
 }
@@ -25,7 +27,6 @@ contract C {
 	}
 }
 // ====
-// SMTEngine: chc
 // SMTIgnoreCex: yes
 // ----
-// Warning 6328: (274-288): CHC: Assertion violation happens here.\nCounterexample:\nx = 0, d = 0, lock = false\ny = 1\n\nTransaction trace:\nC.constructor()\nState: x = 0, d = 0, lock = false\nC.set(1)\nState: x = 1, d = 0, lock = false\nC.f()\n    d.d() -- untrusted external call, synthesized as:\n        C.set(0) -- reentrant call
+// Warning 6328: (307-321): CHC: Assertion violation happens here.

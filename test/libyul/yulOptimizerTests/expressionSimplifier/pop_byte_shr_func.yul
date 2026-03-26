@@ -8,10 +8,8 @@
 // step: expressionSimplifier
 //
 // {
-//     {
-//         pop(f())
-//         mstore(0, 0)
-//     }
+//     pop(f())
+//     mstore(0, 0)
 //     function f() -> x
-//     { mstore(0, 1337) }
+//     { mstore(x, 1337) }
 // }

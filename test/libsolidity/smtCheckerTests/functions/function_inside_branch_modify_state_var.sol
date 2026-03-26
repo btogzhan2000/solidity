@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C
 {
 	uint x;
@@ -13,8 +15,5 @@ contract C
 		assert(x == 0);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (176-190): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (209-223): CHC: Assertion violation happens here.\nCounterexample:\nx = 1\nb = true\n\nTransaction trace:\nC.constructor()\nState: x = 0\nC.g(true)\n    C.f() -- internal call

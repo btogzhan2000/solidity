@@ -57,14 +57,9 @@ struct IntSort: public Sort
 		isSigned(_signed)
 	{}
 
-	bool operator==(Sort const& _other) const override
+	bool operator==(IntSort const& _other) const
 	{
-		if (!Sort::operator==(_other))
-			return false;
-
-		auto otherIntSort = dynamic_cast<IntSort const*>(&_other);
-		smtAssert(otherIntSort);
-		return isSigned == otherIntSort->isSigned;
+		return Sort::operator==(_other) && isSigned == _other.isSigned;
 	}
 
 	bool isSigned;
@@ -77,14 +72,9 @@ struct BitVectorSort: public Sort
 		size(_size)
 	{}
 
-	bool operator==(Sort const& _other) const override
+	bool operator==(BitVectorSort const& _other) const
 	{
-		if (!Sort::operator==(_other))
-			return false;
-
-		auto otherBitVectorSort = dynamic_cast<BitVectorSort const*>(&_other);
-		smtAssert(otherBitVectorSort);
-		return size == otherBitVectorSort->size;
+		return Sort::operator==(_other) && size == _other.size;
 	}
 
 	unsigned size;
@@ -169,15 +159,7 @@ struct TupleSort: public Sort
 		name(std::move(_name)),
 		members(std::move(_members)),
 		components(std::move(_components))
-	{
-		for (size_t i = 0; i < members.size(); ++i)
-			memberToIndex[members.at(i)] = i;
-	}
-
-	SortPointer memberSort(std::string const& _member)
-	{
-		return components.at(memberToIndex.at(_member));
-	}
+	{}
 
 	bool operator==(Sort const& _other) const override
 	{
@@ -204,9 +186,7 @@ struct TupleSort: public Sort
 	std::string const name;
 	std::vector<std::string> const members;
 	std::vector<SortPointer> const components;
-	std::map<std::string, size_t> memberToIndex;
 };
-
 
 /** Frequently used sorts.*/
 struct SortProvider

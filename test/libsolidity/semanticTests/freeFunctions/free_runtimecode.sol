@@ -12,6 +12,6 @@ contract D {
   }
 }
 // ====
-// bytecodeFormat: legacy
+// compileViaYul: also
 // ----
 // f() -> true

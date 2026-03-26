@@ -17,6 +17,9 @@ contract C {
         return (get_ptr(foo))();
     }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // associated() -> 42
 // unassociated() -> 42

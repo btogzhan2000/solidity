@@ -5,8 +5,6 @@ contract C {
 		abi.encode(this.f{value: 2, gas: 1});
     }
 }
-// ====
-// bytecodeFormat: legacy
 // ----
 // TypeError 2056: (60-76): This type cannot be encoded.
 // TypeError 2056: (92-106): This type cannot be encoded.

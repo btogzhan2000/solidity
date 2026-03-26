@@ -14,8 +14,10 @@ contract C {
         return true;
     }
 }
+
 // ====
-// bytecodeFormat: legacy
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> true
 // g() -> true

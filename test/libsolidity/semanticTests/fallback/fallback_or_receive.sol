@@ -5,6 +5,9 @@ contract C {
     receive () payable external { ++y; }
     function f() external returns (uint, uint) { return (x, y); }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> 0, 0
 // () ->

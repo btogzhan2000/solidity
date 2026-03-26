@@ -8,4 +8,3 @@ contract Test {
     a = 3;
   }
 }
-// ----

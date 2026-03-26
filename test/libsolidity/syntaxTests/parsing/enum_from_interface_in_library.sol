@@ -10,4 +10,3 @@ library L {
       return I.Direction.Left;
     }
 }
-// ----

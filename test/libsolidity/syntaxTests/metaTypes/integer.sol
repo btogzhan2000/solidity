@@ -10,4 +10,3 @@ contract Test {
         intMin;
     }
 }
-// ----

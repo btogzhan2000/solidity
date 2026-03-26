@@ -4,4 +4,3 @@ contract test {
         mapping (uint64 => mapping (bytes32 => uint)) complex_mapping;
     }
 }
-// ----

@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C
 {
 	function f(address c) public view {
@@ -7,9 +9,5 @@ contract C
 		assert(c == msg.sender);
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreCex: yes
 // ----
-// Warning 6328: (122-145): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (155-178): CHC: Assertion violation happens here.\nCounterexample:\n\nc = 38\n\nTransaction trace:\nC.constructor()\nC.f(38)

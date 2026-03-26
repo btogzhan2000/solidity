@@ -10,5 +10,7 @@ contract C {
     return h() - f() - g();
   }
 }
+// ====
+// compileViaYul: also
 // ----
 // foo() -> 992

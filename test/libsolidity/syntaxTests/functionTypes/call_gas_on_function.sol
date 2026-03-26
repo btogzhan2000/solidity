@@ -4,6 +4,4 @@ contract C {
         x{gas: 2}(1);
     }
 }
-// ====
-// bytecodeFormat: legacy
-// ----
+

@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract D {
 	bytes16[] inner;
 	bytes32[][] data;
@@ -5,6 +6,4 @@ contract D {
 		data.push(inner);
 	}
 }
-// ====
-// SMTEngine: all
-// ----
+

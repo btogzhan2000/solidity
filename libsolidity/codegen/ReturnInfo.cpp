@@ -54,6 +54,4 @@ ReturnInfo::ReturnInfo(EVMVersion const& _evmVersion, FunctionType const& _funct
 				estimatedReturnSize += retType->decodingType()->calldataEncodedSize();
 		}
 	}
-	if (dynamicReturnSize)
-		solAssert(estimatedReturnSize == 0);
 }

@@ -23,15 +23,10 @@
 
 #pragma once
 
-#include <cstdint>
-#include <vector>
+#include <libsolutil/Common.h>
 #include <string>
 
-namespace solidity
-{
-using bytes = std::vector<uint8_t>;
-
-namespace frontend
+namespace solidity::frontend
 {
 
 extern char const* VersionNumber;
@@ -40,5 +35,4 @@ extern std::string const VersionStringStrict;
 extern bytes const VersionCompactBytes;
 extern bool const VersionIsRelease;
 
-}
 }

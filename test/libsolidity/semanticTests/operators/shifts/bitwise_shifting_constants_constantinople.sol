@@ -73,6 +73,7 @@ contract C {
 }
 // ====
 // EVMVersion: >=constantinople
+// compileViaYul: also
 // ----
 // shl_1() -> 0x01
 // shl_2() -> 0x01

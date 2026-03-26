@@ -4,4 +4,3 @@ contract test {
         return uint8(10)**x;
     }
 }
-// ----

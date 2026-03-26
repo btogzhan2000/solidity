@@ -11,13 +11,10 @@ contract C {
         require(false, "12345678901234567890123456789012123456789012345678901234567890123");
     }
 }
-// ====
-// EVMVersion: =current
-// bytecodeFormat: legacy
 // ----
 // creation:
-//   codeDepositCost: 377800
-//   executionCost: 416
-//   totalCost: 378216
+//   codeDepositCost: 398400
+//   executionCost: 436
+//   totalCost: 398836
 // external:
-//   f(): 421
+//   f(): 428

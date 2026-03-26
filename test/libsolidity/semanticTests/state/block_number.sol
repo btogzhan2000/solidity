@@ -4,6 +4,8 @@ contract C {
         return block.number;
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // constructor()
 // f() -> 2

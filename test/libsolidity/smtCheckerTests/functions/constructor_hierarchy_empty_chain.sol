@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract F {
 	uint a;
 	constructor() {
@@ -16,9 +17,6 @@ contract A is B {
 		assert(a == 3);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 5667: (162-168): Unused function parameter. Remove or comment out the variable name to silence this warning.
-// Warning 6328: (192-206): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 5667: (194-200): Unused function parameter. Remove or comment out the variable name to silence this warning.
+// Warning 6328: (224-238): CHC: Assertion violation happens here.\nCounterexample:\na = 2\nx = 0\n\nTransaction trace:\nA.constructor(0)

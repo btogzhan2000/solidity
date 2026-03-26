@@ -19,8 +19,12 @@
 #pragma once
 
 
-#include <libsmtutil/BMCSolverInterface.h>
+#include <libsmtutil/SolverInterface.h>
+#include <libsolidity/interface/ReadFile.h>
+#include <libsolutil/FixedHash.h>
 
+#include <boost/noncopyable.hpp>
+#include <map>
 #include <vector>
 
 namespace solidity::smtutil
@@ -32,14 +36,15 @@ namespace solidity::smtutil
  * It also checks whether different solvers give conflicting answers
  * to SMT queries.
  */
-class SMTPortfolio: public BMCSolverInterface
+class SMTPortfolio: public SolverInterface, public boost::noncopyable
 {
 public:
-	/// Noncopyable.
-	SMTPortfolio(SMTPortfolio const&) = delete;
-	SMTPortfolio& operator=(SMTPortfolio const&) = delete;
-
-	SMTPortfolio(std::vector<std::unique_ptr<BMCSolverInterface>> solvers, std::optional<unsigned> _queryTimeout);
+	SMTPortfolio(
+		std::map<util::h256, std::string> _smtlib2Responses = {},
+		frontend::ReadCallback::Callback _smtCallback = {},
+		SMTSolverChoice _enabledSolvers = SMTSolverChoice::All(),
+		std::optional<unsigned> _queryTimeout = {}
+	);
 
 	void reset() override;
 
@@ -54,13 +59,10 @@ public:
 
 	std::vector<std::string> unhandledQueries() override;
 	size_t solvers() override { return m_solvers.size(); }
-
-	std::string dumpQuery(std::vector<Expression> const& _expressionsToEvaluate);
-
 private:
 	static bool solverAnswered(CheckResult result);
 
-	std::vector<std::unique_ptr<BMCSolverInterface>> m_solvers;
+	std::vector<std::unique_ptr<SolverInterface>> m_solvers;
 
 	std::vector<Expression> m_assertions;
 };

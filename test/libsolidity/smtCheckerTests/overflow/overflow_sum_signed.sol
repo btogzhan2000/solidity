@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C
 {
 	function f(int8 x) public pure {
@@ -12,7 +14,4 @@ contract C
 		assert(y == 2);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 3 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

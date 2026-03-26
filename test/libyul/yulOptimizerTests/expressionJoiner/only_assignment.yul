@@ -9,7 +9,6 @@
 // step: expressionJoiner
 //
 // {
-//     { }
 //     function f(a) -> x
 //     {
 //         a := mload(2)

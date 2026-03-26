@@ -1,7 +1,6 @@
-from opcodes import AND, ISZERO, MOD, SUB
 from rule import Rule
-from util import BVUnsignedMax
-from z3 import BitVec, BitVecVal, If
+from opcodes import *
+from util import *
 
 """
 Checking conversion of exp(-1, X) to sub(isZero(and(X, 1)), and(X, 1))

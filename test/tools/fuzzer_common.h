@@ -41,8 +41,7 @@ struct FuzzerUtil
 		solidity::StringMap& _input,
 		bool _optimize,
 		unsigned _rand,
-		bool _forceSMT,
-		bool _compileViaYul
+		bool _forceSMT
 	);
 	/// Adds the experimental SMTChecker pragma to each source file in the
 	/// source map.

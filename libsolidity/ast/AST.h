@@ -33,11 +33,9 @@
 #include <libevmasm/Instruction.h>
 #include <libsolutil/FixedHash.h>
 #include <libsolutil/LazyInit.h>
-#include <libsolutil/Visitor.h>
-#include <libsolutil/JSON.h>
 
-#include <range/v3/view/subrange.hpp>
-#include <range/v3/view/map.hpp>
+#include <boost/noncopyable.hpp>
+#include <json/json.h>
 
 #include <memory>
 #include <optional>
@@ -48,8 +46,8 @@
 namespace solidity::yul
 {
 // Forward-declaration to <yul/AST.h>
-class AST;
-class Dialect;
+struct Block;
+struct Dialect;
 }
 
 namespace solidity::frontend
@@ -64,14 +62,27 @@ class ASTConstVisitor;
  * It is possible to traverse all direct and indirect children of an AST node by calling
  * accept, providing an ASTVisitor.
  */
-class ASTNode
+class ASTNode: private boost::noncopyable
 {
 public:
-	/// Noncopyable.
-	ASTNode(ASTNode const&) = delete;
-	ASTNode& operator=(ASTNode const&) = delete;
+	struct CompareByID
+	{
+		using is_transparent = void;
 
-	using CompareByID = frontend::ASTCompareByID<ASTNode>;
+		bool operator()(ASTNode const* _lhs, ASTNode const* _rhs) const
+		{
+			return _lhs->id() < _rhs->id();
+		}
+		bool operator()(ASTNode const* _lhs, int64_t _rhs) const
+		{
+			return _lhs->id() < _rhs;
+		}
+		bool operator()(int64_t _lhs, ASTNode const* _rhs) const
+		{
+			return _lhs < _rhs->id();
+		}
+	};
+
 	using SourceLocation = langutil::SourceLocation;
 
 	explicit ASTNode(int64_t _id, SourceLocation _location);
@@ -86,30 +97,20 @@ public:
 	static void listAccept(std::vector<T> const& _list, ASTVisitor& _visitor)
 	{
 		for (T const& element: _list)
-		{
-			solAssert(element);
-			element->accept(_visitor);
-		}
+			if (element)
+				element->accept(_visitor);
 	}
 	template <class T>
 	static void listAccept(std::vector<T> const& _list, ASTConstVisitor& _visitor)
 	{
 		for (T const& element: _list)
-		{
-			solAssert(element);
-			element->accept(_visitor);
-		}
+			if (element)
+				element->accept(_visitor);
 	}
 
 	/// @returns a copy of the vector containing only the nodes which derive from T.
 	template <class T>
 	static std::vector<T const*> filteredNodes(std::vector<ASTPointer<ASTNode>> const& _nodes);
-
-	/// Extracts the referenced declaration from all nodes whose annotations support
-	/// `referencedDeclaration`.
-	static Declaration const* referencedDeclaration(Expression const& _expression);
-	/// Performs potential super or virtual lookup for a function call based on the most derived contract.
-	static FunctionDefinition const* resolveFunctionCall(FunctionCall const& _functionCall, ContractDefinition const* _mostDerivedContract);
 
 	/// Returns the source code location of this node.
 	SourceLocation const& location() const { return m_location; }
@@ -123,8 +124,6 @@ public:
 	bool operator==(ASTNode const& _other) const { return this == &_other; }
 	bool operator!=(ASTNode const& _other) const { return !operator==(_other); }
 	///@}
-
-	virtual bool experimentalSolidityOnly() const { return false; }
 
 protected:
 	size_t const m_id = 0;
@@ -172,14 +171,9 @@ public:
 		int64_t _id,
 		SourceLocation const& _location,
 		std::optional<std::string> _licenseString,
-		std::vector<ASTPointer<ASTNode>> _nodes,
-		bool _experimentalSolidity
+		std::vector<ASTPointer<ASTNode>> _nodes
 	):
-		ASTNode(_id, _location),
-		m_licenseString(std::move(_licenseString)),
-		m_nodes(std::move(_nodes)),
-		m_experimentalSolidity(_experimentalSolidity)
-	{}
+		ASTNode(_id, _location), m_licenseString(std::move(_licenseString)), m_nodes(std::move(_nodes)) {}
 
 	void accept(ASTVisitor& _visitor) override;
 	void accept(ASTConstVisitor& _visitor) const override;
@@ -190,18 +184,10 @@ public:
 
 	/// @returns a set of referenced SourceUnits. Recursively if @a _recurse is true.
 	std::set<SourceUnit const*> referencedSourceUnits(bool _recurse = false, std::set<SourceUnit const*> _skipList = std::set<SourceUnit const*>()) const;
-	bool experimentalSolidity() const { return m_experimentalSolidity; }
 
 private:
-	void referencedSourceUnits(
-		std::set<SourceUnit const*>& _referencedSourceUnits,
-		bool _recurse,
-		std::set<SourceUnit const*>& _skipList
-	) const;
-
 	std::optional<std::string> m_licenseString;
 	std::vector<ASTPointer<ASTNode>> m_nodes;
-	bool m_experimentalSolidity = false;
 };
 
 /**
@@ -258,17 +244,12 @@ public:
 		int64_t _id,
 		SourceLocation const& _location,
 		ASTPointer<ASTString> _name,
-		SourceLocation _nameLocation,
 		Visibility _visibility = Visibility::Default
 	):
-		ASTNode(_id, _location), m_name(std::move(_name)), m_nameLocation(std::move(_nameLocation)), m_visibility(_visibility) {}
+		ASTNode(_id, _location), m_name(std::move(_name)), m_visibility(_visibility) {}
 
 	/// @returns the declared name.
 	ASTString const& name() const { return *m_name; }
-
-	/// @returns the location of the declared name itself or empty location if not available or unknown.
-	SourceLocation const& nameLocation() const noexcept { return m_nameLocation; }
-
 	bool noVisibilitySpecified() const { return m_visibility == Visibility::Default; }
 	Visibility visibility() const { return m_visibility == Visibility::Default ? defaultVisibility() : m_visibility; }
 	bool isPublic() const { return visibility() >= Visibility::Public; }
@@ -285,21 +266,15 @@ public:
 	/// @returns true if this is a declaration of a struct member.
 	bool isStructMember() const;
 	/// @returns true if this is a declaration of a parameter of an event.
-	bool isEventOrErrorParameter() const;
-
-	/// @returns false if the declaration can never be referenced without being qualified with a scope.
-	/// Usually the name alone can be used to refer to the corresponding entity.
-	/// But, for example, struct member names or enum member names always require a prefix.
-	/// Another example is event parameter names, which do not participate in any proper scope.
-	bool isVisibleAsUnqualifiedName() const;
+	bool isEventParameter() const;
 
 	/// @returns the type of expressions referencing this declaration.
 	/// This can only be called once types of variable declarations have already been resolved.
-	virtual Type const* type() const = 0;
+	virtual TypePointer type() const = 0;
 
 	/// @returns the type for members of the containing contract type that refer to this declaration.
 	/// This can only be called once types of variable declarations have already been resolved.
-	virtual Type const* typeViaContractName() const { return type(); }
+	virtual TypePointer typeViaContractName() const { return type(); }
 
 	/// @param _internal false indicates external interface is concerned, true indicates internal interface is concerned.
 	/// @returns null when it is not accessible as a function.
@@ -312,7 +287,6 @@ protected:
 
 private:
 	ASTPointer<ASTString> m_name;
-	SourceLocation m_nameLocation;
 	Visibility m_visibility;
 };
 
@@ -371,12 +345,11 @@ public:
 		SourceLocation const& _location,
 		ASTPointer<ASTString> _path,
 		ASTPointer<ASTString> const& _unitAlias,
-		SourceLocation _unitAliasLocation,
 		SymbolAliasList _symbolAliases
 	):
-		Declaration(_id, _location, _unitAlias, std::move(_unitAliasLocation)),
+		Declaration(_id, _location, _unitAlias),
 		m_path(std::move(_path)),
-		m_symbolAliases(std::move(_symbolAliases))
+		m_symbolAliases(move(_symbolAliases))
 	{ }
 
 	void accept(ASTVisitor& _visitor) override;
@@ -389,7 +362,7 @@ public:
 	}
 	ImportAnnotation& annotation() const override;
 
-	Type const* type() const override;
+	TypePointer type() const override;
 
 private:
 	ASTPointer<ASTString> m_path;
@@ -504,21 +477,18 @@ public:
 		int64_t _id,
 		SourceLocation const& _location,
 		ASTPointer<ASTString> const& _name,
-		SourceLocation _nameLocation,
 		ASTPointer<StructuredDocumentation> const& _documentation,
 		std::vector<ASTPointer<InheritanceSpecifier>> _baseContracts,
 		std::vector<ASTPointer<ASTNode>> _subNodes,
 		ContractKind _contractKind = ContractKind::Contract,
-		bool _abstract = false,
-		ASTPointer<StorageLayoutSpecifier> _storageLayoutSpecifier = nullptr
+		bool _abstract = false
 	):
-		Declaration(_id, _location, _name, std::move(_nameLocation)),
+		Declaration(_id, _location, _name),
 		StructurallyDocumented(_documentation),
 		m_baseContracts(std::move(_baseContracts)),
 		m_subNodes(std::move(_subNodes)),
 		m_contractKind(_contractKind),
-		m_abstract(_abstract),
-		m_storageLayoutSpecifier(_storageLayoutSpecifier)
+		m_abstract(_abstract)
 	{}
 
 	void accept(ASTVisitor& _visitor) override;
@@ -532,24 +502,8 @@ public:
 	std::vector<VariableDeclaration const*> stateVariables() const { return filteredNodes<VariableDeclaration>(m_subNodes); }
 	std::vector<ModifierDefinition const*> functionModifiers() const { return filteredNodes<ModifierDefinition>(m_subNodes); }
 	std::vector<FunctionDefinition const*> definedFunctions() const { return filteredNodes<FunctionDefinition>(m_subNodes); }
-	/// @returns a view<FunctionDefinition const*> of all functions
-	/// defined in this contract of the given name (excluding inherited functions).
-	auto definedFunctions(std::string const& _name) const
-	{
-		auto&& [b, e] = definedFunctionsByName().equal_range(_name);
-		return ranges::subrange<decltype(b)>(b, e) | ranges::views::values;
-	}
 	std::vector<EventDefinition const*> events() const { return filteredNodes<EventDefinition>(m_subNodes); }
-	std::vector<EventDefinition const*> const& definedInterfaceEvents() const;
-	std::vector<EventDefinition const*> const usedInterfaceEvents() const;
-	/// @return all events defined in this contract and its base contracts and all events
-	/// that are emitted during the execution of the contract.
-	/// @param _requireCallGraph if false, do not fail if the call graph has not been computed yet.
-	std::vector<EventDefinition const*> interfaceEvents(bool _requireCallGraph = true) const;
-	/// @returns all errors defined in this contract or any base contract
-	/// and all errors referenced during execution.
-	/// @param _requireCallGraph if false, do not fail if the call graph has not been computed yet.
-	std::vector<ErrorDefinition const*> interfaceErrors(bool _requireCallGraph = true) const;
+	std::vector<EventDefinition const*> const& interfaceEvents() const;
 	bool isInterface() const { return m_contractKind == ContractKind::Interface; }
 	bool isLibrary() const { return m_contractKind == ContractKind::Library; }
 
@@ -580,7 +534,7 @@ public:
 
 	std::string fullyQualifiedName() const { return sourceUnitName() + ":" + name(); }
 
-	Type const* type() const override;
+	TypePointer type() const override;
 
 	ContractDefinitionAnnotation& annotation() const override;
 
@@ -588,44 +542,18 @@ public:
 
 	bool abstract() const { return m_abstract; }
 
-	StorageLayoutSpecifier const* storageLayoutSpecifier() const { return m_storageLayoutSpecifier.get(); }
-	StorageLayoutSpecifier* storageLayoutSpecifier() { return m_storageLayoutSpecifier.get(); }
-
 	ContractDefinition const* superContract(ContractDefinition const& _mostDerivedContract) const;
 	/// @returns the next constructor in the inheritance hierarchy.
 	FunctionDefinition const* nextConstructor(ContractDefinition const& _mostDerivedContract) const;
 
 private:
-	std::multimap<std::string, FunctionDefinition const*> const& definedFunctionsByName() const;
-
 	std::vector<ASTPointer<InheritanceSpecifier>> m_baseContracts;
 	std::vector<ASTPointer<ASTNode>> m_subNodes;
 	ContractKind m_contractKind;
 	bool m_abstract{false};
-	ASTPointer<StorageLayoutSpecifier> m_storageLayoutSpecifier;
 
 	util::LazyInit<std::vector<std::pair<util::FixedHash<4>, FunctionTypePointer>>> m_interfaceFunctionList[2];
 	util::LazyInit<std::vector<EventDefinition const*>> m_interfaceEvents;
-	util::LazyInit<std::multimap<std::string, FunctionDefinition const*>> m_definedFunctionsByName;
-};
-
-
-class StorageLayoutSpecifier : public ASTNode
-{
-public:
-	StorageLayoutSpecifier(
-		int64_t _id,
-		SourceLocation const& _location,
-		ASTPointer<Expression> _baseSlotExpression
-	);
-	void accept(ASTVisitor& _visitor) override;
-	void accept(ASTConstVisitor& _visitor) const override;
-
-	Expression const& baseSlotExpression() const { solAssert(m_baseSlotExpression); return *m_baseSlotExpression; }
-	StorageLayoutSpecifierAnnotation& annotation() const override;
-
-private:
-	ASTPointer<Expression> m_baseSlotExpression;
 };
 
 /**
@@ -634,19 +562,10 @@ private:
 class IdentifierPath: public ASTNode
 {
 public:
-	IdentifierPath(
-		int64_t _id,
-		SourceLocation const& _location,
-		std::vector<ASTString> _path,
-		std::vector<SourceLocation> _pathLocations
-	):
-		ASTNode(_id, _location), m_path(std::move(_path)), m_pathLocations(std::move(_pathLocations))
-	{
-		solAssert(m_pathLocations.size() == m_path.size());
-	}
+	IdentifierPath(int64_t _id, SourceLocation const& _location, std::vector<ASTString> _path):
+		ASTNode(_id, _location), m_path(std::move(_path)) {}
 
 	std::vector<ASTString> const& path() const { return m_path; }
-	std::vector<SourceLocation > const& pathLocations() const { return m_pathLocations; }
 	IdentifierPathAnnotation& annotation() const override
 	{
 		return initAnnotation<IdentifierPathAnnotation>();
@@ -656,8 +575,6 @@ public:
 	void accept(ASTConstVisitor& _visitor) const override;
 private:
 	std::vector<ASTString> m_path;
-	// Corresponding locations for m_path. Array has same length and indices as m_path.
-	std::vector<SourceLocation> m_pathLocations;
 };
 
 class InheritanceSpecifier: public ASTNode
@@ -689,25 +606,9 @@ private:
 };
 
 /**
- * Using for directive:
- *
- * 1. `using LibraryName for T` attaches all functions from the library `LibraryName` to the type `T`.
- * 2. `using LibraryName for *` attaches to all types.
- * 3. `using {f1, f2, ..., fn} for T` attaches the functions `f1`, `f2`, ..., `fn`, respectively to `T`.
- * 4. `using {f1 as op1, f2 as op2, ..., fn as opn} for T` implements operator `opn` for type `T` with function `fn`.
- *
- * For version 3, T has to be implicitly convertible to the first parameter type of
- * all functions, and this is checked at the point of the using statement. For versions 1 and
- * 2, this check is only done when a function is called.
- *
- * For version 4, T has to be user-defined value type and the function must be pure.
- * All parameters and return value of all the functions have to be of type T.
- * This version can be combined with version 3 - a single directive may attach functions to the
- * type and define operators on it at the same time.
- *
- * Finally, `using {f1, f2, ..., fn} for T global` is also valid at file level, as long as T is
- * a user-defined type defined in the same file at file level. In this case, the methods are
- * attached to all objects of that type regardless of scope.
+ * `using LibraryName for uint` will attach all functions from the library LibraryName
+ * to `uint` if the first parameter matches the type. `using LibraryName for *` attaches
+ * the function to any matching type.
  */
 class UsingForDirective: public ASTNode
 {
@@ -715,69 +616,43 @@ public:
 	UsingForDirective(
 		int64_t _id,
 		SourceLocation const& _location,
-		std::vector<ASTPointer<IdentifierPath>> _functionsOrLibrary,
-		std::vector<std::optional<Token>> _operators,
-		bool _usesBraces,
-		ASTPointer<TypeName> _typeName,
-		bool _global
+		ASTPointer<IdentifierPath> _libraryName,
+		ASTPointer<TypeName> _typeName
 	):
-		ASTNode(_id, _location),
-		m_functionsOrLibrary(std::move(_functionsOrLibrary)),
-		m_operators(std::move(_operators)),
-		m_usesBraces(_usesBraces),
-		m_typeName(std::move(_typeName)),
-		m_global{_global}
+		ASTNode(_id, _location), m_libraryName(std::move(_libraryName)), m_typeName(std::move(_typeName))
 	{
-		solAssert(m_functionsOrLibrary.size() == m_operators.size());
+		solAssert(m_libraryName != nullptr, "Name cannot be null.");
 	}
 
 	void accept(ASTVisitor& _visitor) override;
 	void accept(ASTConstVisitor& _visitor) const override;
 
+	IdentifierPath const& libraryName() const { return *m_libraryName; }
 	/// @returns the type name the library is attached to, null for `*`.
 	TypeName const* typeName() const { return m_typeName.get(); }
 
-	/// @returns a list of functions or the single library.
-	std::vector<ASTPointer<IdentifierPath>> const& functionsOrLibrary() const { return m_functionsOrLibrary; }
-	std::vector<std::pair<ASTPointer<IdentifierPath>, std::optional<Token>>> functionsAndOperators() const;
-	bool usesBraces() const { return m_usesBraces; }
-	bool global() const { return m_global; }
-
 private:
-	/// Either the single library or a list of functions.
-	std::vector<ASTPointer<IdentifierPath>> m_functionsOrLibrary;
-	/// Operators, the functions from @a m_functionsOrLibrary implement.
-	/// A token if the corresponding element in m_functionsOrLibrary
-	/// defines an operator, nullptr otherwise.
-	/// Note that this vector size must be equal to m_functionsOrLibrary size.
-	std::vector<std::optional<Token>> m_operators;
-	bool m_usesBraces;
+	ASTPointer<IdentifierPath> m_libraryName;
 	ASTPointer<TypeName> m_typeName;
-	bool m_global = false;
 };
 
-class StructDefinition: public Declaration, public StructurallyDocumented, public ScopeOpener
+class StructDefinition: public Declaration, public ScopeOpener
 {
 public:
 	StructDefinition(
 		int64_t _id,
 		SourceLocation const& _location,
 		ASTPointer<ASTString> const& _name,
-		SourceLocation _nameLocation,
-		std::vector<ASTPointer<VariableDeclaration>> _members,
-		ASTPointer<StructuredDocumentation> _documentation
+		std::vector<ASTPointer<VariableDeclaration>> _members
 	):
-		Declaration(_id, _location, _name, std::move(_nameLocation)),
-		StructurallyDocumented(std::move(_documentation)),
-		m_members(std::move(_members))
-	{}
+		Declaration(_id, _location, _name), m_members(std::move(_members)) {}
 
 	void accept(ASTVisitor& _visitor) override;
 	void accept(ASTConstVisitor& _visitor) const override;
 
 	std::vector<ASTPointer<VariableDeclaration>> const& members() const { return m_members; }
 
-	Type const* type() const override;
+	TypePointer type() const override;
 
 	bool isVisibleInDerivedContracts() const override { return true; }
 	bool isVisibleViaContractTypeAccess() const override { return true; }
@@ -788,22 +663,16 @@ private:
 	std::vector<ASTPointer<VariableDeclaration>> m_members;
 };
 
-class EnumDefinition: public Declaration, public StructurallyDocumented, public ScopeOpener
+class EnumDefinition: public Declaration, public ScopeOpener
 {
 public:
 	EnumDefinition(
 		int64_t _id,
 		SourceLocation const& _location,
 		ASTPointer<ASTString> const& _name,
-		SourceLocation _nameLocation,
-		std::vector<ASTPointer<EnumValue>> _members,
-		ASTPointer<StructuredDocumentation> _documentation
+		std::vector<ASTPointer<EnumValue>> _members
 	):
-		Declaration(_id, _location, _name, std::move(_nameLocation)),
-		StructurallyDocumented(std::move(_documentation)),
-		m_members(std::move(_members))
-	{}
-
+		Declaration(_id, _location, _name), m_members(std::move(_members)) {}
 	void accept(ASTVisitor& _visitor) override;
 	void accept(ASTConstVisitor& _visitor) const override;
 
@@ -812,7 +681,7 @@ public:
 
 	std::vector<ASTPointer<EnumValue>> const& members() const { return m_members; }
 
-	Type const* type() const override;
+	TypePointer type() const override;
 
 	TypeDeclarationAnnotation& annotation() const override;
 
@@ -823,58 +692,16 @@ private:
 /**
  * Declaration of an Enum Value
  */
-class EnumValue: public Declaration, public StructurallyDocumented
+class EnumValue: public Declaration
 {
 public:
-	EnumValue(
-		int64_t _id,
-		SourceLocation const& _location,
-		ASTPointer<ASTString> const& _name,
-		ASTPointer<StructuredDocumentation> _documentation
-	):
-		Declaration(_id, _location, _name, _location),
-		StructurallyDocumented(std::move(_documentation))
-	{
-	}
+	EnumValue(int64_t _id, SourceLocation const& _location, ASTPointer<ASTString> const& _name):
+		Declaration(_id, _location, _name) {}
 
 	void accept(ASTVisitor& _visitor) override;
 	void accept(ASTConstVisitor& _visitor) const override;
 
-	Type const* type() const override;
-};
-
-/**
- * User defined value types, i.e., custom types, for example, `type MyInt is int`. Allows creating a
- * zero cost abstraction over value type with stricter type requirements.
- */
-class UserDefinedValueTypeDefinition: public Declaration
-{
-public:
-	UserDefinedValueTypeDefinition(
-		int64_t _id,
-		SourceLocation const& _location,
-		ASTPointer<ASTString> _name,
-		SourceLocation _nameLocation,
-		ASTPointer<TypeName> _underlyingType
-	):
-		Declaration(_id, _location, _name, std::move(_nameLocation), Visibility::Default),
-		m_underlyingType(std::move(_underlyingType))
-	{
-	}
-
-	void accept(ASTVisitor& _visitor) override;
-	void accept(ASTConstVisitor& _visitor) const override;
-
-	Type const* type() const override;
-
-	TypeDeclarationAnnotation& annotation() const override;
-
-	TypeName const* underlyingType() const { return m_underlyingType.get(); }
-	bool isVisibleViaContractTypeAccess() const override { return true; }
-
-private:
-	/// The name of the underlying type
-	ASTPointer<TypeName> m_underlyingType;
+	TypePointer type() const override;
 };
 
 /**
@@ -902,7 +729,7 @@ private:
 
 /**
  * Base class for all nodes that define function-like objects, i.e. FunctionDefinition,
- * EventDefinition, ErrorDefinition and ModifierDefinition.
+ * EventDefinition and ModifierDefinition.
  */
 class CallableDeclaration: public Declaration, public VariableScope
 {
@@ -911,14 +738,13 @@ public:
 		int64_t _id,
 		SourceLocation const& _location,
 		ASTPointer<ASTString> const& _name,
-		SourceLocation _nameLocation,
 		Visibility _visibility,
 		ASTPointer<ParameterList> _parameters,
 		bool _isVirtual = false,
 		ASTPointer<OverrideSpecifier> _overrides = nullptr,
 		ASTPointer<ParameterList> _returnParameters = ASTPointer<ParameterList>()
 	):
-		Declaration(_id, _location, _name, std::move(_nameLocation), _visibility),
+		Declaration(_id, _location, _name, _visibility),
 		m_parameters(std::move(_parameters)),
 		m_overrides(std::move(_overrides)),
 		m_returnParameters(std::move(_returnParameters)),
@@ -989,7 +815,6 @@ public:
 		int64_t _id,
 		SourceLocation const& _location,
 		ASTPointer<ASTString> const& _name,
-		SourceLocation const& _nameLocation,
 		Visibility _visibility,
 		StateMutability _stateMutability,
 		bool _free,
@@ -1000,22 +825,19 @@ public:
 		ASTPointer<ParameterList> const& _parameters,
 		std::vector<ASTPointer<ModifierInvocation>> _modifiers,
 		ASTPointer<ParameterList> const& _returnParameters,
-		ASTPointer<Block> const& _body,
-		ASTPointer<Expression> const& _experimentalReturnExpression = {}
+		ASTPointer<Block> const& _body
 	):
-		CallableDeclaration(_id, _location, _name, _nameLocation, _visibility, _parameters, _isVirtual, _overrides, _returnParameters),
+		CallableDeclaration(_id, _location, _name, _visibility, _parameters, _isVirtual, _overrides, _returnParameters),
 		StructurallyDocumented(_documentation),
 		ImplementationOptional(_body != nullptr),
 		m_stateMutability(_stateMutability),
 		m_free(_free),
 		m_kind(_kind),
 		m_functionModifiers(std::move(_modifiers)),
-		m_body(_body),
-		m_experimentalReturnExpression(_experimentalReturnExpression)
+		m_body(_body)
 	{
 		solAssert(_kind == Token::Constructor || _kind == Token::Function || _kind == Token::Fallback || _kind == Token::Receive, "");
 		solAssert(isOrdinary() == !name().empty(), "");
-		// TODO: assert _returnParameters implies non-experimental _experimentalReturnExpression implies experimental
 	}
 
 	void accept(ASTVisitor& _visitor) override;
@@ -1052,8 +874,8 @@ public:
 	/// @returns the external identifier of this function (the hash of the signature) as a hex string.
 	std::string externalIdentifierHex() const;
 
-	Type const* type() const override;
-	Type const* typeViaContractName() const override;
+	TypePointer type() const override;
+	TypePointer typeViaContractName() const override;
 
 	/// @param _internal false indicates external interface is concerned, true indicates internal interface is concerned.
 	/// @returns null when it is not accessible as a function.
@@ -1073,15 +895,12 @@ public:
 		ContractDefinition const* _searchStart = nullptr
 	) const override;
 
-	Expression const* experimentalReturnExpression() const { return m_experimentalReturnExpression.get(); }
-
 private:
 	StateMutability m_stateMutability;
 	bool m_free;
 	Token const m_kind;
 	std::vector<ASTPointer<ModifierInvocation>> m_functionModifiers;
 	ASTPointer<Block> m_body;
-	ASTPointer<Expression> m_experimentalReturnExpression;
 };
 
 /**
@@ -1091,7 +910,7 @@ private:
 class VariableDeclaration: public Declaration, public StructurallyDocumented
 {
 public:
-	enum Location { Unspecified, Storage, Transient, Memory, CallData };
+	enum Location { Unspecified, Storage, Memory, CallData };
 	enum class Mutability { Mutable, Immutable, Constant };
 	static std::string mutabilityToString(Mutability _mutability)
 	{
@@ -1109,35 +928,30 @@ public:
 		SourceLocation const& _location,
 		ASTPointer<TypeName> _type,
 		ASTPointer<ASTString> const& _name,
-		SourceLocation _nameLocation,
 		ASTPointer<Expression> _value,
 		Visibility _visibility,
 		ASTPointer<StructuredDocumentation> const _documentation = nullptr,
 		bool _isIndexed = false,
 		Mutability _mutability = Mutability::Mutable,
 		ASTPointer<OverrideSpecifier> _overrides = nullptr,
-		Location _referenceLocation = Location::Unspecified,
-		ASTPointer<Expression> _typeExpression = {}
+		Location _referenceLocation = Location::Unspecified
 	):
-		Declaration(_id, _location, _name, std::move(_nameLocation), _visibility),
+		Declaration(_id, _location, _name, _visibility),
 		StructurallyDocumented(std::move(_documentation)),
 		m_typeName(std::move(_type)),
 		m_value(std::move(_value)),
 		m_isIndexed(_isIndexed),
 		m_mutability(_mutability),
 		m_overrides(std::move(_overrides)),
-		m_location(_referenceLocation),
-		m_typeExpression(std::move(_typeExpression))
+		m_location(_referenceLocation)
 	{
-		// TODO: consider still asserting unless we are in experimental solidity.
-		// solAssert(m_typeName, ""); solAssert(!m_typeExpression, "");
+		solAssert(m_typeName, "");
 	}
 
 
 	void accept(ASTVisitor& _visitor) override;
 	void accept(ASTConstVisitor& _visitor) const override;
 
-	bool hasTypeName() const { return m_typeName != nullptr; }
 	TypeName const& typeName() const { return *m_typeName; }
 	ASTPointer<Expression> const& value() const { return m_value; }
 
@@ -1151,7 +965,7 @@ public:
 	bool isCallableOrCatchParameter() const;
 	/// @returns true if this variable is a return parameter of a function.
 	bool isReturnParameter() const;
-	/// @returns true if this variable is a parameter of the success or failure clause
+	/// @returns true if this variable is a parameter of the success or failure clausse
 	/// of a try/catch statement.
 	bool isTryCatchParameter() const;
 	/// @returns true if this variable is a local variable or return parameter.
@@ -1186,13 +1000,12 @@ public:
 	/// @returns the external identifier of this variable (the hash of the signature) as a hex string (works only for public state variables).
 	std::string externalIdentifierHex() const;
 
-	Type const* type() const override;
+	TypePointer type() const override;
 
 	/// @param _internal false indicates external interface is concerned, true indicates internal interface is concerned.
 	/// @returns null when it is not accessible as a function.
 	FunctionTypePointer functionType(bool /*_internal*/) const override;
 
-	ASTPointer<Expression> const& typeExpression() const { return m_typeExpression; }
 	VariableDeclarationAnnotation& annotation() const override;
 
 protected:
@@ -1208,7 +1021,6 @@ private:
 	Mutability m_mutability = Mutability::Mutable;
 	ASTPointer<OverrideSpecifier> m_overrides; ///< Contains the override specifier node
 	Location m_location = Location::Unspecified; ///< Location of the variable if it is of reference type.
-	ASTPointer<Expression> m_typeExpression;
 };
 
 /**
@@ -1221,14 +1033,13 @@ public:
 		int64_t _id,
 		SourceLocation const& _location,
 		ASTPointer<ASTString> const& _name,
-		SourceLocation _nameLocation,
 		ASTPointer<StructuredDocumentation> const& _documentation,
 		ASTPointer<ParameterList> const& _parameters,
 		bool _isVirtual,
 		ASTPointer<OverrideSpecifier> const& _overrides,
 		ASTPointer<Block> const& _body
 	):
-		CallableDeclaration(_id, _location, _name, std::move(_nameLocation), Visibility::Internal, _parameters, _isVirtual, _overrides),
+		CallableDeclaration(_id, _location, _name, Visibility::Internal, _parameters, _isVirtual, _overrides),
 		StructurallyDocumented(_documentation),
 		ImplementationOptional(_body != nullptr),
 		m_body(_body)
@@ -1240,7 +1051,7 @@ public:
 
 	Block const& body() const { solAssert(m_body, ""); return *m_body; }
 
-	Type const* type() const override;
+	TypePointer type() const override;
 
 	Visibility defaultVisibility() const override { return Visibility::Internal; }
 
@@ -1297,12 +1108,11 @@ public:
 		int64_t _id,
 		SourceLocation const& _location,
 		ASTPointer<ASTString> const& _name,
-		SourceLocation _nameLocation,
 		ASTPointer<StructuredDocumentation> const& _documentation,
 		ASTPointer<ParameterList> const& _parameters,
 		bool _anonymous = false
 	):
-		CallableDeclaration(_id, _location, _name, std::move(_nameLocation), Visibility::Default, _parameters),
+		CallableDeclaration(_id, _location, _name, Visibility::Default, _parameters),
 		StructurallyDocumented(_documentation),
 		m_anonymous(_anonymous)
 	{
@@ -1313,11 +1123,11 @@ public:
 
 	bool isAnonymous() const { return m_anonymous; }
 
-	Type const* type() const override;
+	TypePointer type() const override;
 	FunctionTypePointer functionType(bool /*_internal*/) const override;
 
 	bool isVisibleInDerivedContracts() const override { return true; }
-	bool isVisibleViaContractTypeAccess() const override { return true; }
+	bool isVisibleViaContractTypeAccess() const override { return false; /* TODO */ }
 
 	EventDefinitionAnnotation& annotation() const override;
 
@@ -1334,47 +1144,6 @@ private:
 };
 
 /**
- * Definition of an error type usable in ``revert(MyError(x))``, ``require(condition, MyError(x))``
- * and ``catch MyError(_x)``.
- */
-class ErrorDefinition: public CallableDeclaration, public StructurallyDocumented, public ScopeOpener
-{
-public:
-	ErrorDefinition(
-		int64_t _id,
-		SourceLocation const& _location,
-		ASTPointer<ASTString> const& _name,
-		SourceLocation _nameLocation,
-		ASTPointer<StructuredDocumentation> const& _documentation,
-		ASTPointer<ParameterList> const& _parameters
-	):
-		CallableDeclaration(_id, _location, _name, std::move(_nameLocation), Visibility::Default, _parameters),
-		StructurallyDocumented(_documentation)
-	{
-	}
-
-	void accept(ASTVisitor& _visitor) override;
-	void accept(ASTConstVisitor& _visitor) const override;
-
-	Type const* type() const override;
-
-	FunctionTypePointer functionType(bool _internal) const override;
-
-	bool isVisibleInDerivedContracts() const override { return true; }
-	bool isVisibleViaContractTypeAccess() const override { return true; }
-
-	ErrorDefinitionAnnotation& annotation() const override;
-
-	CallableDeclaration const& resolveVirtual(
-		ContractDefinition const&,
-		ContractDefinition const*
-	) const override
-	{
-		return *this;
-	}
-};
-
-/**
  * Pseudo AST node that is used as declaration for "this", "msg", "tx", "block" and the global
  * functions when such an identifier is encountered. Will never have a valid location in the source code
  */
@@ -1382,7 +1151,7 @@ class MagicVariableDeclaration: public Declaration
 {
 public:
 	MagicVariableDeclaration(int _id, ASTString const& _name, Type const* _type):
-		Declaration(_id, SourceLocation(), std::make_shared<ASTString>(_name), {}), m_type(_type) { }
+		Declaration(_id, SourceLocation(), std::make_shared<ASTString>(_name)), m_type(_type) { }
 
 	void accept(ASTVisitor&) override
 	{
@@ -1398,7 +1167,7 @@ public:
 		solAssert(m_type->category() == Type::Category::Function, "");
 		return dynamic_cast<FunctionType const*>(m_type);
 	}
-	Type const* type() const override { return m_type; }
+	TypePointer type() const override { return m_type; }
 
 private:
 	Type const* m_type;
@@ -1518,37 +1287,18 @@ public:
 		int64_t _id,
 		SourceLocation const& _location,
 		ASTPointer<TypeName> _keyType,
-		ASTPointer<ASTString> _keyName,
-		SourceLocation _keyNameLocation,
-		ASTPointer<TypeName> _valueType,
-		ASTPointer<ASTString> _valueName,
-		SourceLocation _valueNameLocation
+		ASTPointer<TypeName> _valueType
 	):
-		TypeName(_id, _location),
-		m_keyType(std::move(_keyType)),
-		m_keyName(std::move(_keyName)),
-		m_keyNameLocation(std::move(_keyNameLocation)),
-		m_valueType(std::move(_valueType)),
-		m_valueName(std::move(_valueName)),
-		m_valueNameLocation(std::move(_valueNameLocation))
-	{}
+		TypeName(_id, _location), m_keyType(std::move(_keyType)), m_valueType(std::move(_valueType)) {}
 	void accept(ASTVisitor& _visitor) override;
 	void accept(ASTConstVisitor& _visitor) const override;
 
 	TypeName const& keyType() const { return *m_keyType; }
-	ASTString keyName() const { return *m_keyName; }
-	SourceLocation keyNameLocation() const { return m_keyNameLocation; }
 	TypeName const& valueType() const { return *m_valueType; }
-	ASTString valueName() const { return *m_valueName; }
-	SourceLocation valueNameLocation() const { return m_valueNameLocation; }
 
 private:
 	ASTPointer<TypeName> m_keyType;
-	ASTPointer<ASTString> m_keyName;
-	SourceLocation m_keyNameLocation;
 	ASTPointer<TypeName> m_valueType;
-	ASTPointer<ASTString> m_valueName;
-	SourceLocation m_valueNameLocation;
 };
 
 /**
@@ -1607,27 +1357,20 @@ public:
 		SourceLocation const& _location,
 		ASTPointer<ASTString> const& _docString,
 		yul::Dialect const& _dialect,
-		ASTPointer<std::vector<ASTPointer<ASTString>>> _flags,
-		std::shared_ptr<yul::AST> _operations
+		std::shared_ptr<yul::Block> _operations
 	):
-		Statement(_id, _location, _docString),
-		m_dialect(_dialect),
-		m_flags(std::move(_flags)),
-		m_operations(std::move(_operations))
-	{}
+		Statement(_id, _location, _docString), m_dialect(_dialect), m_operations(std::move(_operations)) {}
 	void accept(ASTVisitor& _visitor) override;
 	void accept(ASTConstVisitor& _visitor) const override;
 
 	yul::Dialect const& dialect() const { return m_dialect; }
-	yul::AST const& operations() const { return *m_operations; }
-	ASTPointer<std::vector<ASTPointer<ASTString>>> const& flags() const { return m_flags; }
+	yul::Block const& operations() const { return *m_operations; }
 
 	InlineAssemblyAnnotation& annotation() const override;
 
 private:
 	yul::Dialect const& m_dialect;
-	ASTPointer<std::vector<ASTPointer<ASTString>>> m_flags;
-	std::shared_ptr<yul::AST> m_operations;
+	std::shared_ptr<yul::Block> m_operations;
 };
 
 /**
@@ -1924,31 +1667,6 @@ public:
 };
 
 /**
- * The revert statement is used to revert state changes and return error data.
- */
-class RevertStatement: public Statement
-{
-public:
-	explicit RevertStatement(
-		int64_t _id,
-		SourceLocation const& _location,
-		ASTPointer<ASTString> const& _docString,
-		ASTPointer<FunctionCall> _functionCall
-	):
-		Statement(_id, _location, _docString), m_errorCall(std::move(_functionCall))
-	{
-		solAssert(m_errorCall, "");
-	}
-	void accept(ASTVisitor& _visitor) override;
-	void accept(ASTConstVisitor& _visitor) const override;
-
-	FunctionCall const& errorCall() const { return *m_errorCall; }
-
-private:
-	ASTPointer<FunctionCall> m_errorCall;
-};
-
-/**
  * The emit statement is used to emit events: emit EventName(arg1, ..., argn)
  */
 class EmitStatement: public Statement
@@ -2087,7 +1805,7 @@ public:
 	):
 		Expression(_id, _location),
 		m_leftHandSide(std::move(_leftHandSide)),
-		m_assignmentOperator(_assignmentOperator),
+		m_assigmentOperator(_assignmentOperator),
 		m_rightHandSide(std::move(_rightHandSide))
 	{
 		solAssert(TokenTraits::isAssignmentOp(_assignmentOperator), "");
@@ -2096,12 +1814,12 @@ public:
 	void accept(ASTConstVisitor& _visitor) const override;
 
 	Expression const& leftHandSide() const { return *m_leftHandSide; }
-	Token assignmentOperator() const { return m_assignmentOperator; }
+	Token assignmentOperator() const { return m_assigmentOperator; }
 	Expression const& rightHandSide() const { return *m_rightHandSide; }
 
 private:
 	ASTPointer<Expression> m_leftHandSide;
-	Token m_assignmentOperator;
+	Token m_assigmentOperator;
 	ASTPointer<Expression> m_rightHandSide;
 };
 
@@ -2164,10 +1882,6 @@ public:
 	bool isPrefixOperation() const { return m_isPrefix; }
 	Expression const& subExpression() const { return *m_subExpression; }
 
-	FunctionType const* userDefinedFunctionType() const;
-
-	OperationAnnotation& annotation() const override;
-
 private:
 	Token m_operator;
 	ASTPointer<Expression> m_subExpression;
@@ -2190,8 +1904,7 @@ public:
 	):
 		Expression(_id, _location), m_left(std::move(_left)), m_operator(_operator), m_right(std::move(_right))
 	{
-		// TODO: assert against colon for non-experimental solidity
-		solAssert(TokenTraits::isBinaryOp(_operator) || TokenTraits::isCompareOp(_operator) || _operator == Token::Colon || _operator == Token::RightArrow, "");
+		solAssert(TokenTraits::isBinaryOp(_operator) || TokenTraits::isCompareOp(_operator), "");
 	}
 	void accept(ASTVisitor& _visitor) override;
 	void accept(ASTConstVisitor& _visitor) const override;
@@ -2199,8 +1912,6 @@ public:
 	Expression const& leftExpression() const { return *m_left; }
 	Expression const& rightExpression() const { return *m_right; }
 	Token getOperator() const { return m_operator; }
-
-	FunctionType const* userDefinedFunctionType() const;
 
 	BinaryOperationAnnotation& annotation() const override;
 
@@ -2221,14 +1932,9 @@ public:
 		SourceLocation const& _location,
 		ASTPointer<Expression> _expression,
 		std::vector<ASTPointer<Expression>> _arguments,
-		std::vector<ASTPointer<ASTString>> _names,
-		std::vector<SourceLocation> _nameLocations
+		std::vector<ASTPointer<ASTString>> _names
 	):
-		Expression(_id, _location), m_expression(std::move(_expression)), m_arguments(std::move(_arguments)), m_names(std::move(_names)), m_nameLocations(std::move(_nameLocations))
-	{
-		solAssert(m_nameLocations.size() == m_names.size());
-	}
-
+		Expression(_id, _location), m_expression(std::move(_expression)), m_arguments(std::move(_arguments)), m_names(std::move(_names)) {}
 	void accept(ASTVisitor& _visitor) override;
 	void accept(ASTConstVisitor& _visitor) const override;
 
@@ -2241,7 +1947,6 @@ public:
 	/// in the order they were written.
 	/// If this is not a named call, this is empty.
 	std::vector<ASTPointer<ASTString>> const& names() const { return m_names; }
-	std::vector<SourceLocation> const& nameLocations() const { return m_nameLocations; }
 
 	FunctionCallAnnotation& annotation() const override;
 
@@ -2249,7 +1954,6 @@ private:
 	ASTPointer<Expression> m_expression;
 	std::vector<ASTPointer<Expression>> m_arguments;
 	std::vector<ASTPointer<ASTString>> m_names;
-	std::vector<SourceLocation> m_nameLocations;
 };
 
 /**
@@ -2313,27 +2017,19 @@ public:
 		int64_t _id,
 		SourceLocation const& _location,
 		ASTPointer<Expression> _expression,
-		ASTPointer<ASTString> _memberName,
-		SourceLocation _memberLocation
+		ASTPointer<ASTString> _memberName
 	):
-		Expression(_id, _location),
-		m_expression(std::move(_expression)),
-		m_memberName(std::move(_memberName)),
-		m_memberLocation(std::move(_memberLocation))
-	{}
-
+		Expression(_id, _location), m_expression(std::move(_expression)), m_memberName(std::move(_memberName)) {}
 	void accept(ASTVisitor& _visitor) override;
 	void accept(ASTConstVisitor& _visitor) const override;
 	Expression const& expression() const { return *m_expression; }
 	ASTString const& memberName() const { return *m_memberName; }
-	SourceLocation const& memberLocation() const { return m_memberLocation; }
 
 	MemberAccessAnnotation& annotation() const override;
 
 private:
 	ASTPointer<Expression> m_expression;
 	ASTPointer<ASTString> m_memberName;
-	SourceLocation m_memberLocation;
 };
 
 /**
@@ -2498,201 +2194,6 @@ private:
 	Token m_token;
 	ASTPointer<ASTString> m_value;
 	SubDenomination m_subDenomination;
-};
-
-/// @}
-
-/// Experimental Solidity nodes
-/// @{
-class TypeClassDefinition: public Declaration, public StructurallyDocumented, public ScopeOpener
-{
-public:
-	TypeClassDefinition(
-		int64_t _id,
-		SourceLocation const& _location,
-		ASTPointer<VariableDeclaration> _typeVariable,
-		ASTPointer<ASTString> const& _name,
-		SourceLocation _nameLocation,
-		ASTPointer<StructuredDocumentation> const& _documentation,
-		std::vector<ASTPointer<ASTNode>> _subNodes
-	):
-		Declaration(_id, _location, _name, std::move(_nameLocation)),
-		StructurallyDocumented(_documentation),
-		m_typeVariable(std::move(_typeVariable)),
-		m_subNodes(std::move(_subNodes))
-	{}
-
-	void accept(ASTVisitor& _visitor) override;
-	void accept(ASTConstVisitor& _visitor) const override;
-
-	VariableDeclaration const& typeVariable() const { return *m_typeVariable; }
-	std::vector<ASTPointer<ASTNode>> const& subNodes() const { return m_subNodes; }
-
-	TypeClassDefinitionAnnotation& annotation() const override;
-
-	Type const* type() const override { solAssert(false, "Requested type of experimental solidity node."); }
-
-	bool experimentalSolidityOnly() const override { return true; }
-
-private:
-	ASTPointer<VariableDeclaration> m_typeVariable;
-	std::vector<ASTPointer<ASTNode>> m_subNodes;
-};
-
-class TypeClassInstantiation: public ASTNode, public ScopeOpener
-{
-public:
-	TypeClassInstantiation(
-		int64_t _id,
-		SourceLocation const& _location,
-		ASTPointer<TypeName> _typeConstructor,
-		ASTPointer<ParameterList> _argumentSorts,
-		ASTPointer<TypeClassName> _class,
-		std::vector<ASTPointer<ASTNode>> _subNodes
-	):
-		ASTNode(_id, _location),
-		m_typeConstructor(std::move(_typeConstructor)),
-		m_argumentSorts(std::move(_argumentSorts)),
-		m_class(std::move(_class)),
-		m_subNodes(std::move(_subNodes))
-	{}
-
-	void accept(ASTVisitor& _visitor) override;
-	void accept(ASTConstVisitor& _visitor) const override;
-
-	TypeName const& typeConstructor() const { return *m_typeConstructor; }
-	ParameterList const* argumentSorts() const { return m_argumentSorts.get(); }
-	TypeClassName const& typeClass() const { return *m_class; }
-	std::vector<ASTPointer<ASTNode>> const& subNodes() const { return m_subNodes; }
-
-	bool experimentalSolidityOnly() const override { return true; }
-
-private:
-	ASTPointer<TypeName> m_typeConstructor;
-	ASTPointer<ParameterList> m_argumentSorts;
-	ASTPointer<TypeClassName> m_class;
-	std::vector<ASTPointer<ASTNode>> m_subNodes;
-};
-
-class TypeDefinition: public Declaration, public ScopeOpener
-{
-public:
-	TypeDefinition(
-		int64_t _id,
-		SourceLocation const& _location,
-		ASTPointer<ASTString> _name,
-		SourceLocation _nameLocation,
-		ASTPointer<ParameterList> _arguments,
-		ASTPointer<Expression> _typeExpression
-	):
-		Declaration(_id, _location, _name, std::move(_nameLocation), Visibility::Default),
-		m_arguments(std::move(_arguments)),
-		m_typeExpression(std::move(_typeExpression))
-	{
-	}
-
-	void accept(ASTVisitor& _visitor) override;
-	void accept(ASTConstVisitor& _visitor) const override;
-
-	Type const* type() const override { return nullptr; }
-
-	TypeDeclarationAnnotation& annotation() const override;
-
-	ParameterList const* arguments() const { return m_arguments.get(); }
-	Expression const* typeExpression() const { return m_typeExpression.get(); }
-
-	bool experimentalSolidityOnly() const override { return true; }
-
-private:
-	ASTPointer<ParameterList> m_arguments;
-	ASTPointer<Expression> m_typeExpression;
-};
-
-class TypeClassName: public ASTNode
-{
-public:
-	TypeClassName(
-		int64_t _id,
-		SourceLocation const& _location,
-		std::variant<Token, ASTPointer<IdentifierPath>> _name
-	):
-		ASTNode(_id, _location),
-		m_name(std::move(_name))
-	{
-		if (Token const* token = std::get_if<Token>(&_name))
-			solAssert(TokenTraits::isBuiltinTypeClassName(*token));
-	}
-
-	void accept(ASTVisitor& _visitor) override;
-	void accept(ASTConstVisitor& _visitor) const override;
-
-	bool experimentalSolidityOnly() const override { return true; }
-
-	std::variant<Token, ASTPointer<IdentifierPath>> name() const { return m_name; }
-
-private:
-	std::variant<Token, ASTPointer<IdentifierPath>> m_name;
-};
-
-class Builtin: public Expression
-{
-public:
-	Builtin(
-		int64_t _id,
-		SourceLocation _location,
-		ASTPointer<ASTString> _nameParameter,
-		SourceLocation _nameParameterLocation
-	):
-		Expression(_id, std::move(_location)),
-		m_nameParameter(std::move(_nameParameter)),
-		m_nameParameterLocation(std::move(_nameParameterLocation))
-	{
-		solAssert(m_nameParameter);
-	}
-
-	void accept(ASTVisitor& _visitor) override;
-	void accept(ASTConstVisitor& _visitor) const override;
-
-	bool experimentalSolidityOnly() const override { return true; }
-
-	ASTString const& nameParameter() const { return *m_nameParameter; }
-	SourceLocation const& nameParameterLocation() const { return m_nameParameterLocation; }
-
-private:
-	ASTPointer<ASTString> m_nameParameter;
-	SourceLocation m_nameParameterLocation;
-};
-
-// TODO: NatSpec used on the quantifier should be recognized as applying to the function.
-class ForAllQuantifier: public ASTNode, public Scopable, public ScopeOpener
-{
-public:
-	ForAllQuantifier(
-		int64_t _id,
-		SourceLocation _location,
-		ASTPointer<ParameterList> _typeVariableDeclarations,
-		ASTPointer<FunctionDefinition> _quantifiedDeclaration
-	):
-		ASTNode(_id, std::move(_location)),
-		m_typeVariableDeclarations(std::move(_typeVariableDeclarations)),
-		m_quantifiedDeclaration(std::move(_quantifiedDeclaration))
-	{
-		solAssert(m_typeVariableDeclarations);
-		solAssert(m_quantifiedDeclaration);
-	}
-
-	void accept(ASTVisitor& _visitor) override;
-	void accept(ASTConstVisitor& _visitor) const override;
-	ForAllQuantifierAnnotation& annotation() const override { return initAnnotation<ForAllQuantifierAnnotation>(); }
-
-	bool experimentalSolidityOnly() const override { return true; }
-
-	ParameterList const& typeVariableDeclarations() const { return *m_typeVariableDeclarations; }
-	FunctionDefinition const& quantifiedDeclaration() const { return *m_quantifiedDeclaration; }
-
-private:
-	ASTPointer<ParameterList> m_typeVariableDeclarations;
-	ASTPointer<FunctionDefinition> m_quantifiedDeclaration;
 };
 
 /// @}

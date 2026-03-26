@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 set -ex
 
-ROOTDIR="$(realpath "$(dirname "$0")/../..")"
+ROOTDIR="/root/project"
 BUILDDIR="${ROOTDIR}/build"
 mkdir -p "${BUILDDIR}" && mkdir -p "$BUILDDIR/deps"
 
-function generate_protobuf_bindings
+generate_protobuf_bindings()
 {
   cd "${ROOTDIR}"/test/tools/ossfuzz
   # Generate protobuf C++ bindings
@@ -15,21 +15,12 @@ function generate_protobuf_bindings
   done
 }
 
-function build_fuzzers
+build_fuzzers()
 {
   cd "${BUILDDIR}"
-  export CCACHE_DIR="$HOME/.ccache"
-  export CCACHE_BASEDIR="$ROOTDIR"
-  export CCACHE_NOHASHDIR=1
-  CMAKE_OPTIONS="${CMAKE_OPTIONS:-} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache"
-  mkdir -p "$CCACHE_DIR"
-  # shellcheck disable=SC2086
   cmake .. -DCMAKE_BUILD_TYPE="${CMAKE_BUILD_TYPE:-Release}" \
-    -DCMAKE_TOOLCHAIN_FILE="${ROOTDIR}"/cmake/toolchains/libfuzzer.cmake \
-    $CMAKE_OPTIONS
-  ccache -z
+    -DCMAKE_TOOLCHAIN_FILE="${ROOTDIR}"/cmake/toolchains/libfuzzer.cmake
   make ossfuzz ossfuzz_proto ossfuzz_abiv2 -j 4
-  ccache -s
 }
 
 generate_protobuf_bindings

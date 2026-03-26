@@ -24,13 +24,11 @@
 
 #pragma once
 
+#include <vector>
 #include <map>
-#include <ostream>
 #include <set>
 #include <tuple>
-#include <unordered_map>
-#include <vector>
-#include <liblangutil/EVMVersion.h>
+#include <ostream>
 #include <libsolutil/CommonIO.h>
 #include <libsolutil/Exceptions.h>
 #include <libevmasm/ExpressionClasses.h>
@@ -67,11 +65,7 @@ public:
 	using Id = ExpressionClasses::Id;
 	using StoreOperation = KnownState::StoreOperation;
 
-	explicit CommonSubexpressionEliminator(KnownState const& _state, langutil::EVMVersion _evmVersion):
-		m_initialState(_state),
-		m_state(_state),
-		m_evmVersion(_evmVersion)
-	{}
+	explicit CommonSubexpressionEliminator(KnownState const& _state): m_initialState(_state), m_state(_state) {}
 
 	/// Feeds AssemblyItems into the eliminator and @returns the iterator pointing at the first
 	/// item that must be fed into a new instance of the eliminator.
@@ -98,7 +92,6 @@ private:
 	/// The item that breaks the basic block, can be nullptr.
 	/// It is usually appended to the block but can be optimized in some cases.
 	AssemblyItem const* m_breakingItem = nullptr;
-	langutil::EVMVersion const m_evmVersion;
 };
 
 /**
@@ -114,11 +107,7 @@ public:
 
 	/// Initializes the code generator with the given classes and store operations.
 	/// The store operations have to be sorted by sequence number in ascending order.
-	CSECodeGenerator(
-		ExpressionClasses& _expressionClasses,
-		StoreOperations const& _storeOperations,
-		langutil::EVMVersion _evmVersion
-	);
+	CSECodeGenerator(ExpressionClasses& _expressionClasses, StoreOperations const& _storeOperations);
 
 	/// @returns the assembly items generated from the given requirements
 	/// @param _initialSequenceNumber starting sequence number, do not generate sequenced operations
@@ -152,10 +141,10 @@ private:
 	bool removeStackTopIfPossible();
 
 	/// Appends a dup instruction to m_generatedItems to retrieve the element at the given stack position.
-	void appendDup(int _fromPosition,  langutil::DebugData::ConstPtr _debugData);
+	void appendDup(int _fromPosition, langutil::SourceLocation const& _location);
 	/// Appends a swap instruction to m_generatedItems to retrieve the element at the given stack position.
 	/// @note this might also remove the last item if it exactly the same swap instruction.
-	void appendOrRemoveSwap(int _fromPosition,  langutil::DebugData::ConstPtr _debugData);
+	void appendOrRemoveSwap(int _fromPosition, langutil::SourceLocation const& _location);
 	/// Appends the given assembly item.
 	void appendItem(AssemblyItem const& _item);
 
@@ -165,11 +154,11 @@ private:
 	/// Current height of the stack relative to the start.
 	int m_stackHeight = 0;
 	/// If (b, a) is in m_requests then b is needed to compute a.
-	std::unordered_multimap<Id, Id> m_neededBy;
+	std::multimap<Id, Id> m_neededBy;
 	/// Current content of the stack.
 	std::map<int, Id> m_stack;
 	/// Current positions of equivalence classes, equal to the empty set if already deleted.
-	std::unordered_map<Id, std::set<int>> m_classPositions;
+	std::map<Id, std::set<int>> m_classPositions;
 
 	/// The actual equivalence class items and how to compute them.
 	ExpressionClasses& m_expressionClasses;
@@ -179,7 +168,6 @@ private:
 	/// The set of equivalence classes that should be present on the stack at the end.
 	std::set<Id> m_finalClasses;
 	std::map<int, Id> m_targetStack;
-	langutil::EVMVersion const m_evmVersion;
 };
 
 template <class AssemblyItemIterator>
@@ -190,15 +178,9 @@ AssemblyItemIterator CommonSubexpressionEliminator::feedItems(
 )
 {
 	assertThrow(!m_breakingItem, OptimizerException, "Invalid use of CommonSubexpressionEliminator.");
-	unsigned const maxChunkSize = 2000;
-	unsigned chunkSize = 0;
-	for (
-		;
-		_iterator != _end && !SemanticInformation::breaksCSEAnalysisBlock(*_iterator, _msizeImportant) && chunkSize < maxChunkSize;
-		++_iterator, ++chunkSize
-	)
+	for (; _iterator != _end && !SemanticInformation::breaksCSEAnalysisBlock(*_iterator, _msizeImportant); ++_iterator)
 		feedItem(*_iterator);
-	if (_iterator != _end && chunkSize < maxChunkSize)
+	if (_iterator != _end)
 		m_breakingItem = &(*_iterator++);
 	return _iterator;
 }

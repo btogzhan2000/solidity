@@ -25,7 +25,4 @@ contract C is B {
         validate()
     {}
 }
-// ====
-// bytecodeFormat: legacy
 // ----
-// Warning 9511: (B:0-19): ABI coder v1 is deprecated and scheduled for removal. Use ABI coder v2 instead.

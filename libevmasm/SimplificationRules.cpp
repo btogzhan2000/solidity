@@ -26,12 +26,14 @@
 
 #include <libevmasm/ExpressionClasses.h>
 #include <libevmasm/Assembly.h>
+#include <libevmasm/CommonSubexpressionEliminator.h>
 #include <libevmasm/RuleList.h>
 #include <libsolutil/Assertions.h>
 
 #include <utility>
 #include <functional>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::evmasm;
 using namespace solidity::langutil;
@@ -91,7 +93,7 @@ Rules::Rules()
 	Y.setMatchGroup(6, m_matchGroups);
 	Z.setMatchGroup(7, m_matchGroups);
 
-	addRules(simplificationRuleList(std::nullopt, A, B, C, W, X, Y, Z));
+	addRules(simplificationRuleList(nullopt, A, B, C, W, X, Y, Z));
 	assertThrow(isInitialized(), OptimizerException, "Rule list not properly initialized.");
 }
 
@@ -102,7 +104,7 @@ Pattern::Pattern(Instruction _instruction, std::initializer_list<Pattern> _argum
 {
 }
 
-void Pattern::setMatchGroup(unsigned _group, std::map<unsigned, Expression const*>& _matchGroups)
+void Pattern::setMatchGroup(unsigned _group, map<unsigned, Expression const*>& _matchGroups)
 {
 	m_matchGroup = _group;
 	m_matchGroups = &_matchGroups;
@@ -126,26 +128,25 @@ bool Pattern::matches(Expression const& _expr, ExpressionClasses const& _classes
 	return true;
 }
 
-AssemblyItem Pattern::toAssemblyItem(langutil::DebugData::ConstPtr _debugData) const
+AssemblyItem Pattern::toAssemblyItem(SourceLocation const& _location) const
 {
 	if (m_type == Operation)
-		return AssemblyItem(m_instruction, std::move(_debugData));
+		return AssemblyItem(m_instruction, _location);
 	else
-		return AssemblyItem(m_type, data(), std::move(_debugData));
+		return AssemblyItem(m_type, data(), _location);
 }
 
-std::string Pattern::toString() const
+string Pattern::toString() const
 {
-	std::stringstream s;
+	stringstream s;
 	switch (m_type)
 	{
 	case Operation:
-		// Note: This function is exclusively used for debugging.
-		s << instructionInfo(m_instruction, EVMVersion()).name;
+		s << instructionInfo(m_instruction).name;
 		break;
 	case Push:
 		if (m_data)
-			s << "PUSH " << std::hex << data();
+			s << "PUSH " << hex << data();
 		else
 			s << "PUSH ";
 		break;
@@ -154,15 +155,15 @@ std::string Pattern::toString() const
 		break;
 	default:
 		if (m_data)
-			s << "t=" << std::dec << m_type << " d=" << std::hex << data();
+			s << "t=" << dec << m_type << " d=" << hex << data();
 		else
-			s << "t=" << std::dec << m_type << " d: nullptr";
+			s << "t=" << dec << m_type << " d: nullptr";
 		break;
 	}
 	if (!m_requireDataMatch)
 		s << " ~";
 	if (m_matchGroup)
-		s << "[" << std::dec << m_matchGroup << "]";
+		s << "[" << dec << m_matchGroup << "]";
 	s << "(";
 	for (Pattern const& p: m_arguments)
 		s << p.toString() << ", ";
@@ -199,7 +200,7 @@ u256 const& Pattern::data() const
 	return *m_data;
 }
 
-ExpressionTemplate::ExpressionTemplate(Pattern const& _pattern, langutil::DebugData::ConstPtr const& _debugData)
+ExpressionTemplate::ExpressionTemplate(Pattern const& _pattern, SourceLocation const& _location)
 {
 	if (_pattern.matchGroup())
 	{
@@ -209,15 +210,15 @@ ExpressionTemplate::ExpressionTemplate(Pattern const& _pattern, langutil::DebugD
 	else
 	{
 		hasId = false;
-		item = _pattern.toAssemblyItem(_debugData);
+		item = _pattern.toAssemblyItem(_location);
 	}
 	for (auto const& arg: _pattern.arguments())
-		arguments.emplace_back(arg, _debugData);
+		arguments.emplace_back(arg, _location);
 }
 
-std::string ExpressionTemplate::toString() const
+string ExpressionTemplate::toString() const
 {
-	std::stringstream s;
+	stringstream s;
 	if (hasId)
 		s << id;
 	else

@@ -1,13 +1,7 @@
-Warning: 'transfer' is deprecated and scheduled for removal. Use 'call{value: <amount>}("")' instead.
-  --> input.sol:10:3:
-   |
-10 | 		a.transfer(x);
-   | 		^^^^^^^^^^
-
 Warning: BMC: Insufficient funds happens here.
-  --> input.sol:10:3:
+  --> model_checker_targets_balance_bmc/input.sol:11:3:
    |
-10 | 		a.transfer(x);
+11 | 		a.transfer(x);
    | 		^^^^^^^^^^^^^
 Note: Counterexample:
   a = 0

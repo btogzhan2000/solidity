@@ -3,15 +3,15 @@ interface I {
     function g() external;
 }
 abstract contract A is I {
-    function f() external {}
-    function g() external virtual;
+    function f() external override {}
+    function g() external override virtual;
 }
 abstract contract B is I {
-    function g() external {}
-    function f() external virtual;
+    function g() external override {}
+    function f() external override virtual;
 }
 contract C is A, B {
 }
 // ----
-// TypeError 6480: (256-278): Derived contract must override function "f". Two or more base classes define function with same name and parameter types.
-// TypeError 6480: (256-278): Derived contract must override function "g". Two or more base classes define function with same name and parameter types.
+// TypeError 6480: (292-314): Derived contract must override function "f". Two or more base classes define function with same name and parameter types.
+// TypeError 6480: (292-314): Derived contract must override function "g". Two or more base classes define function with same name and parameter types.

@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint[] arr;
 	function f() public view {
@@ -7,8 +9,5 @@ contract C {
 		assert(arr.length != y);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (120-143): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (153-176): CHC: Assertion violation happens here.\nCounterexample:\narr = []\n\nTransaction trace:\nC.constructor()\nState: arr = []\nC.f()

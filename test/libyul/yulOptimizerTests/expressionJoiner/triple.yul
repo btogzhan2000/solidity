@@ -9,7 +9,5 @@
 // step: expressionJoiner
 //
 // {
-//     {
-//         sstore(mul(add(mload(7), mload(6)), mload(2)), 3)
-//     }
+//     sstore(mul(add(mload(7), mload(6)), mload(2)), 3)
 // }

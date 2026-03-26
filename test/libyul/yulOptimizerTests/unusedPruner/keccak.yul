@@ -7,8 +7,6 @@
 // step: unusedPruner
 //
 // {
-//     {
-//         pop(keccak256(1, 1))
-//         sstore(0, msize())
-//     }
+//     pop(keccak256(1, 1))
+//     sstore(0, msize())
 // }

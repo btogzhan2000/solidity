@@ -23,12 +23,10 @@
 
 #include <liblangutil/ErrorReporter.h>
 #include <liblangutil/SourceLocation.h>
-
-#include <libsolutil/Exceptions.h>
-
-#include <range/v3/algorithm/find_if.hpp>
+#include <cstdlib>
 #include <memory>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::langutil;
 
@@ -40,7 +38,7 @@ ErrorReporter& ErrorReporter::operator=(ErrorReporter const& _errorReporter)
 	return *this;
 }
 
-void ErrorReporter::warning(ErrorId _error, std::string const& _description)
+void ErrorReporter::warning(ErrorId _error, string const& _description)
 {
 	error(_error, Error::Type::Warning, SourceLocation(), _description);
 }
@@ -48,7 +46,7 @@ void ErrorReporter::warning(ErrorId _error, std::string const& _description)
 void ErrorReporter::warning(
 	ErrorId _error,
 	SourceLocation const& _location,
-	std::string const& _description
+	string const& _description
 )
 {
 	error(_error, Error::Type::Warning, _location, _description);
@@ -57,42 +55,32 @@ void ErrorReporter::warning(
 void ErrorReporter::warning(
 	ErrorId _error,
 	SourceLocation const& _location,
-	std::string const& _description,
+	string const& _description,
 	SecondarySourceLocation const& _secondaryLocation
 )
 {
 	error(_error, Error::Type::Warning, _location, _secondaryLocation, _description);
 }
 
-void ErrorReporter::error(ErrorId _errorId, Error::Type _type, SourceLocation const& _location, std::string const& _description)
+void ErrorReporter::error(ErrorId _errorId, Error::Type _type, SourceLocation const& _location, string const& _description)
 {
 	if (checkForExcessiveErrors(_type))
 		return;
 
-	m_errorList.push_back(std::make_shared<Error>(_errorId, _type, _description, _location));
+	m_errorList.push_back(make_shared<Error>(_errorId, _type, _description, _location));
 }
 
-void ErrorReporter::error(ErrorId _errorId, Error::Type _type, SourceLocation const& _location, SecondarySourceLocation const& _secondaryLocation, std::string const& _description)
+void ErrorReporter::error(ErrorId _errorId, Error::Type _type, SourceLocation const& _location, SecondarySourceLocation const& _secondaryLocation, string const& _description)
 {
 	if (checkForExcessiveErrors(_type))
 		return;
 
-	m_errorList.push_back(std::make_shared<Error>(_errorId, _type, _description, _location, _secondaryLocation));
+	m_errorList.push_back(make_shared<Error>(_errorId, _type, _description, _location, _secondaryLocation));
 }
 
 bool ErrorReporter::hasExcessiveErrors() const
 {
 	return m_errorCount > c_maxErrorsAllowed;
-}
-
-bool ErrorReporter::hasError(ErrorId _errorId) const
-{
-	auto errorMatch = [&](std::shared_ptr<Error const> const& error) -> bool {
-		solAssert(error.get());
-		return error->errorId() == _errorId;
-	};
-
-	return ranges::find_if(m_errorList, errorMatch) != ranges::end(m_errorList);
 }
 
 bool ErrorReporter::checkForExcessiveErrors(Error::Type _type)
@@ -102,19 +90,9 @@ bool ErrorReporter::checkForExcessiveErrors(Error::Type _type)
 		m_warningCount++;
 
 		if (m_warningCount == c_maxWarningsAllowed)
-			m_errorList.push_back(std::make_shared<Error>(4591_error, Error::Type::Warning, "There are more than 256 warnings. Ignoring the rest."));
+			m_errorList.push_back(make_shared<Error>(4591_error, Error::Type::Warning, "There are more than 256 warnings. Ignoring the rest."));
 
 		if (m_warningCount >= c_maxWarningsAllowed)
-			return true;
-	}
-	else if (_type == Error::Type::Info)
-	{
-		m_infoCount++;
-
-		if (m_infoCount == c_maxInfosAllowed)
-			m_errorList.push_back(std::make_shared<Error>(2833_error, Error::Type::Info, "There are more than 256 infos. Ignoring the rest."));
-
-		if (m_infoCount >= c_maxInfosAllowed)
 			return true;
 	}
 	else
@@ -123,24 +101,24 @@ bool ErrorReporter::checkForExcessiveErrors(Error::Type _type)
 
 		if (m_errorCount > c_maxErrorsAllowed)
 		{
-			m_errorList.push_back(std::make_shared<Error>(4013_error, Error::Type::Warning, "There are more than 256 errors. Aborting."));
-			solThrow(FatalError, "There are more than 256 errors. Aborting.");
+			m_errorList.push_back(make_shared<Error>(4013_error, Error::Type::Warning, "There are more than 256 errors. Aborting."));
+			BOOST_THROW_EXCEPTION(FatalError());
 		}
 	}
 
 	return false;
 }
 
-void ErrorReporter::fatalError(ErrorId _error, Error::Type _type, SourceLocation const& _location, SecondarySourceLocation const& _secondaryLocation, std::string const& _description)
+void ErrorReporter::fatalError(ErrorId _error, Error::Type _type, SourceLocation const& _location, SecondarySourceLocation const& _secondaryLocation, string const& _description)
 {
 	error(_error, _type, _location, _secondaryLocation, _description);
-	solThrow(FatalError, _description);
+	BOOST_THROW_EXCEPTION(FatalError());
 }
 
-void ErrorReporter::fatalError(ErrorId _error, Error::Type _type, SourceLocation const& _location, std::string const& _description)
+void ErrorReporter::fatalError(ErrorId _error, Error::Type _type, SourceLocation const& _location, string const& _description)
 {
 	error(_error, _type, _location, _description);
-	solThrow(FatalError, _description);
+	BOOST_THROW_EXCEPTION(FatalError());
 }
 
 ErrorList const& ErrorReporter::errors() const
@@ -153,7 +131,7 @@ void ErrorReporter::clear()
 	m_errorList.clear();
 }
 
-void ErrorReporter::declarationError(ErrorId _error, SourceLocation const& _location, SecondarySourceLocation const& _secondaryLocation, std::string const& _description)
+void ErrorReporter::declarationError(ErrorId _error, SourceLocation const& _location, SecondarySourceLocation const& _secondaryLocation, string const& _description)
 {
 	error(
 		_error,
@@ -164,7 +142,7 @@ void ErrorReporter::declarationError(ErrorId _error, SourceLocation const& _loca
 	);
 }
 
-void ErrorReporter::declarationError(ErrorId _error, SourceLocation const& _location, std::string const& _description)
+void ErrorReporter::declarationError(ErrorId _error, SourceLocation const& _location, string const& _description)
 {
 	error(
 		_error,
@@ -183,7 +161,7 @@ void ErrorReporter::fatalDeclarationError(ErrorId _error, SourceLocation const& 
 		_description);
 }
 
-void ErrorReporter::parserError(ErrorId _error, SourceLocation const& _location, std::string const& _description)
+void ErrorReporter::parserError(ErrorId _error, SourceLocation const& _location, string const& _description)
 {
 	error(
 		_error,
@@ -193,18 +171,7 @@ void ErrorReporter::parserError(ErrorId _error, SourceLocation const& _location,
 	);
 }
 
-void ErrorReporter::parserError(ErrorId _error, SourceLocation const& _location, SecondarySourceLocation const& _secondaryLocation, std::string const& _description)
-{
-	error(
-		_error,
-		Error::Type::ParserError,
-		_location,
-		_secondaryLocation,
-		_description
-	);
-}
-
-void ErrorReporter::fatalParserError(ErrorId _error, SourceLocation const& _location, std::string const& _description)
+void ErrorReporter::fatalParserError(ErrorId _error, SourceLocation const& _location, string const& _description)
 {
 	fatalError(
 		_error,
@@ -214,7 +181,7 @@ void ErrorReporter::fatalParserError(ErrorId _error, SourceLocation const& _loca
 	);
 }
 
-void ErrorReporter::syntaxError(ErrorId _error, SourceLocation const& _location, std::string const& _description)
+void ErrorReporter::syntaxError(ErrorId _error, SourceLocation const& _location, string const& _description)
 {
 	error(
 		_error,
@@ -224,7 +191,7 @@ void ErrorReporter::syntaxError(ErrorId _error, SourceLocation const& _location,
 	);
 }
 
-void ErrorReporter::typeError(ErrorId _error, SourceLocation const& _location, SecondarySourceLocation const& _secondaryLocation, std::string const& _description)
+void ErrorReporter::typeError(ErrorId _error, SourceLocation const& _location, SecondarySourceLocation const& _secondaryLocation, string const& _description)
 {
 	error(
 		_error,
@@ -235,7 +202,7 @@ void ErrorReporter::typeError(ErrorId _error, SourceLocation const& _location, S
 	);
 }
 
-void ErrorReporter::typeError(ErrorId _error, SourceLocation const& _location, std::string const& _description)
+void ErrorReporter::typeError(ErrorId _error, SourceLocation const& _location, string const& _description)
 {
 	error(
 		_error,
@@ -246,7 +213,7 @@ void ErrorReporter::typeError(ErrorId _error, SourceLocation const& _location, s
 }
 
 
-void ErrorReporter::fatalTypeError(ErrorId _error, SourceLocation const& _location, SecondarySourceLocation const& _secondaryLocation, std::string const& _description)
+void ErrorReporter::fatalTypeError(ErrorId _error, SourceLocation const& _location, SecondarySourceLocation const& _secondaryLocation, string const& _description)
 {
 	fatalError(
 		_error,
@@ -257,7 +224,7 @@ void ErrorReporter::fatalTypeError(ErrorId _error, SourceLocation const& _locati
 	);
 }
 
-void ErrorReporter::fatalTypeError(ErrorId _error, SourceLocation const& _location, std::string const& _description)
+void ErrorReporter::fatalTypeError(ErrorId _error, SourceLocation const& _location, string const& _description)
 {
 	fatalError(
 		_error,
@@ -267,7 +234,17 @@ void ErrorReporter::fatalTypeError(ErrorId _error, SourceLocation const& _locati
 	);
 }
 
-void ErrorReporter::docstringParsingError(ErrorId _error, SourceLocation const& _location, std::string const& _description)
+void ErrorReporter::docstringParsingError(ErrorId _error, string const& _description)
+{
+	error(
+		_error,
+		Error::Type::DocstringParsingError,
+		SourceLocation(),
+		_description
+	);
+}
+
+void ErrorReporter::docstringParsingError(ErrorId _error, SourceLocation const& _location, string const& _description)
 {
 	error(
 		_error,
@@ -275,45 +252,4 @@ void ErrorReporter::docstringParsingError(ErrorId _error, SourceLocation const& 
 		_location,
 		_description
 	);
-}
-
-void ErrorReporter::unimplementedFeatureError(ErrorId _error, SourceLocation const& _location, std::string const& _description)
-{
-	error(
-		_error,
-		Error::Type::UnimplementedFeatureError,
-		_location,
-		_description
-	);
-}
-
-void ErrorReporter::codeGenerationError(ErrorId _error, SourceLocation const& _location, std::string const& _description)
-{
-	error(_error, Error::Type::CodeGenerationError, _location, _description);
-}
-
-void ErrorReporter::codeGenerationError(Error const& _error)
-{
-	solAssert(_error.type() == Error::Type::CodeGenerationError);
-	solAssert(_error.comment(), "Errors must include a message for the user.");
-	solUnimplementedAssert(!_error.secondarySourceLocation(), "Secondary locations not supported yet.");
-	codeGenerationError(
-		_error.errorId(),
-		_error.sourceLocation() ?  *_error.sourceLocation() : SourceLocation{},
-		*_error.comment()
-	);
-}
-
-void ErrorReporter::info(
-	ErrorId _error,
-	SourceLocation const& _location,
-	std::string const& _description
-)
-{
-	error(_error, Error::Type::Info, _location, _description);
-}
-
-void ErrorReporter::info(ErrorId _error, std::string const& _description)
-{
-	error(_error, Error::Type::Info, SourceLocation(), _description);
 }

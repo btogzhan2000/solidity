@@ -22,23 +22,22 @@
 #pragma once
 
 #include <libyul/ASTForward.h>
-#include <libyul/YulName.h>
+#include <libyul/YulString.h>
 #include <libyul/optimiser/OptimiserStep.h>
 #include <libyul/optimiser/NameDispenser.h>
 #include <liblangutil/EVMVersion.h>
 
 #include <set>
 #include <string>
-#include <string_view>
 #include <memory>
 
 namespace solidity::yul
 {
 
 struct AsmAnalysisInfo;
-class Dialect;
+struct Dialect;
 class GasMeter;
-class Object;
+struct Object;
 
 /**
  * Optimiser suite that combines all steps and also provides the settings for the heuristics.
@@ -51,7 +50,7 @@ public:
 
 	/// Special characters that do not represent optimiser steps but are allowed in abbreviation sequences.
 	/// Some of them (like whitespace) are ignored, others (like brackets) are a part of the syntax.
-	static constexpr char NonStepAbbreviations[] = " \n[]:";
+	static constexpr char NonStepAbbreviations[] = " \n[]";
 
 	enum class Debug
 	{
@@ -59,36 +58,45 @@ public:
 		PrintStep,
 		PrintChanges
 	};
-	OptimiserSuite(OptimiserStepContext& _context, Debug _debug = Debug::None): m_context(_context), m_debug(_debug) {}
-
-	/// The value nullopt for `_expectedExecutionsPerDeployment` represents creation code.
 	static void run(
+		Dialect const& _dialect,
 		GasMeter const* _meter,
 		Object& _object,
 		bool _optimizeStackAllocation,
-		std::string_view _optimisationSequence,
-		std::string_view _optimisationCleanupSequence,
-		std::optional<size_t> _expectedExecutionsPerDeployment,
-		std::set<YulName> const& _externallyUsedIdentifiers = {}
+		std::string const& _optimisationSequence,
+		std::set<YulString> const& _externallyUsedIdentifiers = {}
 	);
 
 	/// Ensures that specified sequence of step abbreviations is well-formed and can be executed.
 	/// @throw OptimizerException if the sequence is invalid
-	static void validateSequence(std::string_view _stepAbbreviations);
-	/// Check whether the provided sequence is empty provided that the allowed characters are
-	/// whitespace, newline and :
-	static bool isEmptyOptimizerSequence(std::string const& _sequence);
-
+	static void validateSequence(std::string const& _stepAbbreviations);
 
 	void runSequence(std::vector<std::string> const& _steps, Block& _ast);
-	void runSequence(std::string_view _stepAbbreviations, Block& _ast, bool _repeatUntilStable = false);
+	void runSequence(std::string const& _stepAbbreviations, Block& _ast);
+	void runSequenceUntilStable(
+		std::vector<std::string> const& _steps,
+		Block& _ast,
+		size_t maxRounds = MaxRounds
+	);
 
 	static std::map<std::string, std::unique_ptr<OptimiserStep>> const& allSteps();
 	static std::map<std::string, char> const& stepNameToAbbreviationMap();
 	static std::map<char, std::string> const& stepAbbreviationToNameMap();
 
 private:
-	OptimiserStepContext& m_context;
+	OptimiserSuite(
+		Dialect const& _dialect,
+		std::set<YulString> const& _externallyUsedIdentifiers,
+		Debug _debug,
+		Block& _ast
+	):
+		m_dispenser{_dialect, _ast, _externallyUsedIdentifiers},
+		m_context{_dialect, m_dispenser, _externallyUsedIdentifiers},
+		m_debug(_debug)
+	{}
+
+	NameDispenser m_dispenser;
+	OptimiserStepContext m_context;
 	Debug m_debug;
 };
 

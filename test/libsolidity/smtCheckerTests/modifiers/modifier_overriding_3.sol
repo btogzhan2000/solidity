@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 abstract contract A {
 	bool s;
 
@@ -15,10 +17,6 @@ contract B is A {
 		_;
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 8429: (125-148): Virtual modifiers are deprecated and scheduled for removal.
-// Warning 8429: (171-238): Virtual modifiers are deprecated and scheduled for removal.
-// Warning 6328: (94-104): CHC: Assertion violation happens here.\nCounterexample:\ns = true\nx = true\n\nTransaction trace:\nB.constructor()\nState: s = false\nA.f()
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 5740: (95-156): Unreachable code.
+// Warning 6328: (127-137): CHC: Assertion violation happens here.\nCounterexample:\ns = true\n\nTransaction trace:\nB.constructor()\nState: s = false\nA.f()

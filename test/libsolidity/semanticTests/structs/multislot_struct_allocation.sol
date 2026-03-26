@@ -15,5 +15,10 @@ contract C {
     return s.a.x(1);
   }
 }
+
+
+
+// ====
+// compileViaYul: also
 // ----
 // f() -> 2

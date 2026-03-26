@@ -22,6 +22,7 @@
 #include <libsolidity/ast/ASTAnnotations.h>
 #include <liblangutil/EVMVersion.h>
 
+#include <boost/noncopyable.hpp>
 #include <list>
 #include <map>
 
@@ -60,7 +61,6 @@ private:
 	void endVisit(VariableDeclaration const& _variable) override;
 	bool visit(EnumDefinition const& _enum) override;
 	bool visit(StructDefinition const& _struct) override;
-	void endVisit(UserDefinedValueTypeDefinition const& _userDefined) override;
 	bool visit(UsingForDirective const& _usingForDirective) override;
 	bool visit(InheritanceSpecifier const& _inheritanceSpecifier) override;
 

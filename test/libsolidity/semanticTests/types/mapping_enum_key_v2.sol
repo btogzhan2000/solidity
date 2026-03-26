@@ -10,6 +10,7 @@ contract test {
     }
 }
 // ====
+// compileViaYul: also
 // EVMVersion: >=byzantium
 // ----
 // get(uint8): 0 -> 0

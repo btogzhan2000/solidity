@@ -3,4 +3,3 @@ library Test {
     struct X { Nested n; }
     function f(X storage x) public {}
 }
-// ----

@@ -15,4 +15,3 @@ contract C is D {
     function m() viewm(x = 2) public {}
     function n() nonpayablem(x = 2) public {}
 }
-// ----

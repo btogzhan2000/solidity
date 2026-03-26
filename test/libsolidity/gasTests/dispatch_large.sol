@@ -22,16 +22,13 @@ contract Large {
     function g9(uint x) public payable returns (uint) { b[uint8(msg.data[8])] = x; }
     function g0(uint x) public payable returns (uint) { require(x > 10); }
 }
-// ====
-// EVMVersion: =current
-// bytecodeFormat: legacy
 // ----
 // creation:
-//   codeDepositCost: 618400
-//   executionCost: 649
-//   totalCost: 619049
+//   codeDepositCost: 913400
+//   executionCost: 948
+//   totalCost: 914348
 // external:
-//   a(): 2470
+//   a(): 1175
 //   b(uint256): infinite
 //   f0(uint256): infinite
 //   f1(uint256): infinite

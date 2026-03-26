@@ -4,5 +4,7 @@ contract test {
         return escapeCharacters;
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // f() -> 0x090a0d27225c0000000000000000000000000000000000000000000000000000

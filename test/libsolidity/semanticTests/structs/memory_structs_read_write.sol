@@ -49,6 +49,9 @@ contract Test {
         a = s.a[1];
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // testInit() -> 0, 0, 0, 0, true
 // testCopyRead() -> 1, 2, 3, 4

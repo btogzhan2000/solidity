@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract c {
 	mapping(uint => uint) x;
 	function f(mapping(uint => uint) storage map, uint index, uint value) internal {
@@ -9,8 +11,5 @@ contract c {
 		assert(x[a] == b);
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreCex: yes
 // ----
-// Warning 6328: (256-273): CHC: Assertion violation happens here.
+// Warning 6328: (289-306): CHC: Assertion violation happens here.\nCounterexample:\n\na = 38\nb = 21238\n\nTransaction trace:\nc.constructor()\nc.g(38, 21238)\n    c.f(map, 38, 21238) -- internal call

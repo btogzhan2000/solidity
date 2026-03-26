@@ -16,4 +16,3 @@ contract X is A, B, C, D {
 	function test() internal override returns (uint256) {}
 	function foo() internal override(A, B, C, D) returns (uint256) {}
 }
-// ----

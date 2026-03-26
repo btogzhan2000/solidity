@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	function f(uint a, uint b) public pure {
 		require(a < 10);
@@ -7,9 +9,5 @@ contract C {
 		assert(c > a);
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreCex: yes
 // ----
-// Warning 6328: (128-141): CHC: Assertion violation happens here.
-// Info 1391: CHC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (161-174): CHC: Assertion violation happens here.\nCounterexample:\n\na = 0\nb = 1\n\nTransaction trace:\nC.constructor()\nC.f(0, 0)

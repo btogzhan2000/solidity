@@ -13,6 +13,7 @@ contract C {
 }
 // ====
 // EVMVersion: >=byzantium
+// compileViaYul: also
 // ----
 // f(bool): true -> 13
 // f(bool): false -> 9

@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 
 	function test() public pure {
@@ -15,8 +17,5 @@ contract C {
 		return 1; // dead code
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 5740: (232-240): Unreachable code.
-// Info 1391: CHC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 5740: (265-273): Unreachable code.

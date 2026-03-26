@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint[][] b;
 	function f() public {
@@ -11,7 +13,3 @@ contract C {
 		assert(b[length - 1][length1 - 1] == 0);
 	}
 }
-// ====
-// SMTEngine: all
-// ----
-// Info 1391: CHC: 12 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

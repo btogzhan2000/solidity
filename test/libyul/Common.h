@@ -21,14 +21,11 @@
 
 #pragma once
 
-#include <libsolidity/interface/OptimiserSettings.h>
-
 #include <liblangutil/EVMVersion.h>
 
 #include <string>
 #include <vector>
 #include <memory>
-#include <optional>
 
 namespace solidity::langutil
 {
@@ -40,31 +37,24 @@ namespace solidity::yul
 {
 struct AsmAnalysisInfo;
 struct Block;
-class Object;
-class Dialect;
-class AST;
-class YulStack;
+struct Object;
+struct Dialect;
 }
 
 namespace solidity::yul::test
 {
 
-yul::YulStack parseYul(
-	std::string const& _source,
-	std::string _sourceUnitName = "",
-	std::optional<frontend::OptimiserSettings> _optimiserSettings = std::nullopt
-);
+void printErrors(langutil::ErrorList const& _errors);
 
-Block disambiguate(std::string const& _source);
-std::string format(std::string const& _source);
+std::pair<std::shared_ptr<Block>, std::shared_ptr<AsmAnalysisInfo>>
+parse(std::string const& _source, bool _yul = true);
 
-solidity::yul::Dialect const& dialect(std::string const& _name, langutil::EVMVersion _evmVersion, std::optional<uint8_t> _eofVersion);
+std::pair<std::shared_ptr<Object>, std::shared_ptr<AsmAnalysisInfo>>
+parse(std::string const& _source, Dialect const& _dialect, langutil::ErrorList& _errors);
 
-void printYulErrors(
-	yul::YulStack const& _yulStack,
-	std::ostream& _stream,
-	std::string const& _linePrefix,
-	bool const _formatted
-);
+Block disambiguate(std::string const& _source, bool _yul = true);
+std::string format(std::string const& _source, bool _yul = true);
+
+solidity::yul::Dialect const& dialect(std::string const& _name, langutil::EVMVersion _evmVersion);
 
 }

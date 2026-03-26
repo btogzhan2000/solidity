@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C
 {
 	function f(uint x) public pure {
@@ -8,11 +10,5 @@ contract C
 		assert(y < 110);
 	}
 }
-// ====
-// SMTEngine: all
-// SMTShowProvedSafe: yes
 // ----
-// Warning 6328: (118-133): CHC: Assertion violation happens here.
-// Info 9576: (90-95): CHC: Overflow (resulting value larger than 2**256 - 1) check is safe!
-// Info 9576: (85-95): CHC: Overflow (resulting value larger than 2**256 - 1) check is safe!
-// Info 9576: (99-114): CHC: Assertion violation check is safe!
+// Warning 6328: (151-166): CHC: Assertion violation happens here.\nCounterexample:\n\nx = 0\n\nTransaction trace:\nC.constructor()\nC.f(0)

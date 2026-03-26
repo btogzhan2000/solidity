@@ -3,4 +3,3 @@ library C {
         msg.value;
     }
 }
-// ----

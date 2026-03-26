@@ -1,6 +1,5 @@
-from opcodes import AND, SHL, SHR
 from rule import Rule
-from z3 import BitVec, BitVecVal, If, Int2BV, IntVal, UGT, ULT
+from opcodes import *
 
 """
 Rule:

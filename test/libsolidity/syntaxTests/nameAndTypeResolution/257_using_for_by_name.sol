@@ -6,4 +6,3 @@ contract C {
         return x.mul({x: a});
     }
 }
-// ----

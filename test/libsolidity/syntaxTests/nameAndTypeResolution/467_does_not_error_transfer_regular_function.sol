@@ -9,4 +9,3 @@ contract B {
         a.transfer();
     }
 }
-// ----

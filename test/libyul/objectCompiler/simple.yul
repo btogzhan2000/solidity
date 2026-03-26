@@ -1,19 +1,14 @@
 {
   sstore(0, 1)
 }
-// ====
-// EVMVersion: >=shanghai
-// bytecodeFormat: legacy
 // ----
 // Assembly:
-//     /* "source":41:42   */
+//     /* "source":14:15   */
 //   0x01
-//     /* "source":38:39   */
+//     /* "source":11:12   */
 //   0x00
-//     /* "source":31:43   */
+//     /* "source":4:16   */
 //   sstore
-//     /* "source":27:47   */
-//   stop
-// Bytecode: 60015f5500
-// Opcodes: PUSH1 0x1 PUSH0 SSTORE STOP
-// SourceMappings: 41:1:0:-:0;38;31:12;27:20
+// Bytecode: 6001600055
+// Opcodes: PUSH1 0x1 PUSH1 0x0 SSTORE
+// SourceMappings: 14:1:0:-:0;11;4:12

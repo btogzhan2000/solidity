@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C
 {
 	mapping (string => uint) map;
@@ -6,7 +8,4 @@ contract C
 		assert(x == map[s]);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

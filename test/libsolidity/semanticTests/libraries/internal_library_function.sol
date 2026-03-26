@@ -16,5 +16,8 @@ contract C {
         return x[3];
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // f() -> 2

@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	struct S {
 		string s;
@@ -18,8 +20,5 @@ contract C {
 		assert(b[0] == "t"); // should fail
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (307-326): CHC: Assertion violation happens here.
-// Info 1391: CHC: 5 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (340-359): CHC: Assertion violation happens here.

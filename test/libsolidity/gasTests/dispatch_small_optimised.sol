@@ -5,17 +5,15 @@ contract Small {
     fallback () external payable {}
 }
 // ====
-// EVMVersion: =current
 // optimize: true
 // optimize-runs: 2
-// bytecodeFormat: legacy
 // ----
 // creation:
-//   codeDepositCost: 58200
-//   executionCost: 109
-//   totalCost: 58309
+//   codeDepositCost: 76200
+//   executionCost: 123
+//   totalCost: 76323
 // external:
-//   fallback: 117
-//   a(): 2259
-//   b(uint256): 4582
-//   f1(uint256): 46716
+//   fallback: 118
+//   a(): 1006
+//   b(uint256): 2018
+//   f1(uint256): 41253

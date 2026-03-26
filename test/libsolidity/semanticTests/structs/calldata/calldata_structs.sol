@@ -22,5 +22,9 @@ contract C {
         e = s3.b;
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f((uint256,uint256),(uint256),(uint256,uint256)): 1, 2, 3, 4, 5 -> 1, 2, 3, 4, 5

@@ -5,4 +5,3 @@ contract test {
         uint256 count;
     }
 }
-// ----

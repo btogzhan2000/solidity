@@ -1,6 +1,5 @@
 {
-    switch calldataload(0)
+    switch codesize()
     case "1" {}
     case "2" {}
 }
-// ----

@@ -17,6 +17,8 @@ contract C {
         return memorySizeAfter - memorySizeBefore;
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // withValue() -> 0x00
 // withoutValue() -> 0x0280

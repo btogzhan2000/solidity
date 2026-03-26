@@ -20,12 +20,17 @@
 
 #include <libyul/optimiser/Suite.h>
 
+#include <boost/filesystem.hpp>
 #include <boost/test/unit_test.hpp>
 
+#include <fstream>
 #include <set>
 
+using namespace std;
 using namespace solidity::yul;
 using namespace boost::test_tools;
+
+namespace fs = boost::filesystem;
 
 namespace solidity::phaser::test
 {
@@ -42,7 +47,7 @@ BOOST_AUTO_TEST_CASE(ChromosomeLengthMetric_evaluate_should_return_chromosome_le
 
 BOOST_AUTO_TEST_CASE(wholeChromosomeReplacement_should_replace_whole_chromosome_with_another)
 {
-	std::function<Mutation> mutation = wholeChromosomeReplacement(Chromosome("aaa"));
+	function<Mutation> mutation = wholeChromosomeReplacement(Chromosome("aaa"));
 	BOOST_TEST(mutation(Chromosome("ccc")) == Chromosome("aaa"));
 }
 
@@ -50,22 +55,22 @@ BOOST_AUTO_TEST_CASE(geneSubstitution_should_change_a_single_gene_at_a_given_ind
 {
 	Chromosome chromosome("aaccff");
 
-	std::function<Mutation> mutation1 = geneSubstitution(0, chromosome.optimisationSteps()[5]);
+	function<Mutation> mutation1 = geneSubstitution(0, chromosome.optimisationSteps()[5]);
 	BOOST_TEST(mutation1(chromosome) == Chromosome("faccff"));
 
-	std::function<Mutation> mutation2 = geneSubstitution(5, chromosome.optimisationSteps()[0]);
+	function<Mutation> mutation2 = geneSubstitution(5, chromosome.optimisationSteps()[0]);
 	BOOST_TEST(mutation2(chromosome) == Chromosome("aaccfa"));
 }
 
 BOOST_AUTO_TEST_CASE(chromosomeLengths_should_return_lengths_of_all_chromosomes_in_a_population)
 {
-	std::shared_ptr<FitnessMetric> fitnessMetric = std::make_shared<ChromosomeLengthMetric>();
+	shared_ptr<FitnessMetric> fitnessMetric = make_shared<ChromosomeLengthMetric>();
 
 	Population population1(fitnessMetric, {Chromosome(), Chromosome("a"), Chromosome("aa"), Chromosome("aaa")});
-	BOOST_TEST((chromosomeLengths(population1) == std::vector<size_t>{0, 1, 2, 3}));
+	BOOST_TEST((chromosomeLengths(population1) == vector<size_t>{0, 1, 2, 3}));
 
 	Population population2(fitnessMetric);
-	BOOST_TEST((chromosomeLengths(population2) == std::vector<size_t>{}));
+	BOOST_TEST((chromosomeLengths(population2) == vector<size_t>{}));
 }
 
 BOOST_AUTO_TEST_CASE(countDifferences_should_return_zero_for_identical_chromosomes)
@@ -96,13 +101,13 @@ BOOST_AUTO_TEST_CASE(countDifferences_should_count_missing_characters_as_differe
 	BOOST_TEST(countDifferences(Chromosome("aa"), Chromosome("cccc")) == 4);
 }
 
-BOOST_AUTO_TEST_CASE(enumerateOptimisationSteps_should_assign_indices_to_all_available_optimisation_steps)
+BOOST_AUTO_TEST_CASE(enumerateOptimisationSteps_should_assing_indices_to_all_available_optimisation_steps)
 {
-	std::map<std::string, char> stepsAndAbbreviations = OptimiserSuite::stepNameToAbbreviationMap();
-	std::map<std::string, size_t> stepsAndIndices = enumerateOptimisationSteps();
+	map<string, char> stepsAndAbbreviations = OptimiserSuite::stepNameToAbbreviationMap();
+	map<string, size_t> stepsAndIndices = enumerateOptmisationSteps();
 	BOOST_TEST(stepsAndIndices.size() == stepsAndAbbreviations.size());
 
-	std::set<std::string> stepsSoFar;
+	set<string> stepsSoFar;
 	for (auto& [name, index]: stepsAndIndices)
 	{
 		BOOST_TEST(index >= 0);
@@ -112,6 +117,63 @@ BOOST_AUTO_TEST_CASE(enumerateOptimisationSteps_should_assign_indices_to_all_ava
 
 		stepsSoFar.insert(name);
 	}
+}
+
+BOOST_AUTO_TEST_CASE(TemporaryDirectory_should_create_and_delete_a_unique_and_empty_directory)
+{
+	fs::path dirPath;
+	{
+		TemporaryDirectory tempDir("temporary-directory-test-");
+		dirPath = tempDir.path();
+
+		BOOST_TEST(dirPath.stem().string().find("temporary-directory-test-") == 0);
+		BOOST_TEST(fs::equivalent(dirPath.parent_path(), fs::temp_directory_path()));
+		BOOST_TEST(fs::is_directory(dirPath));
+		BOOST_TEST(fs::is_empty(dirPath));
+	}
+	BOOST_TEST(!fs::exists(dirPath));
+}
+
+BOOST_AUTO_TEST_CASE(TemporaryDirectory_should_delete_its_directory_even_if_not_empty)
+{
+	fs::path dirPath;
+	{
+		TemporaryDirectory tempDir("temporary-directory-test-");
+		dirPath = tempDir.path();
+
+		BOOST_TEST(fs::is_directory(dirPath));
+
+		{
+			ofstream tmpFile((dirPath / "test-file.txt").string());
+			tmpFile << "Delete me!" << endl;
+		}
+		assert(fs::is_regular_file(dirPath / "test-file.txt"));
+	}
+	BOOST_TEST(!fs::exists(dirPath / "test-file.txt"));
+}
+
+BOOST_AUTO_TEST_CASE(TemporaryDirectory_memberPath_should_construct_paths_relative_to_the_temporary_directory)
+{
+	TemporaryDirectory tempDir("temporary-directory-test-");
+
+	BOOST_TEST(fs::equivalent(tempDir.memberPath(""), tempDir.path()));
+	BOOST_TEST(fs::equivalent(tempDir.memberPath("."), tempDir.path() / fs::path(".")));
+	BOOST_TEST(fs::equivalent(tempDir.memberPath(".."), tempDir.path() / fs::path("..")));
+
+	// NOTE: fs::equivalent() only works with paths that actually exist
+	{
+		ofstream file;
+		file.open(tempDir.memberPath("file.txt"), ios::out);
+	}
+	BOOST_TEST(fs::equivalent(tempDir.memberPath("file.txt"), tempDir.path() / fs::path("file.txt")));
+
+	{
+		fs::create_directories(tempDir.memberPath("a/b/"));
+
+		ofstream file;
+		file.open(tempDir.memberPath("a/b/file.txt"), ios::out);
+	}
+	BOOST_TEST(fs::equivalent(tempDir.memberPath("a/b/file.txt"), tempDir.path() / fs::path("a") / fs::path("b") / fs::path("file.txt")));
 }
 
 BOOST_AUTO_TEST_CASE(stripWhitespace_should_remove_all_whitespace_characters_from_a_string)

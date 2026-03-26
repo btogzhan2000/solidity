@@ -24,6 +24,9 @@
 
 #include <libyul/AST.h>
 
+#include <boost/range/algorithm_ext/erase.hpp>
+
+using namespace std;
 using namespace solidity;
 using namespace solidity::yul;
 
@@ -33,12 +36,12 @@ void FunctionGrouper::operator()(Block& _block)
 	if (alreadyGrouped(_block))
 		return;
 
-	std::vector<Statement> reordered;
-	reordered.emplace_back(Block{_block.debugData, {}});
+	vector<Statement> reordered;
+	reordered.emplace_back(Block{_block.location, {}});
 
 	for (auto&& statement: _block.statements)
 	{
-		if (std::holds_alternative<FunctionDefinition>(statement))
+		if (holds_alternative<FunctionDefinition>(statement))
 			reordered.emplace_back(std::move(statement));
 		else
 			std::get<Block>(reordered.front()).statements.emplace_back(std::move(statement));
@@ -50,10 +53,10 @@ bool FunctionGrouper::alreadyGrouped(Block const& _block)
 {
 	if (_block.statements.empty())
 		return false;
-	if (!std::holds_alternative<Block>(_block.statements.front()))
+	if (!holds_alternative<Block>(_block.statements.front()))
 		return false;
 	for (size_t i = 1; i < _block.statements.size(); ++i)
-		if (!std::holds_alternative<FunctionDefinition>(_block.statements.at(i)))
+		if (!holds_alternative<FunctionDefinition>(_block.statements.at(i)))
 			return false;
 	return true;
 }

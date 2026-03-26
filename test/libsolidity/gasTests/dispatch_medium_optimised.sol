@@ -10,23 +10,20 @@ contract Medium {
     function g0(uint x) public payable returns (uint) { require(x > 10); }
 }
 // ====
-// EVMVersion: =current
-// bytecodeFormat: legacy
-// ====
 // optimize: true
 // optimize-runs: 2
 // ----
 // creation:
-//   codeDepositCost: 126000
-//   executionCost: 169
-//   totalCost: 126169
+//   codeDepositCost: 161000
+//   executionCost: 208
+//   totalCost: 161208
 // external:
-//   a(): 2281
-//   b(uint256): 4692
-//   f1(uint256): 46782
-//   f2(uint256): 24725
-//   f3(uint256): 24769
-//   g0(uint256): 361
-//   g7(uint256): 24635
-//   g8(uint256): 24613
-//   g9(uint256): 24569
+//   a(): 1028
+//   b(uint256): 2128
+//   f1(uint256): 41319
+//   f2(uint256): 21363
+//   f3(uint256): 21407
+//   g0(uint256): 397
+//   g7(uint256): 21273
+//   g8(uint256): 21251
+//   g9(uint256): 21207

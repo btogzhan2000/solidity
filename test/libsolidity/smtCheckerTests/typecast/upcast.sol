@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 abstract contract D {}
 
 contract C {
@@ -64,7 +66,4 @@ contract C {
 		assert(b5 == 0xcafe0000);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 23 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

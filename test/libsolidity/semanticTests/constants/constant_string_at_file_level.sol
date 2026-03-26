@@ -23,6 +23,10 @@ contract C {
         return (x, choices, st);
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> 0x20, 3, "\x03\x01\x02"
 // g() -> 0x20, 3, "\x03\x01\x02"

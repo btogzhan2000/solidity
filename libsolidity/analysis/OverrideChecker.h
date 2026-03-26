@@ -84,10 +84,7 @@ public:
 	/// @returns receive / fallback / function (only the latter for modifiers and variables);
 	langutil::Token functionKind() const;
 
-	/// @returns the externally callable function type
-	FunctionType const* externalFunctionType() const;
-	/// @returns the (unmodified) function type
-	FunctionType const* originalFunctionType() const;
+	FunctionType const* functionType() const;
 	ModifierType const* modifierType() const;
 
 	Declaration const* declaration() const;
@@ -104,7 +101,6 @@ public:
 
 	/**
 	 * Struct to help comparing override items about whether they override each other.
-	 * Compares functions based on their "externally callable" type.
 	 * Does not produce a total order.
 	 */
 	struct OverrideComparator
@@ -171,11 +167,18 @@ private:
 		std::string const& _message2
 	);
 	void overrideError(
+		Declaration const& _overriding,
+		Declaration const& _super,
+		langutil::ErrorId _error,
+		std::string const& _message,
+		std::string const& _secondaryMsg = "Overridden function is here:"
+	);
+	void overrideError(
 		OverrideProxy const& _overriding,
 		OverrideProxy const& _super,
 		langutil::ErrorId _error,
 		std::string const& _message,
-		std::optional<std::string> const& _secondaryMsg = {}
+		std::string const& _secondaryMsg = "Overridden function is here:"
 	);
 	/// Checks for functions in different base contracts which conflict with each
 	/// other and thus need to be overridden explicitly.

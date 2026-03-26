@@ -1,13 +1,13 @@
 contract A {
-	function faa() public virtual {}
+	function faa() public {}
 }
-abstract contract B is A {
-	function foo() public virtual;
-	function faa() public virtual override {}
+contract B is A {
+	function foo() public;
+	function faa() public override {}
 }
 contract C is B {
 	function foo() public override { }
-	function faa() public override { }
+	function faa() public override(A, B) {}
 }
 
 // ----

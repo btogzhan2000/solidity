@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C
 {
 	function f(uint x) public payable {
@@ -7,10 +9,6 @@ contract C
 		assert(blockhash(x) == blockhash(y));
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreCex: yes
 // ----
-// Warning 6328: (52-76): CHC: Assertion violation happens here.
-// Warning 6328: (80-104): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (85-109): CHC: Assertion violation happens here.\nCounterexample:\n\nx = 7719\n\nTransaction trace:\nC.constructor()\nC.f(7719){ value: 21238 }
+// Warning 6328: (113-137): CHC: Assertion violation happens here.\nCounterexample:\n\nx = 7719\n\nTransaction trace:\nC.constructor()\nC.f(7719){ value: 2437 }

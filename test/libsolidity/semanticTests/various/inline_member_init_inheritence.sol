@@ -18,6 +18,9 @@ contract Derived is Base {
         return m_derived;
     }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // getBMember() -> 5
 // getDMember() -> 6

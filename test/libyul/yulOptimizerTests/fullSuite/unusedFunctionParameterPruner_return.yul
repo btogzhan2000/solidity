@@ -16,14 +16,14 @@
         if iszero(out1) { leave }
     }
 }
-// ====
-// bytecodeFormat: legacy
 // ----
 // step: fullSuite
 //
 // {
 //     {
 //         let out1, out2 := foo(sload(32))
+//         sstore(0, out1)
+//         sstore(0, out2)
 //         sstore(0, 0)
 //         let out1_1, out2_1 := foo(sload(8))
 //     }

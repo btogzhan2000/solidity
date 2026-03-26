@@ -6,5 +6,9 @@ contract C {
         return (z[0], z[1]);
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> 3, 6

@@ -1,6 +1,7 @@
-// EVMC: Ethereum Client-VM Connector API.
-// Copyright 2018 The EVMC Authors.
-// Licensed under the Apache License, Version 2.0.
+/* EVMC: Ethereum Client-VM Connector API.
+ * Copyright 2018-2019 The EVMC Authors.
+ * Licensed under the Apache License, Version 2.0.
+ */
 
 #include <evmc/loader.h>
 
@@ -14,7 +15,7 @@
 
 #if defined(EVMC_LOADER_MOCK)
 #include "../../test/unittests/loader_mock.h"
-#elif defined(_WIN32)
+#elif _WIN32
 #include <Windows.h>
 #define DLL_HANDLE HMODULE
 #define DLL_OPEN(filename) LoadLibrary(filename)
@@ -26,7 +27,6 @@
 #define DLL_HANDLE void*
 #define DLL_OPEN(filename) dlopen(filename, RTLD_LAZY)
 #define DLL_CLOSE(handle) dlclose(handle)
-// NOLINTNEXTLINE(performance-no-int-to-ptr)
 #define DLL_GET_CREATE_FN(handle, name) (evmc_create_fn)(uintptr_t) dlsym(handle, name)
 #define DLL_GET_ERROR_MSG() dlerror()
 #endif
@@ -60,19 +60,16 @@ static
         dest[0] = 0;
         return 1;
     }
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     memcpy(dest, src, len);
     dest[len] = 0;
     return 0;
 }
 
-enum
-{
-    PATH_MAX_LENGTH = 4096,
-    LAST_ERROR_MSG_BUFFER_SIZE = 511
-};
+#define PATH_MAX_LENGTH 4096
 
 static const char* last_error_msg = NULL;
+
+#define LAST_ERROR_MSG_BUFFER_SIZE 511
 
 // Buffer for formatted error messages.
 // It has one null byte extra to avoid buffer read overflow during concurrent access.
@@ -85,7 +82,6 @@ static enum evmc_loader_error_code set_error(enum evmc_loader_error_code error_c
 {
     va_list args;
     va_start(args, format);
-    // NOLINTNEXTLINE(clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling)
     if (vsnprintf(last_error_msg_buffer, LAST_ERROR_MSG_BUFFER_SIZE, format, args) <
         LAST_ERROR_MSG_BUFFER_SIZE)
         last_error_msg = last_error_msg_buffer;
@@ -140,7 +136,7 @@ evmc_create_fn evmc_load(const char* filename, enum evmc_loader_error_code* erro
 
     // Find filename in the path.
     const char* sep_pos = strrchr(filename, '/');
-#ifdef _WIN32
+#if _WIN32
     // On Windows check also Windows classic path separator.
     const char* sep_pos_windows = strrchr(filename, '\\');
     sep_pos = sep_pos_windows > sep_pos ? sep_pos_windows : sep_pos;
@@ -185,7 +181,7 @@ exit:
     return create_fn;
 }
 
-const char* evmc_last_error_msg(void)
+const char* evmc_last_error_msg()
 {
     const char* m = last_error_msg;
     last_error_msg = NULL;
@@ -271,15 +267,16 @@ struct evmc_vm* evmc_load_and_configure(const char* config, enum evmc_loader_err
     if (!vm)
         return NULL;
 
+    if (vm->set_option == NULL && strlen(options) != 0)
+    {
+        ec = set_error(EVMC_LOADER_INVALID_OPTION_NAME, "%s (%s) does not support any options",
+                       vm->name, path);
+        goto exit;
+    }
+
+
     while (strlen(options) != 0)
     {
-        if (vm->set_option == NULL)
-        {
-            ec = set_error(EVMC_LOADER_INVALID_OPTION_NAME, "%s (%s) does not support any options",
-                           vm->name, path);
-            goto exit;
-        }
-
         char* option = get_token(&options, ',');
 
         // Slit option into name and value by taking the name token.

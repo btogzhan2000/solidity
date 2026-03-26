@@ -12,5 +12,8 @@ contract C is A {
         if (false) _;
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // f() -> false

@@ -63,7 +63,6 @@ private:
 	/// arguments and that there is at most one constructor.
 	void checkDuplicateFunctions(ContractDefinition const& _contract);
 	void checkDuplicateEvents(ContractDefinition const& _contract);
-	void checkReceiveFunction(ContractDefinition const& _contract);
 	template <class T>
 	void findDuplicateDefinitions(std::map<std::string, std::vector<T>> const& _definitions);
 	/// Checks for unimplemented functions and modifiers.
@@ -88,10 +87,8 @@ private:
 
 	/// Warns if the contract has a payable fallback, but no receive ether function.
 	void checkPayableFallbackWithoutReceive(ContractDefinition const& _contract);
-	/// Error if the contract requires too much storage or transient storage
+	/// Error if the contract requires too much storage
 	void checkStorageSize(ContractDefinition const& _contract);
-	/// Checks if the storage layout specifier is properly assigned in the inheritance tree and not applied to an abstract contract
-	void checkStorageLayoutSpecifier(ContractDefinition const& _contract);
 
 	OverrideChecker m_overrideChecker;
 	langutil::ErrorReporter& m_errorReporter;

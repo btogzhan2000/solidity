@@ -9,6 +9,9 @@ contract C {
         return this.h(n) * 2;
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // h(uint256[4]): 1, 2, 3, 4 -> 10
 // i(uint256[4]): 1, 2, 3, 4 -> 20

@@ -6,6 +6,9 @@ contract C {
         x = a - b;
     }
 }
+// ====
+// compileToEwasm: also
+// compileViaYul: also
 // ----
 // f(uint256,uint256): 6, 5 -> 1
 // f(uint256,uint256): 6, 6 -> 0

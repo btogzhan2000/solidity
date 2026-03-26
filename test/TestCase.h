@@ -39,10 +39,8 @@ public:
 	{
 		std::string filename;
 		langutil::EVMVersion evmVersion;
-		std::optional<uint8_t> eofVersion;
 		std::vector<boost::filesystem::path> vmPaths;
-		bool enforceGasCost = false;
-		u256 enforceGasCostMinValue;
+		bool enforceCompileViaYul;
 	};
 
 	enum class TestResult { Success, Failure, FatalError };
@@ -89,7 +87,7 @@ protected:
 	template<typename IteratorType>
 	static void skipWhitespace(IteratorType& _it, IteratorType _end)
 	{
-		while (_it != _end && std::isspace<char>(*_it, std::locale::classic()))
+		while (_it != _end && isspace(*_it))
 			++_it;
 	}
 
@@ -100,6 +98,7 @@ protected:
 			++_it;
 	}
 
+	void printIndented(std::ostream& _stream, std::string const& _output, std::string const& _linePrefix = "") const;
 	TestCase::TestResult checkResult(std::ostream& _stream, const std::string& _linePrefix, bool const _formatted);
 
 	std::string m_source;
@@ -112,10 +111,6 @@ protected:
 
 class EVMVersionRestrictedTestCase: public TestCase
 {
-private:
-	void processEVMVersionSetting();
-	void processBytecodeFormatSetting();
-
 protected:
 	EVMVersionRestrictedTestCase(std::string const& _filename);
 };

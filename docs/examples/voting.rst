@@ -30,7 +30,7 @@ At the end of the voting time, ``winningProposal()``
 will return the proposal with the largest number
 of votes.
 
-.. code-block:: solidity
+::
 
     // SPDX-License-Identifier: GPL-3.0
     pragma solidity >=0.7.0 <0.9.0;
@@ -82,7 +82,7 @@ of votes.
 
         // Give `voter` the right to vote on this ballot.
         // May only be called by `chairperson`.
-        function giveRightToVote(address voter) external {
+        function giveRightToVote(address voter) public {
             // If the first argument of `require` evaluates
             // to `false`, execution terminates and all
             // changes to the state and to Ether balances
@@ -106,10 +106,9 @@ of votes.
         }
 
         /// Delegate your vote to the voter `to`.
-        function delegate(address to) external {
+        function delegate(address to) public {
             // assigns reference
             Voter storage sender = voters[msg.sender];
-            require(sender.weight != 0, "You have no right to vote");
             require(!sender.voted, "You already voted.");
 
             require(to != msg.sender, "Self-delegation is disallowed.");
@@ -129,16 +128,11 @@ of votes.
                 require(to != msg.sender, "Found loop in delegation.");
             }
 
-            Voter storage delegate_ = voters[to];
-
-            // Voters cannot delegate to accounts that cannot vote.
-            require(delegate_.weight >= 1);
-
             // Since `sender` is a reference, this
-            // modifies `voters[msg.sender]`.
+            // modifies `voters[msg.sender].voted`
             sender.voted = true;
             sender.delegate = to;
-
+            Voter storage delegate_ = voters[to];
             if (delegate_.voted) {
                 // If the delegate already voted,
                 // directly add to the number of votes
@@ -152,7 +146,7 @@ of votes.
 
         /// Give your vote (including votes delegated to you)
         /// to proposal `proposals[proposal].name`.
-        function vote(uint proposal) external {
+        function vote(uint proposal) public {
             Voter storage sender = voters[msg.sender];
             require(sender.weight != 0, "Has no right to vote");
             require(!sender.voted, "Already voted.");
@@ -182,7 +176,7 @@ of votes.
         // Calls winningProposal() function to get the index
         // of the winner contained in the proposals array and then
         // returns the name of the winner
-        function winnerName() external view
+        function winnerName() public view
                 returns (bytes32 winnerName_)
         {
             winnerName_ = proposals[winningProposal()].name;
@@ -193,8 +187,5 @@ of votes.
 Possible Improvements
 =====================
 
-Currently, many transactions are needed to
-assign the rights to vote to all participants.
-Moreover, if two or more proposals have the same
-number of votes, ``winningProposal()`` is not able
-to register a tie. Can you think of a way to fix these issues?
+Currently, many transactions are needed to assign the rights
+to vote to all participants. Can you think of a better way?

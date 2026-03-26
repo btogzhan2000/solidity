@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint x = f(2);
 
@@ -6,7 +8,5 @@ contract C {
 		return y;
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 6328: (83-99): CHC: Assertion violation happens here.\nCounterexample:\nx = 0\n\nTransaction trace:\nC.constructor()
+// Warning 6328: (116-132): CHC: Assertion violation happens here.\nCounterexample:\nx = 0\n\nTransaction trace:\nC.constructor()

@@ -7,4 +7,3 @@ contract C {
 		d = string(c);
 	}
 }
-// ----

@@ -23,13 +23,12 @@
 
 #include <libsolidity/ast/AST.h>
 #include <libsolidity/codegen/ir/IRVariable.h>
+#include <libsolidity/interface/OptimiserSettings.h>
 #include <libsolidity/interface/DebugSettings.h>
 
 #include <libsolidity/codegen/MultiUseYulFunctionCollector.h>
 #include <libsolidity/codegen/ir/Common.h>
 
-#include <liblangutil/CharStreamProvider.h>
-#include <liblangutil/DebugInfoSelection.h>
 #include <liblangutil/EVMVersion.h>
 
 #include <libsolutil/Common.h>
@@ -37,7 +36,7 @@
 #include <set>
 #include <string>
 #include <memory>
-#include <deque>
+#include <vector>
 
 namespace solidity::frontend
 {
@@ -45,8 +44,20 @@ namespace solidity::frontend
 class YulUtilFunctions;
 class ABIFunctions;
 
-using DispatchQueue = std::deque<FunctionDefinition const*>;
-using InternalDispatchMap = std::map<YulArity, DispatchQueue>;
+struct AscendingFunctionIDCompare
+{
+	bool operator()(FunctionDefinition const* _f1, FunctionDefinition const* _f2) const
+	{
+		// NULLs always first.
+		if (_f1 != nullptr && _f2 != nullptr)
+			return _f1->id() < _f2->id();
+		else
+			return _f1 == nullptr;
+	}
+};
+
+using DispatchSet = std::set<FunctionDefinition const*, AscendingFunctionIDCompare>;
+using InternalDispatchMap = std::map<YulArity, DispatchSet>;
 
 /**
  * Class that contains contextual information during IR generation.
@@ -54,24 +65,14 @@ using InternalDispatchMap = std::map<YulArity, DispatchQueue>;
 class IRGenerationContext
 {
 public:
-	enum class ExecutionContext { Creation, Deployed };
-
 	IRGenerationContext(
 		langutil::EVMVersion _evmVersion,
-		std::optional<uint8_t> _eofVersion,
-		ExecutionContext _executionContext,
 		RevertStrings _revertStrings,
-		std::map<std::string, unsigned> _sourceIndices,
-		langutil::DebugInfoSelection const& _debugInfoSelection,
-		langutil::CharStreamProvider const* _soliditySourceProvider
+		OptimiserSettings _optimiserSettings
 	):
 		m_evmVersion(_evmVersion),
-		m_eofVersion(_eofVersion),
-		m_executionContext(_executionContext),
 		m_revertStrings(_revertStrings),
-		m_sourceIndices(std::move(_sourceIndices)),
-		m_debugInfoSelection(_debugInfoSelection),
-		m_soliditySourceProvider(_soliditySourceProvider)
+		m_optimiserSettings(std::move(_optimiserSettings))
 	{}
 
 	MultiUseYulFunctionCollector& functionCollector() { return m_functions; }
@@ -101,18 +102,13 @@ public:
 	/// Registers an immutable variable of the contract.
 	/// Should only be called at construction time.
 	void registerImmutableVariable(VariableDeclaration const& _varDecl);
-	void registerLibraryAddressImmutable();
-	size_t libraryAddressImmutableOffset() const;
-	size_t libraryAddressImmutableOffsetRelative() const;
 	/// @returns the reserved memory for storing the value of the
 	/// immutable @a _variable during contract creation.
 	size_t immutableMemoryOffset(VariableDeclaration const& _variable) const;
-	size_t immutableMemoryOffsetRelative(VariableDeclaration const& _variable) const;
 	/// @returns the reserved memory and resets it to mark it as used.
 	/// Intended to be used only once for initializing the free memory pointer
 	/// to after the area used for immutables.
 	size_t reservedMemory();
-	size_t reservedMemorySize() const;
 
 	void addStateVariable(VariableDeclaration const& _varDecl, u256 _storageOffset, unsigned _byteOffset);
 	bool isStateVariable(VariableDeclaration const& _varDecl) const { return m_stateVariables.count(&_varDecl); }
@@ -141,57 +137,32 @@ public:
 	YulUtilFunctions utils();
 
 	langutil::EVMVersion evmVersion() const { return m_evmVersion; }
-	std::optional<uint8_t> eofVersion() const { return m_eofVersion; }
-	ExecutionContext executionContext() const { return m_executionContext; }
 
 	void setArithmetic(Arithmetic _value) { m_arithmetic = _value; }
 	Arithmetic arithmetic() const { return m_arithmetic; }
 
 	ABIFunctions abiFunctions();
 
+	/// @returns code that stores @param _message for revert reason
+	/// if m_revertStrings is debug.
+	std::string revertReasonIfDebug(std::string const& _message = "");
+
 	RevertStrings revertStrings() const { return m_revertStrings; }
 
-	util::UniqueVector<ContractDefinition const*> const& subObjectsCreated() const { return m_subObjects; }
-	void addSubObject(ContractDefinition const* _contractDefinition) { m_subObjects.pushBack(_contractDefinition); }
+	std::set<ContractDefinition const*, ASTNode::CompareByID>& subObjectsCreated() { return m_subObjects; }
 
-	bool memoryUnsafeInlineAssemblySeen() const { return m_memoryUnsafeInlineAssemblySeen; }
-	void setMemoryUnsafeInlineAssemblySeen() { m_memoryUnsafeInlineAssemblySeen = true; }
-
-	std::map<std::string, unsigned> const& sourceIndices() const { return m_sourceIndices; }
-	void markSourceUsed(std::string const& _name) { m_usedSourceNames.insert(_name); }
-	std::set<std::string> const& usedSourceNames() const { return m_usedSourceNames; }
-
-	bool immutableRegistered(VariableDeclaration const& _varDecl) const { return m_immutableVariables.count(&_varDecl); }
-
-	langutil::DebugInfoSelection debugInfoSelection() const { return m_debugInfoSelection; }
-	langutil::CharStreamProvider const* soliditySourceProvider() const { return m_soliditySourceProvider; }
-	std::map<VariableDeclaration const*, size_t> const& immutableVariables() const { return m_immutableVariables; }
-	void setImmutableVariables(std::map<VariableDeclaration const*, size_t> _immutableVariables)
-	{
-		solAssert(m_eofVersion.has_value());
-		solAssert(m_executionContext == ExecutionContext::Deployed);
-		m_immutableVariables = std::move(_immutableVariables);
-	}
-	void setLibraryAddressImmutableOffset(size_t _libraryAddressImmutableOffset)
-	{
-		solAssert(m_eofVersion.has_value());
-		solAssert(m_executionContext == ExecutionContext::Deployed);
-		m_libraryAddressImmutableOffset = _libraryAddressImmutableOffset;
-	}
+	bool inlineAssemblySeen() const { return m_inlineAssemblySeen; }
+	void setInlineAssemblySeen() { m_inlineAssemblySeen = true; }
 
 private:
 	langutil::EVMVersion m_evmVersion;
-	std::optional<uint8_t> m_eofVersion;
-	ExecutionContext m_executionContext;
 	RevertStrings m_revertStrings;
-	std::map<std::string, unsigned> m_sourceIndices;
-	std::set<std::string> m_usedSourceNames;
+	OptimiserSettings m_optimiserSettings;
 	ContractDefinition const* m_mostDerivedContract = nullptr;
 	std::map<VariableDeclaration const*, IRVariable> m_localVariables;
 	/// Memory offsets reserved for the values of immutable variables during contract creation.
-	/// This map is empty in the legacy runtime context and may be not empty in EOF runtime context.
+	/// This map is empty in the runtime context.
 	std::map<VariableDeclaration const*, size_t> m_immutableVariables;
-	std::optional<size_t> m_libraryAddressImmutableOffset;
 	/// Total amount of reserved memory. Reserved memory is used to store
 	/// immutable variables during contract creation.
 	std::optional<size_t> m_reservedMemory = {0};
@@ -202,16 +173,17 @@ private:
 	/// Whether to use checked or wrapping arithmetic.
 	Arithmetic m_arithmetic = Arithmetic::Checked;
 
-	/// Flag indicating whether any memory-unsafe inline assembly block was seen.
-	bool m_memoryUnsafeInlineAssemblySeen = false;
+	/// Flag indicating whether any inline assembly block was seen.
+	bool m_inlineAssemblySeen = false;
 
 	/// Function definitions queued for code generation. They're the Solidity functions whose calls
 	/// were discovered by the IR generator during AST traversal.
 	/// Note that the queue gets filled in a lazy way - new definitions can be added while the
 	/// collected ones get removed and traversed.
-	/// The order and duplicates are relevant here
-	/// (see: IRGenerationContext::[enqueue|dequeue]FunctionForCodeGeneration)
-	DispatchQueue m_functionGenerationQueue;
+	/// The order and duplicates are irrelevant here (hence std::set rather than std::queue) as
+	/// long as the order of Yul functions in the generated code is deterministic and the same on
+	/// all platforms - which is a property guaranteed by MultiUseYulFunctionCollector.
+	DispatchSet m_functionGenerationQueue;
 
 	/// Collection of functions that need to be callable via internal dispatch.
 	/// Note that having a key with an empty set of functions is a valid situation. It means that
@@ -219,10 +191,7 @@ private:
 	/// It will fail at runtime but the code must still compile.
 	InternalDispatchMap m_internalDispatchMap;
 
-	util::UniqueVector<ContractDefinition const*> m_subObjects;
-
-	langutil::DebugInfoSelection m_debugInfoSelection = {};
-	langutil::CharStreamProvider const* m_soliditySourceProvider = nullptr;
+	std::set<ContractDefinition const*, ASTNode::CompareByID> m_subObjects;
 };
 
 }

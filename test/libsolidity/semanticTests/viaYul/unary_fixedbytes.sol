@@ -58,6 +58,8 @@ contract C {
 		return r;
 	}
 }
+// ====
+// compileViaYul: also
 // ----
 // conv(bytes25): left(0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff) -> 0xff00ff00ff00ff00ff00ff00ff00ff00ffffffffffffffffffffffffffffffff
 // upcast(bytes25): left(0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff) -> 0xff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff00ff0000000000000000

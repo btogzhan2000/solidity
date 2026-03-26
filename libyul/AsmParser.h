@@ -23,7 +23,6 @@
 
 #pragma once
 
-#include <libyul/AST.h>
 #include <libyul/ASTForward.h>
 #include <libyul/Dialect.h>
 
@@ -31,11 +30,9 @@
 #include <liblangutil/Scanner.h>
 #include <liblangutil/ParserBase.h>
 
-#include <map>
 #include <memory>
 #include <variant>
 #include <vector>
-#include <string_view>
 
 namespace solidity::yul
 {
@@ -48,11 +45,6 @@ public:
 		None, ForLoopPre, ForLoopPost, ForLoopBody
 	};
 
-	enum class UseSourceLocationFrom
-	{
-		Scanner, LocationOverride, Comments,
-	};
-
 	explicit Parser(
 		langutil::ErrorReporter& _errorReporter,
 		Dialect const& _dialect,
@@ -60,76 +52,25 @@ public:
 	):
 		ParserBase(_errorReporter),
 		m_dialect(_dialect),
-		m_locationOverride{_locationOverride ? *_locationOverride : langutil::SourceLocation{}},
-		m_useSourceLocationFrom{
-			_locationOverride ?
-			UseSourceLocationFrom::LocationOverride :
-			UseSourceLocationFrom::Scanner
-		}
-	{}
-
-	/// Constructs a Yul parser that is using the debug data
-	/// from the comments (via @src and other tags).
-	explicit Parser(
-		langutil::ErrorReporter& _errorReporter,
-		Dialect const& _dialect,
-		std::optional<std::map<unsigned, std::shared_ptr<std::string const>>> _sourceNames
-	):
-		ParserBase(_errorReporter),
-		m_dialect(_dialect),
-		m_sourceNames{std::move(_sourceNames)},
-		m_useSourceLocationFrom{
-			m_sourceNames.has_value() ?
-			UseSourceLocationFrom::Comments :
-			UseSourceLocationFrom::Scanner
-		}
+		m_locationOverride(std::move(_locationOverride))
 	{}
 
 	/// Parses an inline assembly block starting with `{` and ending with `}`.
+	/// @param _reuseScanner if true, do check for end of input after the `}`.
 	/// @returns an empty shared pointer on error.
-	std::unique_ptr<AST> parseInline(std::shared_ptr<langutil::Scanner> const& _scanner);
-
-	/// Parses an assembly block starting with `{` and ending with `}`
-	/// and expects end of input after the '}'.
-	/// @returns an empty shared pointer on error.
-	std::unique_ptr<AST> parse(langutil::CharStream& _charStream);
+	std::unique_ptr<Block> parse(std::shared_ptr<langutil::Scanner> const& _scanner, bool _reuseScanner);
 
 protected:
 	langutil::SourceLocation currentLocation() const override
 	{
-		if (m_useSourceLocationFrom == UseSourceLocationFrom::LocationOverride)
-			return m_locationOverride;
-
-		return ParserBase::currentLocation();
+		return m_locationOverride ? *m_locationOverride : ParserBase::currentLocation();
 	}
 
-	langutil::Token advance() override;
-
-	void fetchDebugDataFromComment();
-
-	std::optional<std::pair<std::string_view, langutil::SourceLocation>> parseSrcComment(
-		std::string_view _arguments,
-		langutil::SourceLocation const& _commentLocation
-	);
-
-	std::optional<std::pair<std::string_view, std::optional<int>>> parseASTIDComment(
-		std::string_view _arguments,
-		langutil::SourceLocation const& _commentLocation
-	);
-
-	/// Creates a DebugData object with the correct source location set.
-	langutil::DebugData::ConstPtr createDebugData() const;
-
-	void updateLocationEndFrom(
-		langutil::DebugData::ConstPtr& _debugData,
-		langutil::SourceLocation const& _location
-	) const;
-
-	/// Creates an inline assembly node with the current debug data.
-	template <class T> T createWithDebugData() const
+	/// Creates an inline assembly node with the current source location.
+	template <class T> T createWithLocation() const
 	{
 		T r;
-		r.debugData = createDebugData();
+		r.location = currentLocation();
 		return r;
 	}
 
@@ -138,30 +79,24 @@ protected:
 	Case parseCase();
 	ForLoop parseForLoop();
 	/// Parses a functional expression that has to push exactly one stack element
-	Expression parseExpression(bool _unlimitedLiteralArgument = false);
+	Expression parseExpression();
 	/// Parses an elementary operation, i.e. a literal, identifier, instruction or
-	/// builtin function call (only the name).
-	std::variant<Literal, Identifier, BuiltinName> parseLiteralOrIdentifier(bool _unlimitedLiteralArgument = false);
+	/// builtin functian call (only the name).
+	std::variant<Literal, Identifier> parseLiteralOrIdentifier();
 	VariableDeclaration parseVariableDeclaration();
 	FunctionDefinition parseFunctionDefinition();
-	FunctionCall parseCall(std::variant<Literal, Identifier, BuiltinName>&& _index);
-	NameWithDebugData parseNameWithDebugData();
-	YulName expectAsmIdentifier();
-	void raiseUnsupportedTypesError(langutil::SourceLocation const& _location) const;
+	FunctionCall parseCall(std::variant<Literal, Identifier>&& _initialOp);
+	TypedName parseTypedName();
+	YulString expectAsmIdentifier();
 
 	/// Reports an error if we are currently not inside the body part of a for loop.
 	void checkBreakContinuePosition(std::string const& _which);
 
-	static bool isValidNumberLiteral(std::string_view _literal);
+	static bool isValidNumberLiteral(std::string const& _literal);
 
 private:
 	Dialect const& m_dialect;
-
-	std::optional<std::map<unsigned, std::shared_ptr<std::string const>>> m_sourceNames;
-	langutil::SourceLocation m_locationOverride;
-	langutil::SourceLocation m_locationFromComment;
-	std::optional<int64_t> m_astIDFromComment;
-	UseSourceLocationFrom m_useSourceLocationFrom = UseSourceLocationFrom::Scanner;
+	std::optional<langutil::SourceLocation> m_locationOverride;
 	ForLoopComponent m_currentForLoopComponent = ForLoopComponent::None;
 	bool m_insideFunction = false;
 };

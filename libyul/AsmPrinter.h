@@ -24,88 +24,44 @@
 #pragma once
 
 #include <libyul/ASTForward.h>
-#include <libyul/YulName.h>
 
-#include <libsolutil/CommonData.h>
-
-#include <liblangutil/CharStreamProvider.h>
-#include <liblangutil/DebugInfoSelection.h>
-#include <liblangutil/DebugData.h>
-
-#include <map>
+#include <libyul/YulString.h>
 
 namespace solidity::yul
 {
-
-class Dialect;
+struct Dialect;
 
 /**
  * Converts a parsed Yul AST into readable string representation.
  * Ignores source locations.
+ * If a dialect is provided, the dialect's default type is omitted.
  */
 class AsmPrinter
 {
 public:
-	static std::string format(
-		AST const& _ast,
-		std::optional<std::map<unsigned, std::shared_ptr<std::string const>>> const& _sourceIndexToName = {},
-		langutil::DebugInfoSelection const& _debugInfoSelection = langutil::DebugInfoSelection::Default(),
-		langutil::CharStreamProvider const* _soliditySourceProvider = nullptr
-	);
+	AsmPrinter() {}
+	explicit AsmPrinter(Dialect const& _dialect): m_dialect(&_dialect) {}
 
-	explicit AsmPrinter(
-		Dialect const& _dialect,
-		std::optional<std::map<unsigned, std::shared_ptr<std::string const>>> const& _sourceIndexToName = {},
-		langutil::DebugInfoSelection const& _debugInfoSelection = langutil::DebugInfoSelection::Default(),
-		langutil::CharStreamProvider const* _soliditySourceProvider = nullptr
-	):
-		m_dialect(_dialect),
-		m_debugInfoSelection(_debugInfoSelection),
-		m_soliditySourceProvider(_soliditySourceProvider)
-	{
-		if (_sourceIndexToName)
-			for (auto&& [index, name]: *_sourceIndexToName)
-				m_nameToSourceIndex[*name] = index;
-	}
-
-	std::string operator()(Literal const& _literal);
-	std::string operator()(Identifier const& _identifier);
-	std::string operator()(BuiltinName const& _builtin);
-	std::string operator()(ExpressionStatement const& _expr);
-	std::string operator()(Assignment const& _assignment);
-	std::string operator()(VariableDeclaration const& _variableDeclaration);
-	std::string operator()(FunctionDefinition const& _functionDefinition);
-	std::string operator()(FunctionCall const& _functionCall);
-	std::string operator()(If const& _if);
-	std::string operator()(Switch const& _switch);
-	std::string operator()(ForLoop const& _forLoop);
-	std::string operator()(Break const& _break);
-	std::string operator()(Continue const& _continue);
-	std::string operator()(Leave const& _continue);
-	std::string operator()(Block const& _block);
-
-	static std::string formatSourceLocation(
-		langutil::SourceLocation const& _location,
-		std::map<std::string, unsigned> const& _nameToSourceIndex,
-		langutil::DebugInfoSelection const& _debugInfoSelection = langutil::DebugInfoSelection::Default(),
-		langutil::CharStreamProvider const* m_soliditySourceProvider = nullptr
-	);
+	std::string operator()(Literal const& _literal) const;
+	std::string operator()(Identifier const& _identifier) const;
+	std::string operator()(ExpressionStatement const& _expr) const;
+	std::string operator()(Assignment const& _assignment) const;
+	std::string operator()(VariableDeclaration const& _variableDeclaration) const;
+	std::string operator()(FunctionDefinition const& _functionDefinition) const;
+	std::string operator()(FunctionCall const& _functionCall) const;
+	std::string operator()(If const& _if) const;
+	std::string operator()(Switch const& _switch) const;
+	std::string operator()(ForLoop const& _forLoop) const;
+	std::string operator()(Break const& _break) const;
+	std::string operator()(Continue const& _continue) const;
+	std::string operator()(Leave const& _continue) const;
+	std::string operator()(Block const& _block) const;
 
 private:
-	std::string formatNameWithDebugData(NameWithDebugData _variable);
-	std::string formatDebugData(langutil::DebugData::ConstPtr const& _debugData, bool _statement);
-	template <class T>
-	std::string formatDebugData(T const& _node)
-	{
-		bool isExpression = std::is_constructible<Expression, T>::value;
-		return formatDebugData(_node.debugData, !isExpression);
-	}
+	std::string formatTypedName(TypedName _variable) const;
+	std::string appendTypeName(YulString _type, bool _isBoolLiteral = false) const;
 
-	Dialect const& m_dialect;
-	std::map<std::string, unsigned> m_nameToSourceIndex;
-	langutil::SourceLocation m_lastLocation = {};
-	langutil::DebugInfoSelection m_debugInfoSelection = {};
-	langutil::CharStreamProvider const* m_soliditySourceProvider = nullptr;
+	Dialect const* m_dialect = nullptr;
 };
 
 }

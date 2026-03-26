@@ -7,8 +7,6 @@
 	}
 	sstore(1, h(32))
 }
-// ====
-// bytecodeFormat: legacy
 // ----
 // step: fakeStackLimitEvader
 //
@@ -17,9 +15,6 @@
 //     mstore(0x00, 0)
 //     sstore(0, mload(0x00))
 //     function h($hx) -> y
-//     {
-//         mstore(0x20, $hx)
-//         y := mload(0x20)
-//     }
+//     { y := $hx }
 //     sstore(1, h(32))
 // }

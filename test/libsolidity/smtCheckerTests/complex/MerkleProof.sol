@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 /**
  * @title MerkleProof
  * @dev Merkle proof verification based on
@@ -30,6 +32,5 @@ library MerkleProof {
         return computedHash == root;
     }
 }
-// ====
-// SMTEngine: all
+
 // ----

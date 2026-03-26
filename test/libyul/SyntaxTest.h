@@ -19,6 +19,7 @@
 #pragma once
 
 #include <test/CommonSyntaxTest.h>
+#include <libyul/Dialect.h>
 
 namespace solidity::yul::test
 {
@@ -32,10 +33,17 @@ public:
 	{
 		return std::make_unique<SyntaxTest>(_config.filename, _config.evmVersion);
 	}
+	static std::unique_ptr<TestCase> createErrorRecovery(Config const& _config)
+	{
+		return std::make_unique<SyntaxTest>(_config.filename, _config.evmVersion);
+	}
 	SyntaxTest(std::string const& _filename, langutil::EVMVersion _evmVersion);
 	~SyntaxTest() override {}
 protected:
 	void parseAndAnalyze() override;
+
+private:
+	Dialect const* m_dialect = nullptr;
 };
 
 }

@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract C {
 	function f(uint x) internal pure {
 		unchecked {
@@ -12,4 +13,5 @@ contract C {
 // ====
 // SMTEngine: bmc
 // ----
-// Warning 4661: (85-98): BMC: Assertion violation happens here.
+// Warning 4661: (117-130): BMC: Assertion violation happens here.
+// Warning 4661: (117-130): BMC: Assertion violation happens here.

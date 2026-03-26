@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract C {
     function(uint) external returns (uint)[] public x;
     function(uint) internal returns (uint)[10] y;
@@ -10,7 +11,4 @@ contract C {
         a; b;
     }
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

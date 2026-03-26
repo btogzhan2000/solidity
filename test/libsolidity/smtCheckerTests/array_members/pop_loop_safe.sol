@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint[] a;
 	function f(uint l) public {
@@ -7,7 +9,4 @@ contract C {
 		}
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.

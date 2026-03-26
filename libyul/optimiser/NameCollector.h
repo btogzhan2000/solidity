@@ -22,7 +22,6 @@
 #pragma once
 
 #include <libyul/optimiser/ASTWalker.h>
-#include <libyul/YulName.h>
 
 #include <map>
 #include <set>
@@ -36,34 +35,18 @@ namespace solidity::yul
 class NameCollector: public ASTWalker
 {
 public:
-	enum CollectWhat { VariablesAndFunctions, OnlyVariables, OnlyFunctions };
-
-	explicit NameCollector(
-		Block const& _block,
-		CollectWhat _collectWhat = VariablesAndFunctions
-	):
-		m_collectWhat(_collectWhat)
+	explicit NameCollector(Block const& _block)
 	{
 		(*this)(_block);
-	}
-
-	explicit NameCollector(
-		FunctionDefinition const& _functionDefinition,
-		CollectWhat _collectWhat = VariablesAndFunctions
-	):
-		m_collectWhat(_collectWhat)
-	{
-		(*this)(_functionDefinition);
 	}
 
 	using ASTWalker::operator ();
 	void operator()(VariableDeclaration const& _varDecl) override;
 	void operator()(FunctionDefinition const& _funDef) override;
 
-	std::set<YulName> names() const { return m_names; }
+	std::set<YulString> names() const { return m_names; }
 private:
-	std::set<YulName> m_names;
-	CollectWhat m_collectWhat = VariablesAndFunctions;
+	std::set<YulString> m_names;
 };
 
 /**
@@ -72,34 +55,38 @@ private:
 class ReferencesCounter: public ASTWalker
 {
 public:
+	enum CountWhat { VariablesAndFunctions, OnlyVariables };
+
+	explicit ReferencesCounter(CountWhat _countWhat = VariablesAndFunctions):
+		m_countWhat(_countWhat)
+	{}
+
 	using ASTWalker::operator ();
 	void operator()(Identifier const& _identifier) override;
 	void operator()(FunctionCall const& _funCall) override;
 
-	static std::map<FunctionHandle, size_t> countReferences(Block const& _block);
-	static std::map<FunctionHandle, size_t> countReferences(FunctionDefinition const& _function);
-	static std::map<FunctionHandle, size_t> countReferences(Expression const& _expression);
+	static std::map<YulString, size_t> countReferences(Block const& _block, CountWhat _countWhat = VariablesAndFunctions);
+	static std::map<YulString, size_t> countReferences(FunctionDefinition const& _function, CountWhat _countWhat = VariablesAndFunctions);
+	static std::map<YulString, size_t> countReferences(Expression const& _expression, CountWhat _countWhat = VariablesAndFunctions);
 
+	std::map<YulString, size_t> const& references() const { return m_references; }
 private:
-	std::map<FunctionHandle, size_t> m_references;
+	CountWhat m_countWhat = CountWhat::VariablesAndFunctions;
+	std::map<YulString, size_t> m_references;
 };
 
 /**
- * Specific AST walker that counts all references to all variable declarations.
+ * Specific AST walker that finds all variables that are assigned to.
  */
-class VariableReferencesCounter: public ASTWalker
+class Assignments: public ASTWalker
 {
 public:
 	using ASTWalker::operator ();
-	void operator()(Identifier const& _identifier) override;
+	void operator()(Assignment const& _assignment) override;
 
-	static std::map<YulName, size_t> countReferences(Block const& _block);
-	static std::map<YulName, size_t> countReferences(FunctionDefinition const& _function);
-	static std::map<YulName, size_t> countReferences(Expression const& _expression);
-	static std::map<YulName, size_t> countReferences(Statement const& _statement);
-
+	std::set<YulString> const& names() const { return m_names; }
 private:
-	std::map<YulName, size_t> m_references;
+	std::set<YulString> m_names;
 };
 
 /**
@@ -118,21 +105,13 @@ public:
 	void operator()(Assignment const& _assignment) override;
 	void operator()(FunctionDefinition const& _funDef) override;
 
-	std::set<YulName> const& names() const { return m_names; }
+	std::set<YulString> const& names() const { return m_names; }
 	bool empty() const noexcept { return m_names.empty(); }
 
 private:
 	size_t m_forLoopDepth = 0;
 	bool m_continueFound = false;
-	std::set<YulName> m_names;
+	std::set<YulString> m_names;
 };
-
-/// @returns the names of all variables that are assigned to inside @a _code.
-/// (ignores variable declarations)
-std::set<YulName> assignedVariableNames(Block const& _code);
-
-/// @returns all function definitions anywhere in the AST.
-/// Requires disambiguated source.
-std::map<YulName, FunctionDefinition const*> allFunctionDefinitions(Block const& _block);
 
 }

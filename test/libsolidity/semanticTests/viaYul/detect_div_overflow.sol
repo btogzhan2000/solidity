@@ -9,6 +9,8 @@ contract C {
         x = a / b;
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // f(uint256,uint256): 10, 3 -> 3
 // f(uint256,uint256): 1, 0 -> FAILURE, hex"4e487b71", 0x12

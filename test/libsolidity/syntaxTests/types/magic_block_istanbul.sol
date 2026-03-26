@@ -3,15 +3,17 @@ contract C {
         return block.coinbase;
     }
     function g() public view returns (uint) {
-        return block.gaslimit;
+        return block.difficulty;
     }
     function h() public view returns (uint) {
-        return block.timestamp;
+        return block.gaslimit;
     }
     function i() public view returns (uint) {
+        return block.timestamp;
+    }
+    function j() public view returns (uint) {
         return block.chainid;
     }
 }
 // ====
 // EVMVersion: >=istanbul
-// ----

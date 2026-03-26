@@ -18,6 +18,7 @@
 
 #pragma once
 
+#include <libsolutil/AnsiColorized.h>
 #include <test/TestCase.h>
 
 #include <iosfwd>
@@ -28,7 +29,7 @@
 namespace solidity::yul::test
 {
 
-class FunctionSideEffects: public solidity::frontend::test::EVMVersionRestrictedTestCase
+class FunctionSideEffects: public solidity::frontend::test::TestCase
 {
 public:
 	static std::unique_ptr<TestCase> create(Config const& _config)

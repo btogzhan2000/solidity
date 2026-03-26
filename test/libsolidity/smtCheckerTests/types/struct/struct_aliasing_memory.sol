@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 pragma abicoder               v2;
 
 contract C {
@@ -17,10 +18,8 @@ contract C {
 	}
 }
 // ====
-// SMTEngine: all
 // SMTIgnoreCex: yes
 // ----
-// Warning 6328: (176-196): CHC: Assertion violation happens here.
-// Warning 6328: (200-220): CHC: Assertion violation happens here.
-// Warning 6328: (370-406): CHC: Assertion violation happens here.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (208-228): CHC: Assertion violation happens here.
+// Warning 6328: (232-252): CHC: Assertion violation happens here.
+// Warning 6328: (402-438): CHC: Assertion violation happens here.

@@ -26,6 +26,7 @@
 
 #include <cmath>
 
+using namespace std;
 using namespace solidity::langutil;
 using namespace solidity::langutil;
 using namespace solidity::evmasm;
@@ -90,8 +91,7 @@ BOOST_AUTO_TEST_CASE(string_storage)
 			}
 		}
 	)";
-	m_compiler.setMetadataFormat(CompilerStack::MetadataFormat::NoMetadata);
-	m_appendCBORMetadata = false;
+	m_compiler.overwriteReleaseFlag(true);
 	compileAndRun(sourceCode);
 
 	auto evmVersion = solidity::test::CommonOptions::get().evmVersion();
@@ -101,7 +101,7 @@ BOOST_AUTO_TEST_CASE(string_storage)
 		if (CommonOptions::get().useABIEncoderV1)
 			CHECK_DEPLOY_GAS(133045, 129731, evmVersion);
 		else
-			CHECK_DEPLOY_GAS(144995, 121229, evmVersion);
+			CHECK_DEPLOY_GAS(155553, 135201, evmVersion);
 	}
 	// This is only correct on >=Constantinople.
 	else if (!CommonOptions::get().useABIEncoderV1)
@@ -110,45 +110,37 @@ BOOST_AUTO_TEST_CASE(string_storage)
 		{
 			// Costs with 0 are cases which cannot be triggered in tests.
 			if (evmVersion < EVMVersion::istanbul())
-				CHECK_DEPLOY_GAS(0, 109237, evmVersion);
-			else if (evmVersion < EVMVersion::shanghai())
-				CHECK_DEPLOY_GAS(0, 97693, evmVersion);
-			// Shanghai is cheaper due to `push0`
+				CHECK_DEPLOY_GAS(0, 122869, evmVersion);
 			else
-				CHECK_DEPLOY_GAS(0, 97067, evmVersion);
+				CHECK_DEPLOY_GAS(0, 110701, evmVersion);
 		}
 		else
 		{
 			if (evmVersion < EVMVersion::istanbul())
-				CHECK_DEPLOY_GAS(139009, 123969, evmVersion);
-			else if (evmVersion < EVMVersion::shanghai())
-				CHECK_DEPLOY_GAS(123357, 110969, evmVersion);
-			// Shanghai is cheaper due to `push0`
+				CHECK_DEPLOY_GAS(149567, 123969, evmVersion);
 			else
-				CHECK_DEPLOY_GAS(121489, 110969, evmVersion);
+				CHECK_DEPLOY_GAS(134123, 110969, evmVersion);
 		}
 	}
 	else if (evmVersion < EVMVersion::istanbul())
 		CHECK_DEPLOY_GAS(125829, 118559, evmVersion);
-	else if (evmVersion < EVMVersion::shanghai())
-		CHECK_DEPLOY_GAS(114077, 96461, evmVersion);
 	else
-		CHECK_DEPLOY_GAS(114077, 95831, evmVersion);
+		CHECK_DEPLOY_GAS(114077, 107067, evmVersion);
 
 	if (evmVersion >= EVMVersion::byzantium())
 	{
 		callContractFunction("f()");
 		if (evmVersion == EVMVersion::byzantium())
-			CHECK_GAS(21741, 21522, 20);
+			CHECK_GAS(21741, 21555, 20);
 		// This is only correct on >=Constantinople.
 		else if (!CommonOptions::get().useABIEncoderV1)
 		{
 			if (CommonOptions::get().optimize)
 			{
 				if (evmVersion < EVMVersion::istanbul())
-					CHECK_GAS(0, 21526, 20);
+					CHECK_GAS(0, 21567, 20);
 				else
-					CHECK_GAS(0, 21318, 20);
+					CHECK_GAS(0, 21351, 20);
 			}
 			else
 			{
@@ -167,7 +159,7 @@ BOOST_AUTO_TEST_CASE(string_storage)
 
 BOOST_AUTO_TEST_CASE(single_callvaluecheck)
 {
-	std::string sourceCode = R"(
+	string sourceCode = R"(
 		// All functions nonpayable, we can check callvalue at the beginning
 		contract Nonpayable {
 			address a;
@@ -205,11 +197,7 @@ BOOST_AUTO_TEST_CASE(single_callvaluecheck)
 	size_t bytecodeSizeNonpayable = m_compiler.object("Nonpayable").bytecode.size();
 	size_t bytecodeSizePayable = m_compiler.object("Payable").bytecode.size();
 
-	auto evmVersion = solidity::test::CommonOptions::get().evmVersion();
-	if (evmVersion < EVMVersion::shanghai())
-		BOOST_CHECK_EQUAL(bytecodeSizePayable - bytecodeSizeNonpayable, 26);
-	else
-		BOOST_CHECK_EQUAL(bytecodeSizePayable - bytecodeSizeNonpayable, 24);
+	BOOST_CHECK_EQUAL(bytecodeSizePayable - bytecodeSizeNonpayable, 26);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

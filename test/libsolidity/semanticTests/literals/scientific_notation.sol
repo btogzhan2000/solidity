@@ -23,6 +23,10 @@ contract C {
         return -2.5e1;
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> 20000000000
 // g() -> 2

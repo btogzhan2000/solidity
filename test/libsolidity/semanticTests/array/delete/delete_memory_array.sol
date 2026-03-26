@@ -10,5 +10,8 @@ contract C {
         }
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // len() -> 0

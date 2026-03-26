@@ -20,4 +20,3 @@ contract C {
         nonpayFun();
     }
 }
-// ----

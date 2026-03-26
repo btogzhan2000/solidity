@@ -21,24 +21,26 @@
 
 #include <libyul/optimiser/ASTCopier.h>
 
+#include <libyul/Exceptions.h>
+
 #include <libyul/AST.h>
 
 #include <libsolutil/Common.h>
-#include <libsolutil/Visitor.h>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::yul;
 using namespace solidity::util;
 
 Statement ASTCopier::operator()(ExpressionStatement const& _statement)
 {
-	return ExpressionStatement{ _statement.debugData, translate(_statement.expression) };
+	return ExpressionStatement{ _statement.location, translate(_statement.expression) };
 }
 
 Statement ASTCopier::operator()(VariableDeclaration const& _varDecl)
 {
 	return VariableDeclaration{
-		_varDecl.debugData,
+		_varDecl.location,
 		translateVector(_varDecl.variables),
 		translate(_varDecl.value)
 	};
@@ -47,7 +49,7 @@ Statement ASTCopier::operator()(VariableDeclaration const& _varDecl)
 Statement ASTCopier::operator()(Assignment const& _assignment)
 {
 	return Assignment{
-		_assignment.debugData,
+		_assignment.location,
 		translateVector(_assignment.variableNames),
 		translate(_assignment.value)
 	};
@@ -56,7 +58,7 @@ Statement ASTCopier::operator()(Assignment const& _assignment)
 Expression ASTCopier::operator()(FunctionCall const& _call)
 {
 	return FunctionCall{
-		_call.debugData,
+		_call.location,
 		translate(_call.functionName),
 		translateVector(_call.arguments)
 	};
@@ -74,23 +76,23 @@ Expression ASTCopier::operator()(Literal const& _literal)
 
 Statement ASTCopier::operator()(If const& _if)
 {
-	return If{_if.debugData, translate(_if.condition), translate(_if.body)};
+	return If{_if.location, translate(_if.condition), translate(_if.body)};
 }
 
 Statement ASTCopier::operator()(Switch const& _switch)
 {
-	return Switch{_switch.debugData, translate(_switch.expression), translateVector(_switch.cases)};
+	return Switch{_switch.location, translate(_switch.expression), translateVector(_switch.cases)};
 }
 
 Statement ASTCopier::operator()(FunctionDefinition const& _function)
 {
-	YulName translatedName = translateIdentifier(_function.name);
+	YulString translatedName = translateIdentifier(_function.name);
 
 	enterFunction(_function);
 	ScopeGuard g([&]() { this->leaveFunction(_function); });
 
 	return FunctionDefinition{
-		_function.debugData,
+		_function.location,
 		translatedName,
 		translateVector(_function.parameters),
 		translateVector(_function.returnVariables),
@@ -104,7 +106,7 @@ Statement ASTCopier::operator()(ForLoop const& _forLoop)
 	ScopeGuard g([&]() { this->leaveScope(_forLoop.pre); });
 
 	return ForLoop{
-		_forLoop.debugData,
+		_forLoop.location,
 		translate(_forLoop.pre),
 		translate(_forLoop.condition),
 		translate(_forLoop.post),
@@ -146,26 +148,17 @@ Block ASTCopier::translate(Block const& _block)
 	enterScope(_block);
 	ScopeGuard g([&]() { this->leaveScope(_block); });
 
-	return Block{_block.debugData, translateVector(_block.statements)};
+	return Block{_block.location, translateVector(_block.statements)};
 }
 
 Case ASTCopier::translate(Case const& _case)
 {
-	return Case{_case.debugData, translate(_case.value), translate(_case.body)};
-}
-
-FunctionName ASTCopier::translate(FunctionName const& _functionName)
-{
-	GenericVisitor visitor{
-		[&](Identifier const& _identifier) -> FunctionName { return translate(_identifier); },
-		[](BuiltinName const& _builtin) -> FunctionName { return _builtin; }
-	};
-	return std::visit(visitor, _functionName);
+	return Case{_case.location, translate(_case.value), translate(_case.body)};
 }
 
 Identifier ASTCopier::translate(Identifier const& _identifier)
 {
-	return Identifier{_identifier.debugData, translateIdentifier(_identifier.name)};
+	return Identifier{_identifier.location, translateIdentifier(_identifier.name)};
 }
 
 Literal ASTCopier::translate(Literal const& _literal)
@@ -173,12 +166,8 @@ Literal ASTCopier::translate(Literal const& _literal)
 	return _literal;
 }
 
-NameWithDebugData ASTCopier::translate(NameWithDebugData const& _typedName)
+TypedName ASTCopier::translate(TypedName const& _typedName)
 {
-	return NameWithDebugData{_typedName.debugData, translateIdentifier(_typedName.name)};
+	return TypedName{_typedName.location, translateIdentifier(_typedName.name), _typedName.type};
 }
 
-YulName FunctionCopier::translateIdentifier(YulName _name)
-{
-	return util::valueOrDefault(m_translations, _name, _name);
-}

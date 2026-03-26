@@ -4,5 +4,9 @@ contract C {
         return abi.decode(abi.encode(uint256(33), arg), (uint256, bytes));
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> 0x21, 0x40, 0x7, "abcdefg"

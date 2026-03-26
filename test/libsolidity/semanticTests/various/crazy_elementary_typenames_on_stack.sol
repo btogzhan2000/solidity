@@ -8,5 +8,9 @@ contract C {
         return uint256(x);
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> -7

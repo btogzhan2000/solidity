@@ -4,4 +4,3 @@ contract test {
             x = 2;
     }
 }
-// ----

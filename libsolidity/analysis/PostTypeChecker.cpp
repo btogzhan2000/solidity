@@ -23,14 +23,11 @@
 #include <liblangutil/ErrorReporter.h>
 #include <liblangutil/SemVerHandler.h>
 #include <libsolutil/Algorithms.h>
-#include <libsolutil/FunctionSelector.h>
-#include <libyul/optimiser/ASTWalker.h>
-#include <libyul/AST.h>
 
-#include <range/v3/algorithm/any_of.hpp>
-
+#include <boost/range/adaptor/map.hpp>
 #include <memory>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::langutil;
 using namespace solidity::frontend;
@@ -38,14 +35,14 @@ using namespace solidity::frontend;
 bool PostTypeChecker::check(ASTNode const& _astRoot)
 {
 	_astRoot.accept(*this);
-	return !Error::containsErrors(m_errorReporter.errors());
+	return Error::containsOnlyWarnings(m_errorReporter.errors());
 }
 
 bool PostTypeChecker::finalize()
 {
 	for (auto& checker: m_checkers)
 		checker->finalize();
-	return !Error::containsErrors(m_errorReporter.errors());
+	return Error::containsOnlyWarnings(m_errorReporter.errors());
 }
 
 bool PostTypeChecker::visit(ContractDefinition const& _contractDefinition)
@@ -73,11 +70,6 @@ void PostTypeChecker::endVisit(VariableDeclaration const& _variable)
 	callEndVisit(_variable);
 }
 
-void PostTypeChecker::endVisit(ErrorDefinition const& _error)
-{
-	callEndVisit(_error);
-}
-
 bool PostTypeChecker::visit(EmitStatement const& _emit)
 {
 	return callVisit(_emit);
@@ -88,24 +80,9 @@ void PostTypeChecker::endVisit(EmitStatement const& _emit)
 	callEndVisit(_emit);
 }
 
-bool PostTypeChecker::visit(RevertStatement const& _revert)
-{
-	return callVisit(_revert);
-}
-
-void PostTypeChecker::endVisit(RevertStatement const& _revert)
-{
-	callEndVisit(_revert);
-}
-
 bool PostTypeChecker::visit(FunctionCall const& _functionCall)
 {
 	return callVisit(_functionCall);
-}
-
-void PostTypeChecker::endVisit(FunctionCall const& _functionCall)
-{
-	callEndVisit(_functionCall);
 }
 
 bool PostTypeChecker::visit(Identifier const& _identifier)
@@ -136,17 +113,6 @@ bool PostTypeChecker::visit(ModifierInvocation const& _modifierInvocation)
 void PostTypeChecker::endVisit(ModifierInvocation const& _modifierInvocation)
 {
 	callEndVisit(_modifierInvocation);
-}
-
-
-bool PostTypeChecker::visit(ForStatement const& _forStatement)
-{
-	return callVisit(_forStatement);
-}
-
-void PostTypeChecker::endVisit(ForStatement const& _forStatement)
-{
-	callEndVisit(_forStatement);
 }
 
 namespace
@@ -223,7 +189,7 @@ struct ConstStateVarCircularReferenceChecker: public PostTypeChecker::Checker
 			// Iterating through the dependencies needs to be deterministic and thus cannot
 			// depend on the memory layout.
 			// Because of that, we sort by AST node id.
-			std::vector<VariableDeclaration const*> dependencies(
+			vector<VariableDeclaration const*> dependencies(
 				m_constVariableDependencies[&_variable].begin(),
 				m_constVariableDependencies[&_variable].end()
 			);
@@ -259,12 +225,13 @@ struct OverrideSpecifierChecker: public PostTypeChecker::Checker
 			if (dynamic_cast<ContractDefinition const*>(decl))
 				continue;
 
-			auto const* typeType = dynamic_cast<TypeType const*>(decl->type());
+			TypeType const* actualTypeType = dynamic_cast<TypeType const*>(decl->type());
+
 			m_errorReporter.typeError(
 				9301_error,
 				override->location(),
 				"Expected contract but got " +
-				(typeType ? typeType->actualType() : decl->type())->toString(true) +
+				actualTypeType->actualType()->toString(true) +
 				"."
 			);
 		}
@@ -309,77 +276,42 @@ private:
 	bool m_insideModifierInvocation = false;
 };
 
-// TODO: this should either be split into separate emit and error checkers, or at least renamed to include require
-struct EventOutsideEmitErrorOutsideRevertChecker: public PostTypeChecker::Checker
+struct EventOutsideEmitChecker: public PostTypeChecker::Checker
 {
-	EventOutsideEmitErrorOutsideRevertChecker(ErrorReporter& _errorReporter):
+	EventOutsideEmitChecker(ErrorReporter& _errorReporter):
 		Checker(_errorReporter) {}
 
-	bool visit(EmitStatement const& _emitStatement) override
+	bool visit(EmitStatement const&) override
 	{
-		m_currentStatement = &_emitStatement;
+		m_insideEmitStatement = true;
 		return true;
 	}
 
 	void endVisit(EmitStatement const&) override
 	{
-		m_currentStatement = nullptr;
-	}
-
-	bool visit(RevertStatement const& _revertStatement) override
-	{
-		m_currentStatement = &_revertStatement;
-		return true;
-	}
-
-	void endVisit(RevertStatement const&) override
-	{
-		m_currentStatement = nullptr;
+		m_insideEmitStatement = true;
 	}
 
 	bool visit(FunctionCall const& _functionCall) override
 	{
-		if (*_functionCall.annotation().kind == FunctionCallKind::FunctionCall)
-			if (auto const* functionType = dynamic_cast<FunctionType const*>(_functionCall.expression().annotation().type))
-			{
-				if (functionType->kind() == FunctionType::Kind::Require)
-				{
-					solAssert(!m_inRequire);
-					m_inRequire = true;
-				}
-				// Check for event outside of emit statement
-				if (!dynamic_cast<EmitStatement const*>(m_currentStatement) && functionType->kind() == FunctionType::Kind::Event)
-					m_errorReporter.typeError(
-						3132_error,
-						_functionCall.location(),
-						"Event invocations have to be prefixed by \"emit\"."
-					);
-				else if (!dynamic_cast<RevertStatement const*>(m_currentStatement) && !m_inRequire && functionType->kind() == FunctionType::Kind::Error)
-					m_errorReporter.typeError(
-						7757_error,
-						_functionCall.location(),
-						"Errors can only be used with revert statements: \"revert MyError(args);\", or require functions: \"require(condition, MyError(args))\"."
-					);
-			}
-		m_currentStatement = nullptr;
+		if (*_functionCall.annotation().kind != FunctionCallKind::FunctionCall)
+			return true;
+
+		if (FunctionTypePointer const functionType = dynamic_cast<FunctionTypePointer const>(_functionCall.expression().annotation().type))
+			// Check for event outside of emit statement
+			if (!m_insideEmitStatement && functionType->kind() == FunctionType::Kind::Event)
+				m_errorReporter.typeError(
+					3132_error,
+					_functionCall.location(),
+					"Event invocations have to be prefixed by \"emit\"."
+				);
 
 		return true;
 	}
 
-	void endVisit(FunctionCall const& _functionCall) override
-	{
-		if (*_functionCall.annotation().kind == FunctionCallKind::FunctionCall)
-			if (auto const* functionType = dynamic_cast<FunctionType const*>(_functionCall.expression().annotation().type))
-				if (functionType->kind() == FunctionType::Kind::Require)
-				{
-					solAssert(m_inRequire);
-					m_inRequire = false;
-				}
-	}
-
 private:
-	Statement const* m_currentStatement = nullptr;
-	bool m_inRequire = false;
+	/// Flag indicating whether we are currently inside an EmitStatement.
+	bool m_insideEmitStatement = false;
 };
 
 struct NoVariablesInInterfaceChecker: public PostTypeChecker::Checker
@@ -431,154 +363,13 @@ private:
 	/// Flag indicating whether we are currently inside a StructDefinition.
 	int m_insideStruct = 0;
 };
-
-struct ReservedErrorSelector: public PostTypeChecker::Checker
-{
-	ReservedErrorSelector(ErrorReporter& _errorReporter):
-		Checker(_errorReporter)
-	{}
-
-	void endVisit(ErrorDefinition const& _error) override
-	{
-		if (_error.name() == "Error" || _error.name() == "Panic")
-			m_errorReporter.syntaxError(
-				1855_error,
-				_error.location(),
-				"The built-in errors \"Error\" and \"Panic\" cannot be re-defined."
-			);
-		else
-		{
-			uint32_t selector = util::selectorFromSignatureU32(_error.functionType(true)->externalSignature());
-			if (selector == 0 || ~selector == 0)
-				m_errorReporter.syntaxError(
-					2855_error,
-					_error.location(),
-					"The selector 0x" + util::toHex(toCompactBigEndian(selector, 4)) + " is reserved. Please rename the error to avoid the collision."
-				);
-		}
-	}
-};
-
-class YulLValueChecker : public solidity::yul::ASTWalker
-{
-public:
-	YulLValueChecker(ASTString const& _identifierName): m_identifierName(_identifierName) {}
-	bool willBeWrittenTo() const { return m_willBeWrittenTo; }
-	using solidity::yul::ASTWalker::operator();
-	void operator()(solidity::yul::Assignment const& _assignment) override
-	{
-		if (m_willBeWrittenTo)
-			return;
-
-		if (ranges::any_of(
-			_assignment.variableNames,
-			[&](auto const& yulIdentifier) { return yulIdentifier.name.str() == m_identifierName; }
-		))
-			m_willBeWrittenTo = true;
-	}
-private:
-	ASTString const& m_identifierName;
-	bool m_willBeWrittenTo = false;
-};
-
-class LValueChecker: public ASTConstVisitor
-{
-public:
-	LValueChecker(Identifier const& _identifier):
-		m_declaration(_identifier.annotation().referencedDeclaration)
-	{}
-	bool willBeWrittenTo() const { return m_willBeWrittenTo; }
-	void endVisit(Identifier const& _identifier) override
-	{
-		if (m_willBeWrittenTo)
-			return;
-
-		solAssert(_identifier.annotation().referencedDeclaration);
-		if (
-			*_identifier.annotation().referencedDeclaration == *m_declaration &&
-			_identifier.annotation().willBeWrittenTo
-		)
-			m_willBeWrittenTo = true;
-	}
-	void endVisit(InlineAssembly const& _inlineAssembly) override
-	{
-		if (m_willBeWrittenTo)
-			return;
-
-		YulLValueChecker yulChecker{m_declaration->name()};
-		yulChecker(_inlineAssembly.operations().root());
-		m_willBeWrittenTo = yulChecker.willBeWrittenTo();
-	}
-private:
-	Declaration const* m_declaration{};
-	bool m_willBeWrittenTo = false;
-};
-
-struct SimpleCounterForLoopChecker: public PostTypeChecker::Checker
-{
-	SimpleCounterForLoopChecker(ErrorReporter& _errorReporter): Checker(_errorReporter) {}
-	bool visit(ForStatement const& _forStatement) override
-	{
-		_forStatement.annotation().isSimpleCounterLoop = isSimpleCounterLoop(_forStatement);
-		return true;
-	}
-	bool isSimpleCounterLoop(ForStatement const& _forStatement) const
-	{
-		auto const* simpleCondition = dynamic_cast<BinaryOperation const*>(_forStatement.condition());
-		if (!simpleCondition || simpleCondition->getOperator() != Token::LessThan || simpleCondition->userDefinedFunctionType())
-			return false;
-		if (!_forStatement.loopExpression())
-			return false;
-
-		auto const* simplePostExpression = dynamic_cast<UnaryOperation const*>(&_forStatement.loopExpression()->expression());
-		// This matches both operators ++i and i++
-		if (!simplePostExpression || simplePostExpression->getOperator() != Token::Inc || simplePostExpression->userDefinedFunctionType())
-			return false;
-
-		auto const* lhsIdentifier = dynamic_cast<Identifier const*>(&simpleCondition->leftExpression());
-		auto const* lhsIntegerType = dynamic_cast<IntegerType const*>(simpleCondition->leftExpression().annotation().type);
-		auto const* commonIntegerType = dynamic_cast<IntegerType const*>(simpleCondition->annotation().commonType);
-
-		if (!lhsIdentifier || !lhsIntegerType || !commonIntegerType || *lhsIntegerType != *commonIntegerType)
-			return false;
-
-		auto const* incExpressionIdentifier = dynamic_cast<Identifier const*>(&simplePostExpression->subExpression());
-		if (
-			!incExpressionIdentifier ||
-			incExpressionIdentifier->annotation().referencedDeclaration != lhsIdentifier->annotation().referencedDeclaration
-		)
-			return false;
-
-		solAssert(incExpressionIdentifier->annotation().referencedDeclaration);
-		if (
-			auto const* incVariableDeclaration = dynamic_cast<VariableDeclaration const*>(
-				incExpressionIdentifier->annotation().referencedDeclaration
-			);
-			incVariableDeclaration &&
-			!incVariableDeclaration->isLocalVariable()
-		)
-			return false;
-
-		solAssert(lhsIdentifier);
-		LValueChecker lValueChecker{*lhsIdentifier};
-		simpleCondition->rightExpression().accept(lValueChecker);
-		if (!lValueChecker.willBeWrittenTo())
-			_forStatement.body().accept(lValueChecker);
-
-		return !lValueChecker.willBeWrittenTo();
-	}
-};
-
 }
-
 
 PostTypeChecker::PostTypeChecker(langutil::ErrorReporter& _errorReporter): m_errorReporter(_errorReporter)
 {
-	m_checkers.push_back(std::make_shared<ConstStateVarCircularReferenceChecker>(_errorReporter));
-	m_checkers.push_back(std::make_shared<OverrideSpecifierChecker>(_errorReporter));
-	m_checkers.push_back(std::make_shared<ModifierContextChecker>(_errorReporter));
-	m_checkers.push_back(std::make_shared<EventOutsideEmitErrorOutsideRevertChecker>(_errorReporter));
-	m_checkers.push_back(std::make_shared<NoVariablesInInterfaceChecker>(_errorReporter));
-	m_checkers.push_back(std::make_shared<ReservedErrorSelector>(_errorReporter));
-	m_checkers.push_back(std::make_shared<SimpleCounterForLoopChecker>(_errorReporter));
+	m_checkers.push_back(make_shared<ConstStateVarCircularReferenceChecker>(_errorReporter));
+	m_checkers.push_back(make_shared<OverrideSpecifierChecker>(_errorReporter));
+	m_checkers.push_back(make_shared<ModifierContextChecker>(_errorReporter));
+	m_checkers.push_back(make_shared<EventOutsideEmitChecker>(_errorReporter));
+	m_checkers.push_back(make_shared<NoVariablesInInterfaceChecker>(_errorReporter));
 }

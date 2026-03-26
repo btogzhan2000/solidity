@@ -7,4 +7,3 @@ contract D is I {
       return Direction.Left;
     }
 }
-// ----

@@ -6,5 +6,3 @@ contract C {
         r = abi.encodeWithSignature("f(uint256)", 4);
     }
 }
-// ----
-// Warning 5740: (142-237): Unreachable code.

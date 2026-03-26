@@ -1,16 +1,8 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint[][] arr;
-	constructor() {
-		arr.push();
-		arr.push();
-		arr.push();
-		arr.push();
-		arr.push();
-		arr.push();
-		arr.push();
-		arr.push();
-		arr.push();
-	}
+	uint[][] arr2;
 	function f() public {
 		uint x = arr[2].length;
 		uint y = arr[3].length;
@@ -23,12 +15,8 @@ contract C {
 		assert(arr[5].length != t);
 	}
 }
-// ====
-// SMTEngine: all
-// SMTIgnoreOS: macos
 // ----
-// Warning 6328: (319-345): CHC: Assertion violation happens here.
-// Warning 6328: (349-375): CHC: Assertion violation happens here.
-// Warning 6328: (379-402): CHC: Assertion violation happens here.
-// Warning 6328: (406-432): CHC: Assertion violation happens here.
-// Info 1391: CHC: 8 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (222-248): CHC: Assertion violation happens here.\nCounterexample:\narr = [], arr2 = []\n\nTransaction trace:\nC.constructor()\nState: arr = [], arr2 = []\nC.f()
+// Warning 6328: (252-278): CHC: Assertion violation happens here.\nCounterexample:\narr = [], arr2 = []\n\nTransaction trace:\nC.constructor()\nState: arr = [], arr2 = []\nC.f()
+// Warning 6328: (282-305): CHC: Assertion violation happens here.\nCounterexample:\narr = [], arr2 = []\n\nTransaction trace:\nC.constructor()\nState: arr = [], arr2 = []\nC.f()
+// Warning 6328: (309-335): CHC: Assertion violation happens here.\nCounterexample:\narr = [], arr2 = []\n\nTransaction trace:\nC.constructor()\nState: arr = [], arr2 = []\nC.f()

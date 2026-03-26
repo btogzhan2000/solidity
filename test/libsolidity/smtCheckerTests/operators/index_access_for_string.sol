@@ -1,13 +1,14 @@
+pragma experimental SMTChecker;
+
 contract C {
-    function f() public pure {
+    function f(uint i) public pure {
         string memory x = "\x12\x34";
         bytes memory y = bytes(x);
         assert(y[0] == 0x12);
         assert(y[1] == 0x34);
-        assert(y.length == 2);
+        require(i > 2);
+        assert(y[i] == 0x00);
     }
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 5 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 6328: (248-268): CHC: Assertion violation happens here.\nCounterexample:\n\ni = 3\n\nTransaction trace:\nC.constructor()\nC.f(3)

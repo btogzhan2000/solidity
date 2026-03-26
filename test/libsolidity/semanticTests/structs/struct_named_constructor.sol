@@ -9,5 +9,9 @@ contract C {
         s = S({x: true, a: 1});
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // s() -> 1, true

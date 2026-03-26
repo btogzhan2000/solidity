@@ -28,16 +28,10 @@
 #include <libsolutil/CommonData.h>
 #include <liblangutil/SourceLocation.h>
 
-#include <boost/preprocessor/cat.hpp>
-#include <boost/preprocessor/facilities/empty.hpp>
-#include <boost/preprocessor/facilities/overload.hpp>
-#include <boost/algorithm/string/case_conv.hpp>
-
-#include <optional>
 #include <string>
 #include <utility>
-#include <variant>
 #include <vector>
+#include <memory>
 
 namespace solidity::langutil
 {
@@ -51,68 +45,18 @@ struct FatalError: virtual util::Exception {};
 struct UnimplementedFeatureError: virtual util::Exception {};
 struct InvalidAstError: virtual util::Exception {};
 
-
 /// Assertion that throws an InternalCompilerError containing the given description if it is not met.
-#if !BOOST_PP_VARIADICS_MSVC
-#define solAssert(...) BOOST_PP_OVERLOAD(solAssert_,__VA_ARGS__)(__VA_ARGS__)
-#else
-#define solAssert(...) BOOST_PP_CAT(BOOST_PP_OVERLOAD(solAssert_,__VA_ARGS__)(__VA_ARGS__),BOOST_PP_EMPTY())
-#endif
+#define solAssert(CONDITION, DESCRIPTION) \
+	assertThrow(CONDITION, ::solidity::langutil::InternalCompilerError, DESCRIPTION)
 
-#define solAssert_1(CONDITION) \
-	solAssert_2((CONDITION), "")
+#define solUnimplementedAssert(CONDITION, DESCRIPTION) \
+	assertThrow(CONDITION, ::solidity::langutil::UnimplementedFeatureError, DESCRIPTION)
 
-#define solAssert_2(CONDITION, DESCRIPTION) \
-	assertThrowWithDefaultDescription( \
-		(CONDITION), \
-		::solidity::langutil::InternalCompilerError, \
-		(DESCRIPTION), \
-		"Solidity assertion failed" \
-	)
-
-
-/// Assertion that throws an UnimplementedFeatureError containing the given description if it is not met.
-#if !BOOST_PP_VARIADICS_MSVC
-#define solUnimplementedAssert(...) BOOST_PP_OVERLOAD(solUnimplementedAssert_,__VA_ARGS__)(__VA_ARGS__)
-#else
-#define solUnimplementedAssert(...) BOOST_PP_CAT(BOOST_PP_OVERLOAD(solUnimplementedAssert_,__VA_ARGS__)(__VA_ARGS__),BOOST_PP_EMPTY())
-#endif
-
-#define solUnimplementedAssert_1(CONDITION) \
-	solUnimplementedAssert_2((CONDITION), "")
-
-#define solUnimplementedAssert_2(CONDITION, DESCRIPTION) \
-	assertThrowWithDefaultDescription( \
-		(CONDITION), \
-		::solidity::langutil::UnimplementedFeatureError, \
-		(DESCRIPTION), \
-		"Unimplemented feature" \
-	)
-
-
-/// Helper that unconditionally reports an unimplemented feature.
 #define solUnimplemented(DESCRIPTION) \
 	solUnimplementedAssert(false, DESCRIPTION)
 
-
-/// Assertion that throws an InvalidAstError containing the given description if it is not met.
-#if !BOOST_PP_VARIADICS_MSVC
-#define astAssert(...) BOOST_PP_OVERLOAD(astAssert_,__VA_ARGS__)(__VA_ARGS__)
-#else
-#define astAssert(...) BOOST_PP_CAT(BOOST_PP_OVERLOAD(astAssert_,__VA_ARGS__)(__VA_ARGS__),BOOST_PP_EMPTY())
-#endif
-
-#define astAssert_1(CONDITION) \
-	astAssert_2(CONDITION, "")
-
-#define astAssert_2(CONDITION, DESCRIPTION) \
-	assertThrowWithDefaultDescription( \
-		(CONDITION), \
-		::solidity::langutil::InvalidAstError, \
-		(DESCRIPTION), \
-		"AST assertion failed" \
-	)
-
+#define astAssert(CONDITION, DESCRIPTION) \
+	assertThrow(CONDITION, ::solidity::langutil::InvalidAstError, DESCRIPTION)
 
 using errorSourceLocationInfo = std::pair<std::string, SourceLocation>;
 
@@ -161,41 +105,32 @@ struct ErrorId
 	unsigned long long error = 0;
 	bool operator==(ErrorId const& _rhs) const { return error == _rhs.error; }
 	bool operator!=(ErrorId const& _rhs) const { return !(*this == _rhs); }
-	bool operator<(ErrorId const& _rhs) const { return error < _rhs.error; }
 };
-constexpr ErrorId operator""_error(unsigned long long _error) { return ErrorId{ _error }; }
+constexpr ErrorId operator"" _error(unsigned long long _error) { return ErrorId{ _error }; }
 
 class Error: virtual public util::Exception
 {
 public:
 	enum class Type
 	{
-		Info,
-		Warning,
 		CodeGenerationError,
 		DeclarationError,
 		DocstringParsingError,
 		ParserError,
 		TypeError,
 		SyntaxError,
-		IOError,
-		FatalError,
-		JSONError,
-		InternalCompilerError,
-		CompilerError,
-		Exception,
-		UnimplementedFeatureError,
-		YulException,
-		SMTLogicException,
+		Warning
 	};
 
-	enum class Severity
-	{
-		// NOTE: We rely on these being ordered from least to most severe.
-		Info,
-		Warning,
-		Error,
-	};
+	// TODO: remove this
+	Error(
+		ErrorId _errorId,
+		Type _type,
+		SourceLocation const& _location = SourceLocation(),
+		std::string const& _description = std::string()
+	):
+		Error(_errorId, _type, _description, _location)
+	{}
 
 	Error(
 		ErrorId _errorId,
@@ -207,105 +142,31 @@ public:
 
 	ErrorId errorId() const { return m_errorId; }
 	Type type() const { return m_type; }
-	Severity severity() const { return errorSeverity(m_type); }
-
-	SourceLocation const* sourceLocation() const noexcept;
-	SecondarySourceLocation const* secondarySourceLocation() const noexcept;
+	std::string const& typeName() const { return m_typeName; }
 
 	/// helper functions
 	static Error const* containsErrorOfType(ErrorList const& _list, Error::Type _type)
 	{
 		for (auto e: _list)
+		{
 			if (e->type() == _type)
 				return e.get();
+		}
 		return nullptr;
 	}
-
-	static constexpr Severity errorSeverity(Type _type)
-	{
-		switch (_type)
-		{
-			case Type::Info: return Severity::Info;
-			case Type::Warning: return Severity::Warning;
-			default: return Severity::Error;
-		}
-	}
-
-	static constexpr Severity errorSeverityOrType(std::variant<Error::Type, Error::Severity> _typeOrSeverity)
-	{
-		if (std::holds_alternative<Error::Type>(_typeOrSeverity))
-			return errorSeverity(std::get<Error::Type>(_typeOrSeverity));
-		return std::get<Error::Severity>(_typeOrSeverity);
-	}
-
-	static bool isError(Severity _severity)
-	{
-		return _severity == Severity::Error;
-	}
-
-	static bool isError(Type _type)
-	{
-		return isError(errorSeverity(_type));
-	}
-
-	static bool containsErrors(ErrorList const& _list)
+	static bool containsOnlyWarnings(ErrorList const& _list)
 	{
 		for (auto e: _list)
-			if (isError(e->type()))
-				return true;
-		return false;
-	}
-
-	static bool hasErrorsWarningsOrInfos(ErrorList const& _list)
-	{
-		return !_list.empty();
-	}
-
-	static std::string formatErrorSeverity(Severity _severity)
-	{
-		switch (_severity)
 		{
-		case Severity::Info: return "Info";
-		case Severity::Warning: return "Warning";
-		case Severity::Error: return "Error";
+			if (e->type() != Type::Warning)
+				return false;
 		}
-		util::unreachable();
+		return true;
 	}
-
-	static std::string formatErrorType(Type _type)
-	{
-		return m_errorTypeNames.at(_type);
-	}
-
-	static std::optional<Type> parseErrorType(std::string _name)
-	{
-		static std::map<std::string, Error::Type> const m_errorTypesByName = util::invertMap(m_errorTypeNames);
-
-		if (m_errorTypesByName.count(_name) == 0)
-			return std::nullopt;
-
-		return m_errorTypesByName.at(_name);
-	}
-
-	static std::string formatTypeOrSeverity(std::variant<Error::Type, Error::Severity> _typeOrSeverity)
-	{
-		if (std::holds_alternative<Error::Type>(_typeOrSeverity))
-			return formatErrorType(std::get<Error::Type>(_typeOrSeverity));
-		return formatErrorSeverity(std::get<Error::Severity>(_typeOrSeverity));
-	}
-
-	static std::string formatErrorSeverityLowercase(Severity _severity)
-	{
-		std::string severityValue = formatErrorSeverity(_severity);
-		boost::algorithm::to_lower(severityValue);
-		return severityValue;
-	}
-
 private:
 	ErrorId m_errorId;
 	Type m_type;
-
-	static std::map<Type, std::string> const m_errorTypeNames;
+	std::string m_typeName;
 };
 
 }

@@ -18,15 +18,14 @@
 
 #pragma once
 
-#include <libsmtutil/BMCSolverInterface.h>
-
-#include <libsmtutil/SMTLib2Context.h>
+#include <libsmtutil/SolverInterface.h>
 
 #include <libsolidity/interface/ReadFile.h>
 
 #include <libsolutil/Common.h>
 #include <libsolutil/FixedHash.h>
 
+#include <boost/noncopyable.hpp>
 #include <cstdio>
 #include <map>
 #include <set>
@@ -36,42 +35,9 @@
 namespace solidity::smtutil
 {
 
-class SMTLib2Commands
+class SMTLib2Interface: public SolverInterface, public boost::noncopyable
 {
 public:
-	void push();
-	void pop();
-
-	void clear();
-
-	void assertion(std::string _expr);
-
-	void setOption(std::string _name, std::string _value);
-
-	void setLogic(std::string _logic);
-
-	void declareVariable(std::string _name, std::string _sort);
-	void declareFunction(std::string const& _name, std::vector<std::string> const& _domain, std::string const& _codomain);
-	void declareTuple(
-		std::string const& _name,
-		std::vector<std::string> const& _memberNames,
-		std::vector<std::string> const& _memberSorts
-	);
-
-	[[nodiscard]] std::string toString() const;
-private:
-	std::vector<std::string> m_commands;
-	std::vector<std::size_t> m_frameLimits;
-
-};
-
-class SMTLib2Interface: public BMCSolverInterface
-{
-public:
-	/// Noncopyable.
-	SMTLib2Interface(SMTLib2Interface const&) = delete;
-	SMTLib2Interface& operator=(SMTLib2Interface const&) = delete;
-
 	explicit SMTLib2Interface(
 		std::map<util::h256, std::string> _queryResponses = {},
 		frontend::ReadCallback::Callback _smtCallback = {},
@@ -92,23 +58,25 @@ public:
 
 	// Used by CHCSmtLib2Interface
 	std::string toSExpr(Expression const& _expr);
-	std::string toSmtLibSort(SortPointer _sort);
-	std::vector<std::string> toSmtLibSort(std::vector<SortPointer> const& _sort);
+	std::string toSmtLibSort(Sort const& _sort);
+	std::string toSmtLibSort(std::vector<SortPointer> const& _sort);
 
-	std::string dumpQuery(std::vector<Expression> const& _expressionsToEvaluate);
+	std::map<std::string, SortPointer> variables() { return m_variables; }
 
-protected:
-	virtual void setupSmtCallback() {}
-
+private:
 	void declareFunction(std::string const& _name, SortPointer const& _sort);
 
+	void write(std::string _data);
+
 	std::string checkSatAndGetValuesCommand(std::vector<Expression> const& _expressionsToEvaluate);
+	std::vector<std::string> parseValues(std::string::const_iterator _start, std::string::const_iterator _end);
 
 	/// Communicates with the solver via the callback. Throws SMTSolverError on error.
-	virtual std::string querySolver(std::string const& _input);
+	std::string querySolver(std::string const& _input);
 
-	SMTLib2Commands m_commands;
-	SMTLib2Context m_context;
+	std::vector<std::string> m_accumulatedOutput;
+	std::map<std::string, SortPointer> m_variables;
+	std::set<std::string> m_userSorts;
 
 	std::map<util::h256, std::string> m_queryResponses;
 	std::vector<std::string> m_unhandledQueries;

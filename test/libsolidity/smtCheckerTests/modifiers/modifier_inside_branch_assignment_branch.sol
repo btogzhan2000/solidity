@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint x;
 	address owner;
@@ -21,8 +23,5 @@ contract C {
 		assert(x > 0);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
-// Warning 6838: (233-238): BMC: Condition is always true.
+// Warning 6838: (266-271): BMC: Condition is always true.

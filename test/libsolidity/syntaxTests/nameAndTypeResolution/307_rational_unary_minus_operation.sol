@@ -5,7 +5,5 @@ contract test {
         a; b;
     }
 }
-// ====
-// compileViaYul: true
 // ----
-// UnimplementedFeatureError 1834: (55-74): Fixed point types not implemented.
+// UnimplementedFeatureError: Not yet implemented - FixedPointType.

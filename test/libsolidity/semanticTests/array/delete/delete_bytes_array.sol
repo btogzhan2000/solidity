@@ -29,7 +29,9 @@ contract C {
         assert(size == 0);
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // f() -> 0
 // g() -> 0
-// gas irOptimized: 56617

@@ -1,3 +1,4 @@
+pragma experimental SMTChecker;
 contract C {
 	function g() internal pure returns (uint, uint) {
 		return (2, 3);
@@ -9,7 +10,6 @@ contract C {
 		assert(y == 3);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Info 1391: CHC: 2 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
+// Warning 4588: (142-161): Assertion checker does not yet implement this type of function call.
+// Warning 4588: (142-161): Assertion checker does not yet implement this type of function call.

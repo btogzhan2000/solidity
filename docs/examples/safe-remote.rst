@@ -6,27 +6,27 @@ Safe Remote Purchase
 
 Purchasing goods remotely currently requires multiple parties that need to trust each other.
 The simplest configuration involves a seller and a buyer. The buyer would like to receive
-an item from the seller and the seller would like to get some compensation, e.g. Ether,
+an item from the seller and the seller would like to get money (or an equivalent)
 in return. The problematic part is the shipment here: There is no way to determine for
 sure that the item arrived at the buyer.
 
 There are multiple ways to solve this problem, but all fall short in one or the other way.
 In the following example, both parties have to put twice the value of the item into the
-contract as escrow. As soon as this happened, the Ether will stay locked inside
+contract as escrow. As soon as this happened, the money will stay locked inside
 the contract until the buyer confirms that they received the item. After that,
 the buyer is returned the value (half of their deposit) and the seller gets three
 times the value (their deposit plus the value). The idea behind
 this is that both parties have an incentive to resolve the situation or otherwise
-their Ether is locked forever.
+their money is locked forever.
 
 This contract of course does not solve the problem, but gives an overview of how
 you can use state machine-like constructs inside a contract.
 
 
-.. code-block:: solidity
+::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity ^0.8.4;
+    pragma solidity >=0.7.0 <0.9.0;
     contract Purchase {
         uint public value;
         address payable public seller;
@@ -36,35 +36,32 @@ you can use state machine-like constructs inside a contract.
         // The state variable has a default value of the first member, `State.created`
         State public state;
 
-        modifier condition(bool condition_) {
-            require(condition_);
+        modifier condition(bool _condition) {
+            require(_condition);
             _;
         }
 
-        /// Only the buyer can call this function.
-        error OnlyBuyer();
-        /// Only the seller can call this function.
-        error OnlySeller();
-        /// The function cannot be called at the current state.
-        error InvalidState();
-        /// The provided value has to be even.
-        error ValueNotEven();
-
         modifier onlyBuyer() {
-            if (msg.sender != buyer)
-                revert OnlyBuyer();
+            require(
+                msg.sender == buyer,
+                "Only buyer can call this."
+            );
             _;
         }
 
         modifier onlySeller() {
-            if (msg.sender != seller)
-                revert OnlySeller();
+            require(
+                msg.sender == seller,
+                "Only seller can call this."
+            );
             _;
         }
 
-        modifier inState(State state_) {
-            if (state != state_)
-                revert InvalidState();
+        modifier inState(State _state) {
+            require(
+                state == _state,
+                "Invalid state."
+            );
             _;
         }
 
@@ -79,26 +76,24 @@ you can use state machine-like constructs inside a contract.
         constructor() payable {
             seller = payable(msg.sender);
             value = msg.value / 2;
-            if ((2 * value) != msg.value)
-                revert ValueNotEven();
+            require((2 * value) == msg.value, "Value has to be even.");
         }
 
         /// Abort the purchase and reclaim the ether.
         /// Can only be called by the seller before
         /// the contract is locked.
         function abort()
-            external
+            public
             onlySeller
             inState(State.Created)
         {
             emit Aborted();
             state = State.Inactive;
-            // We use call here directly. It is
+            // We use transfer here directly. It is
             // reentrancy-safe, because it is the
             // last call in this function and we
             // already changed the state.
-            (bool success, ) = seller.call{value: address(this).balance}("");
-            require(success);
+            seller.transfer(address(this).balance);
         }
 
         /// Confirm the purchase as buyer.
@@ -106,7 +101,7 @@ you can use state machine-like constructs inside a contract.
         /// The ether will be locked until confirmReceived
         /// is called.
         function confirmPurchase()
-            external
+            public
             inState(State.Created)
             condition(msg.value == (2 * value))
             payable
@@ -119,34 +114,32 @@ you can use state machine-like constructs inside a contract.
         /// Confirm that you (the buyer) received the item.
         /// This will release the locked ether.
         function confirmReceived()
-            external
+            public
             onlyBuyer
             inState(State.Locked)
         {
             emit ItemReceived();
             // It is important to change the state first because
-            // otherwise, the contracts called using `call` below
+            // otherwise, the contracts called using `send` below
             // can call in again here.
             state = State.Release;
 
-            (bool success, ) = buyer.call{value: value}("");
-            require(success);
+            buyer.transfer(value);
         }
 
         /// This function refunds the seller, i.e.
         /// pays back the locked funds of the seller.
         function refundSeller()
-            external
+            public
             onlySeller
             inState(State.Release)
         {
             emit SellerRefunded();
             // It is important to change the state first because
-            // otherwise, the contracts called using `call` below
+            // otherwise, the contracts called using `send` below
             // can call in again here.
             state = State.Inactive;
 
-            (bool success, ) = seller.call{value: 3 * value}("");
-            require(success);
+            seller.transfer(3 * value);
         }
     }

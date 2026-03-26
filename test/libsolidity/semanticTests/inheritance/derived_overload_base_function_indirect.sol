@@ -21,6 +21,10 @@ contract C is A, B {
         return f(1);
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // g() -> 10
 // h() -> 2

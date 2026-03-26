@@ -22,6 +22,7 @@
 
 #include <libsolutil/CommonData.h>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::yul;
 
@@ -32,34 +33,34 @@ void ForLoopConditionIntoBody::run(OptimiserStepContext& _context, Block& _ast)
 
 void ForLoopConditionIntoBody::operator()(ForLoop& _forLoop)
 {
-	std::optional<BuiltinHandle> booleanNegationFunctionHandle = m_dialect.booleanNegationFunctionHandle();
 	if (
-		booleanNegationFunctionHandle &&
-		!std::holds_alternative<Literal>(*_forLoop.condition) &&
-		!std::holds_alternative<Identifier>(*_forLoop.condition)
+		m_dialect.booleanNegationFunction() &&
+		!holds_alternative<Literal>(*_forLoop.condition) &&
+		!holds_alternative<Identifier>(*_forLoop.condition)
 	)
 	{
-		langutil::DebugData::ConstPtr debugData = debugDataOf(*_forLoop.condition);
+		langutil::SourceLocation const loc = locationOf(*_forLoop.condition);
 
 		_forLoop.body.statements.emplace(
 			begin(_forLoop.body.statements),
 			If {
-				debugData,
-				std::make_unique<Expression>(
+				loc,
+				make_unique<Expression>(
 					FunctionCall {
-						debugData,
-						BuiltinName{debugData, *booleanNegationFunctionHandle},
+						loc,
+						{loc, m_dialect.booleanNegationFunction()->name},
 						util::make_vector<Expression>(std::move(*_forLoop.condition))
 					}
 				),
-				Block {debugData, util::make_vector<Statement>(Break{{}})}
+				Block {loc, util::make_vector<Statement>(Break{{}})}
 			}
 		);
-		_forLoop.condition = std::make_unique<Expression>(
+		_forLoop.condition = make_unique<Expression>(
 			Literal {
-				debugData,
+				loc,
 				LiteralKind::Boolean,
-				LiteralValue{true}
+				"true"_yulstring,
+				m_dialect.boolType
 			}
 		);
 	}

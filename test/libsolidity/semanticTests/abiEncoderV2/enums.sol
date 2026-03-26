@@ -6,6 +6,9 @@ contract C {
         assembly { x := e }
     }
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f(uint8): 0 -> 0
 // f(uint8): 1 -> 1

@@ -5,4 +5,3 @@ contract D {
 contract C is D {
     function f() public override {}
 }
-// ----

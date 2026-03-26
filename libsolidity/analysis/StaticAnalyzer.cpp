@@ -22,15 +22,13 @@
  */
 
 #include <libsolidity/analysis/StaticAnalyzer.h>
+
 #include <libsolidity/analysis/ConstantEvaluator.h>
 #include <libsolidity/ast/AST.h>
-#include <libsolidity/ast/ASTUtils.h>
 #include <liblangutil/ErrorReporter.h>
-
-#include <range/v3/view/enumerate.hpp>
-
 #include <memory>
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::langutil;
 using namespace solidity::frontend;
@@ -73,7 +71,7 @@ private:
 		return m_usesAssembly[&_contract];
 	}
 
-	std::map<ContractDefinition const*, bool> m_usesAssembly;
+	map<ContractDefinition const*, bool> m_usesAssembly;
 };
 
 StaticAnalyzer::StaticAnalyzer(ErrorReporter& _errorReporter):
@@ -88,19 +86,7 @@ StaticAnalyzer::~StaticAnalyzer()
 bool StaticAnalyzer::analyze(SourceUnit const& _sourceUnit)
 {
 	_sourceUnit.accept(*this);
-	return !Error::containsErrors(m_errorReporter.errors());
-}
-
-bool StaticAnalyzer::visit(Assignment const& _assignment)
-{
-	Type const* lhsType = _assignment.leftHandSide().annotation().type;
-	Type const* rhsType = _assignment.rightHandSide().annotation().type;
-	solAssert(lhsType && rhsType, "Both left and right hand side expressions in an assignment must have a type.");
-
-	if (dynamic_cast<TupleType const*>(lhsType) && dynamic_cast<TupleType const*>(rhsType))
-		checkDoubleStorageAssignment(_assignment);
-
-	return true;
+	return Error::containsOnlyWarnings(m_errorReporter.errors());
 }
 
 bool StaticAnalyzer::visit(ContractDefinition const& _contract)
@@ -138,7 +124,7 @@ void StaticAnalyzer::endVisit(FunctionDefinition const&)
 						5667_error,
 						var.first.second->location(),
 						"Unused " +
-						std::string(var.first.second->isTryCatchParameter() ? "try/catch" : "function") +
+						string(var.first.second->isTryCatchParameter() ? "try/catch" : "function") +
 						" parameter. Remove or comment out the variable name to silence this warning."
 					);
 				else
@@ -156,7 +142,7 @@ bool StaticAnalyzer::visit(Identifier const& _identifier)
 		{
 			solAssert(!var->name().empty(), "");
 			if (var->isLocalVariable())
-				m_localVarUseCount[std::make_pair(var->id(), var)] += 1;
+				m_localVarUseCount[make_pair(var->id(), var)] += 1;
 		}
 	return true;
 }
@@ -168,7 +154,7 @@ bool StaticAnalyzer::visit(VariableDeclaration const& _variable)
 		solAssert(_variable.isLocalVariable(), "");
 		if (_variable.name() != "")
 			// This is not a no-op, the entry might pre-exist.
-			m_localVarUseCount[std::make_pair(_variable.id(), &_variable)] += 0;
+			m_localVarUseCount[make_pair(_variable.id(), &_variable)] += 0;
 	}
 
 	if (_variable.isStateVariable() || _variable.referenceLocation() == VariableDeclaration::Location::Storage)
@@ -176,7 +162,7 @@ bool StaticAnalyzer::visit(VariableDeclaration const& _variable)
 			for (Type const* type: varType->fullDecomposition())
 				if (type->storageSizeUpperBound() >= (bigint(1) << 64))
 				{
-					std::string message = "Type " + type->toString(true) +
+					string message = "Type " + type->toString(true) +
 						" covers a large part of storage and thus makes collisions likely."
 						" Either use mappings or dynamic arrays and allow their size to be increased only"
 						" in small quantities per transaction.";
@@ -193,7 +179,7 @@ bool StaticAnalyzer::visit(Return const& _return)
 	if (m_currentFunction && _return.expression())
 		for (auto const& var: m_currentFunction->returnParameters())
 			if (!var->name().empty())
-				m_localVarUseCount[std::make_pair(var->id(), var.get())] += 1;
+				m_localVarUseCount[make_pair(var->id(), var.get())] += 1;
 	return true;
 }
 
@@ -228,7 +214,7 @@ bool StaticAnalyzer::visit(MemberAccess const& _memberAccess)
 		else if (type->kind() == MagicType::Kind::MetaType && _memberAccess.memberName() == "runtimeCode")
 		{
 			if (!m_constructorUsesAssembly)
-				m_constructorUsesAssembly = std::make_unique<ConstructorUsesAssembly>();
+				m_constructorUsesAssembly = make_unique<ConstructorUsesAssembly>();
 			ContractType const& contract = dynamic_cast<ContractType const&>(*type->typeArgument());
 			if (m_constructorUsesAssembly->check(contract.contractDefinition()))
 				m_errorReporter.warning(
@@ -302,7 +288,7 @@ bool StaticAnalyzer::visit(InlineAssembly const& _inlineAssembly)
 		{
 			solAssert(!var->name().empty(), "");
 			if (var->isLocalVariable())
-				m_localVarUseCount[std::make_pair(var->id(), var)] += 1;
+				m_localVarUseCount[make_pair(var->id(), var)] += 1;
 		}
 	}
 
@@ -313,19 +299,15 @@ bool StaticAnalyzer::visit(BinaryOperation const& _operation)
 {
 	if (
 		*_operation.rightExpression().annotation().isPure &&
-		(_operation.getOperator() == Token::Div || _operation.getOperator() == Token::Mod) &&
-		ConstantEvaluator::evaluate(m_errorReporter, _operation.leftExpression()).type
+		(_operation.getOperator() == Token::Div || _operation.getOperator() == Token::Mod)
 	)
-		if (
-			auto rhs = ConstantEvaluator::evaluate(m_errorReporter, _operation.rightExpression());
-			std::holds_alternative<rational>(rhs.value) &&
-			std::get<rational>(rhs.value) == 0
-		)
-			m_errorReporter.typeError(
-				1211_error,
-				_operation.location(),
-				(_operation.getOperator() == Token::Div) ? "Division by zero." : "Modulo zero."
-			);
+		if (auto rhs = ConstantEvaluator::evaluate(m_errorReporter, _operation.rightExpression()))
+			if (rhs->value == 0)
+				m_errorReporter.typeError(
+					1211_error,
+					_operation.location(),
+					(_operation.getOperator() == Token::Div) ? "Division by zero." : "Modulo zero."
+				);
 
 	return true;
 }
@@ -340,16 +322,13 @@ bool StaticAnalyzer::visit(FunctionCall const& _functionCall)
 		{
 			solAssert(_functionCall.arguments().size() == 3, "");
 			if (*_functionCall.arguments()[2]->annotation().isPure)
-				if (
-					auto lastArg = ConstantEvaluator::evaluate(m_errorReporter, *(_functionCall.arguments())[2]);
-					std::holds_alternative<rational>(lastArg.value) &&
-					std::get<rational>(lastArg.value) == 0
-				)
-					m_errorReporter.typeError(
-						4195_error,
-						_functionCall.location(),
-						"Arithmetic modulo zero."
-					);
+				if (auto lastArg = ConstantEvaluator::evaluate(m_errorReporter, *(_functionCall.arguments())[2]))
+					if (lastArg->value == 0)
+						m_errorReporter.typeError(
+							4195_error,
+							_functionCall.location(),
+							"Arithmetic modulo zero."
+						);
 		}
 		if (
 			m_currentContract &&
@@ -368,101 +347,4 @@ bool StaticAnalyzer::visit(FunctionCall const& _functionCall)
 			);
 	}
 	return true;
-}
-
-void StaticAnalyzer::checkDoubleStorageAssignment(Assignment const& _assignment)
-{
-	size_t storageToStorageCopies = 0;
-	size_t toStorageCopies = 0;
-	size_t storageByteArrayPushes = 0;
-	size_t storageByteAccesses = 0;
-	auto count = [&](TupleExpression const& _lhs, TupleType const& _rhs, auto _recurse) -> void {
-		TupleType const& lhsType = dynamic_cast<TupleType const&>(*type(_lhs));
-		TupleExpression const* lhsResolved = dynamic_cast<TupleExpression const*>(resolveOuterUnaryTuples(&_lhs));
-
-		solAssert(lhsResolved && lhsResolved->components().size() == lhsType.components().size());
-		if (lhsType.components().size() != _rhs.components().size())
-		{
-			solAssert(m_errorReporter.hasErrors(), "");
-			return;
-		}
-
-		for (auto&& [index, componentType]: lhsType.components() | ranges::views::enumerate)
-		{
-			if (ReferenceType const* ref = dynamic_cast<ReferenceType const*>(componentType))
-			{
-				if (ref->dataStoredIn(DataLocation::Storage) && !ref->isPointer())
-				{
-					toStorageCopies++;
-					if (_rhs.components()[index]->dataStoredIn(DataLocation::Storage))
-						storageToStorageCopies++;
-				}
-			}
-			else if (FixedBytesType const* bytesType = dynamic_cast<FixedBytesType const*>(componentType))
-			{
-				if (bytesType->numBytes() == 1)
-				{
-					if (FunctionCall const* lhsCall = dynamic_cast<FunctionCall const*>(resolveOuterUnaryTuples(lhsResolved->components().at(index).get())))
-					{
-						FunctionType const& callType = dynamic_cast<FunctionType const&>(*type(lhsCall->expression()));
-						if (callType.kind() == FunctionType::Kind::ArrayPush)
-						{
-							ArrayType const& arrayType = dynamic_cast<ArrayType const&>(*callType.selfType());
-							if (arrayType.isByteArray() && arrayType.dataStoredIn(DataLocation::Storage))
-							{
-								++storageByteAccesses;
-								++storageByteArrayPushes;
-							}
-						}
-					}
-					else if (IndexAccess const* indexAccess = dynamic_cast<IndexAccess const*>(resolveOuterUnaryTuples(lhsResolved->components().at(index).get())))
-					{
-						if (ArrayType const* arrayType = dynamic_cast<ArrayType const*>(type(indexAccess->baseExpression())))
-							if (arrayType->isByteArray() && arrayType->dataStoredIn(DataLocation::Storage))
-								++storageByteAccesses;
-					}
-				}
-			}
-			else if (dynamic_cast<TupleType const*>(componentType))
-				if (auto const* lhsNested = dynamic_cast<TupleExpression const*>(lhsResolved->components().at(index).get()))
-					if (auto const* rhsNestedType = dynamic_cast<TupleType const*>(_rhs.components().at(index)))
-						_recurse(
-							*lhsNested,
-							*rhsNestedType,
-							_recurse
-						);
-		}
-	};
-
-	TupleExpression const* lhsTupleExpression = dynamic_cast<TupleExpression const*>(&_assignment.leftHandSide());
-	if (!lhsTupleExpression)
-	{
-		solAssert(m_errorReporter.hasErrors());
-		return;
-	}
-	count(
-		*lhsTupleExpression,
-		dynamic_cast<TupleType const&>(*type(_assignment.rightHandSide())),
-		count
-	);
-
-	if (storageToStorageCopies >= 1 && toStorageCopies >= 2)
-		m_errorReporter.warning(
-			7238_error,
-			_assignment.location(),
-			"This assignment performs two copies to storage. Since storage copies do not first "
-			"copy to a temporary location, one of them might be overwritten before the second "
-			"is executed and thus may have unexpected effects. It is safer to perform the copies "
-			"separately or assign to storage pointers first."
-		);
-
-	if (storageByteArrayPushes >= 1 && storageByteAccesses >= 2)
-		m_errorReporter.warning(
-			7239_error,
-			_assignment.location(),
-			"This assignment involves multiple accesses to a bytes array in storage while simultaneously enlarging it. "
-			"When a bytes array is enlarged, it may transition from short storage layout to long storage layout, "
-			"which invalidates all references to its elements. It is safer to only enlarge byte arrays in a single "
-			"operation, one element at a time."
-		);
 }

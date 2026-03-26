@@ -18,5 +18,8 @@ contract C {
 		return true;
 	}
 }
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // basic() -> true

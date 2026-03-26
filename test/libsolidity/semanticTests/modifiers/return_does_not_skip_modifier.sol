@@ -9,6 +9,9 @@ contract C {
         return 2;
     }
 }
+
+// ====
+// compileViaYul: also
 // ----
 // x() -> 0
 // f() -> 2

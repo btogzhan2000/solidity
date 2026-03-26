@@ -3,4 +3,3 @@ contract C {
     assembly "evmasm" {}
   }
 }
-// ----

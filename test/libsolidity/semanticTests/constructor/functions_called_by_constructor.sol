@@ -14,7 +14,9 @@ contract Test {
         name = _name;
     }
 }
+
 // ====
-// bytecodeFormat: legacy,>=EOFv1
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // getName() -> "abc"

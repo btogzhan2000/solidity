@@ -24,7 +24,9 @@
 #include <libsolc/libsolc.h>
 #include <libsolidity/interface/StandardCompiler.h>
 #include <libsolidity/interface/Version.h>
-#include <libyul/YulName.h>
+#include <libyul/YulString.h>
+#include <libsolutil/Common.h>
+#include <libsolutil/JSON.h>
 
 #include <cstdlib>
 #include <list>
@@ -32,6 +34,7 @@
 
 #include "license.h"
 
+using namespace std;
 using namespace solidity;
 using namespace solidity::util;
 
@@ -41,21 +44,21 @@ using solidity::frontend::StandardCompiler;
 namespace
 {
 
-// The std::strings in this list must not be resized after they have been added here (via solidity_alloc()), because
+// The strings in this list must not be resized after they have been added here (via solidity_alloc()), because
 // this may potentially change the pointer that was passed to the caller from solidity_alloc().
-static std::list<std::string> solidityAllocations;
+static list<string> solidityAllocations;
 
 /// Find the equivalent to @p _data in the list of allocations of solidity_alloc(),
 /// removes it from the list and returns its value.
 ///
 /// If any invalid argument is being passed, it is considered a programming error
 /// on the caller-side and hence, will call abort() then.
-std::string takeOverAllocation(char const* _data)
+string takeOverAllocation(char const* _data)
 {
 	for (auto iter = begin(solidityAllocations); iter != end(solidityAllocations); ++iter)
 		if (iter->data() == _data)
 		{
-			std::string chunk = std::move(*iter);
+			string chunk = move(*iter);
 			solidityAllocations.erase(iter);
 			return chunk;
 		}
@@ -64,10 +67,10 @@ std::string takeOverAllocation(char const* _data)
 }
 
 /// Resizes a std::string to the proper length based on the occurrence of a zero terminator.
-void truncateCString(std::string& _data)
+void truncateCString(string& _data)
 {
 	size_t pos = _data.find('\0');
-	if (pos != std::string::npos)
+	if (pos != string::npos)
 		_data.resize(pos);
 }
 
@@ -76,7 +79,7 @@ ReadCallback::Callback wrapReadCallback(CStyleReadFileCallback _readCallback, vo
 	ReadCallback::Callback readCallback;
 	if (_readCallback)
 	{
-		readCallback = [=](std::string const& _kind, std::string const& _data)
+		readCallback = [=](string const& _kind, string const& _data)
 		{
 			char* contents_c = nullptr;
 			char* error_c = nullptr;
@@ -105,10 +108,10 @@ ReadCallback::Callback wrapReadCallback(CStyleReadFileCallback _readCallback, vo
 	return readCallback;
 }
 
-std::string compile(std::string _input, CStyleReadFileCallback _readCallback, void* _readContext)
+string compile(string _input, CStyleReadFileCallback _readCallback, void* _readContext)
 {
 	StandardCompiler compiler(wrapReadCallback(_readCallback, _readContext));
-	return compiler.compile(std::move(_input));
+	return compiler.compile(move(_input));
 }
 
 }
@@ -117,7 +120,7 @@ extern "C"
 {
 extern char const* solidity_license() noexcept
 {
-	static std::string fullLicenseText = otherLicenses + licenseText;
+	static string fullLicenseText = otherLicenses + licenseText;
 	return fullLicenseText.c_str();
 }
 

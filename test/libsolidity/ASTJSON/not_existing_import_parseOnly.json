@@ -2,12 +2,11 @@
   "absolutePath": "a",
   "id": 12,
   "nodeType": "SourceUnit",
-  "nodes": [
+  "nodes":
+  [
     {
-      "absolutePath": "notexisting.sol",
       "file": "notexisting.sol",
       "id": 1,
-      "nameLocation": "28:11:1",
       "nodeType": "ImportDirective",
       "src": "0:40:1",
       "symbolAliases": [],
@@ -15,15 +14,13 @@
     },
     {
       "abstract": false,
-      "baseContracts": [
+      "baseContracts":
+      [
         {
-          "baseName": {
+          "baseName":
+          {
             "id": 2,
             "name": "NotExisting.X",
-            "nameLocations": [
-              "55:11:1",
-              "67:1:1"
-            ],
             "nodeType": "IdentifierPath",
             "src": "55:13:1"
           },
@@ -36,30 +33,27 @@
       "contractKind": "contract",
       "id": 11,
       "name": "C",
-      "nameLocation": "50:1:1",
       "nodeType": "ContractDefinition",
-      "nodes": [
+      "nodes":
+      [
         {
           "constant": false,
           "id": 6,
           "mutability": "mutable",
           "name": "myStruct",
-          "nameLocation": "102:8:1",
           "nodeType": "VariableDeclaration",
           "src": "72:38:1",
           "stateVariable": false,
           "storageLocation": "default",
           "typeDescriptions": {},
-          "typeName": {
+          "typeName":
+          {
             "id": 5,
             "nodeType": "UserDefinedTypeName",
-            "pathNode": {
+            "pathNode":
+            {
               "id": 4,
               "name": "NotExisting.SomeStruct",
-              "nameLocations": [
-                "72:11:1",
-                "84:10:1"
-              ],
               "nodeType": "IdentifierPath",
               "src": "72:22:1"
             },
@@ -69,7 +63,8 @@
           "visibility": "public"
         },
         {
-          "body": {
+          "body":
+          {
             "id": 9,
             "nodeType": "Block",
             "src": "127:2:1",
@@ -80,15 +75,16 @@
           "kind": "constructor",
           "modifiers": [],
           "name": "",
-          "nameLocation": "-1:-1:-1",
           "nodeType": "FunctionDefinition",
-          "parameters": {
+          "parameters":
+          {
             "id": 7,
             "nodeType": "ParameterList",
             "parameters": [],
             "src": "124:2:1"
           },
-          "returnParameters": {
+          "returnParameters":
+          {
             "id": 8,
             "nodeType": "ParameterList",
             "parameters": [],
@@ -99,9 +95,7 @@
           "virtual": false
         }
       ],
-      "src": "41:90:1",
-      "usedErrors": [],
-      "usedEvents": []
+      "src": "41:90:1"
     }
   ],
   "src": "0:132:1"

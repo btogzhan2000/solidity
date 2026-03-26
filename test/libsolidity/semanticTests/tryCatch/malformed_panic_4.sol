@@ -55,6 +55,7 @@ contract C {
 }
 // ====
 // EVMVersion: >=byzantium
+// compileViaYul: also
 // ----
 // a() -> 0x00
 // b() -> 0x00

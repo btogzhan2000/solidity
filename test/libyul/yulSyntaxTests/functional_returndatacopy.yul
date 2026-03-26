@@ -3,4 +3,3 @@
 }
 // ====
 // EVMVersion: >=byzantium
-// ----

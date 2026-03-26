@@ -15,8 +15,7 @@ contract c {
             res2 |= uint(uint16(data2[16 + i])) * 0x10000**i;
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // test() -> 0xffffffff, 0x0000000000000000000000000a00090008000700060005000400030002000100, 0x0000000000000000000000000000000000000000000000000000000000000000
-// gas irOptimized: 100506
-// gas legacy: 146700
-// gas legacyOptimized: 122680

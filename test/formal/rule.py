@@ -1,6 +1,6 @@
 import sys
 
-from z3 import sat, Solver, unknown, unsat
+from z3 import *
 
 class Rule:
 	def __init__(self):
@@ -39,7 +39,6 @@ class Rule:
 			self.error('Rule is incorrect.\nModel: ' + str(m))
 		self.solver.pop()
 
-	@classmethod
-	def error(cls, msg):
+	def error(self, msg):
 		print(msg)
 		sys.exit(1)

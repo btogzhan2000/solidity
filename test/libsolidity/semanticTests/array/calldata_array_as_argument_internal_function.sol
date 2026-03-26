@@ -12,6 +12,8 @@ contract Test {
         return f(c[start: end]);
     }
 }
+// ====
+// compileViaYul: also
 // ----
 // g(uint256[]): 0x20, 4, 1, 2, 3, 4 -> 4, 1
-// h(uint256[],uint256,uint256): 0x60, 1, 3, 4, 1, 2, 3, 4 -> 2, 2
+// h(uint256[], uint256, uint256): 0x60, 1, 3, 4, 1, 2, 3, 4 -> 2, 2

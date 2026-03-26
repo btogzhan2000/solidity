@@ -19,5 +19,9 @@ contract C {
         return (m.s.a, m.s.b, m.s.c);
     }
 }
+
+// ====
+// compileViaYul: also
+// compileToEwasm: also
 // ----
 // f() -> 42, 23, 34

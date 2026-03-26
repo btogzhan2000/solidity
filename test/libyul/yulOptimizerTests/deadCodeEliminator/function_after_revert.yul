@@ -5,7 +5,9 @@
 
     function fun()
     {
-        sstore(0, 1)
+        return(1, 1)
+
+        pop(sub(10, 5))
     }
 
     pop(add(1, 1))
@@ -17,5 +19,5 @@
 //     fun()
 //     revert(0, 0)
 //     function fun()
-//     { sstore(0, 1) }
+//     { return(1, 1) }
 // }

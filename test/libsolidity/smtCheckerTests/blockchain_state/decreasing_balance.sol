@@ -1,3 +1,5 @@
+pragma experimental SMTChecker;
+
 contract C {
 	uint t;
 	constructor() {
@@ -15,8 +17,4 @@ contract C {
 		//assert(address(this).balance == t);
 	}
 }
-// ====
-// SMTEngine: all
 // ----
-// Warning 9207: (160-170): 'transfer' is deprecated and scheduled for removal. Use 'call{value: <amount>}("")' instead.
-// Info 1391: CHC: 1 verification condition(s) proved safe! Enable the model checker option "show proved safe" to see all of them.
