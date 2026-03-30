@@ -14,6 +14,10 @@
 //
 // {
 //     let a := 1
+//     function f() -> x
+//     { invalid() }
+//     function g() -> y
+//     { return(0, 0) }
 //     let i := 1
 //     for { } iszero(eq(i, 10)) { a := add(i, 1) }
 //     {
@@ -22,8 +26,4 @@
 //         let d := g()
 //         let e := sload(g())
 //     }
-//     function f() -> x
-//     { invalid() }
-//     function g() -> y
-//     { return(0, 0) }
 // }

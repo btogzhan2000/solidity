@@ -245,25 +245,7 @@ SymbolicTupleVariable::SymbolicTupleVariable(
 	solAssert(m_sort->kind == Kind::Tuple, "");
 }
 
-smtutil::Expression SymbolicTupleVariable::currentValue(frontend::TypePointer const& _targetType) const
-{
-	if (!_targetType || sort() == smtSort(*_targetType))
-		return SymbolicVariable::currentValue();
-
-	auto thisTuple = dynamic_pointer_cast<TupleSort>(sort());
-	auto otherTuple = dynamic_pointer_cast<TupleSort>(smtSort(*_targetType));
-	solAssert(thisTuple && otherTuple, "");
-	solAssert(thisTuple->components.size() == otherTuple->components.size(), "");
-	vector<smtutil::Expression> args;
-	for (size_t i = 0; i < thisTuple->components.size(); ++i)
-		args.emplace_back(component(i, type(), _targetType));
-	return smtutil::Expression::tuple_constructor(
-		smtutil::Expression(make_shared<smtutil::SortSort>(smtSort(*_targetType)), ""),
-		args
-	);
-}
-
-vector<SortPointer> const& SymbolicTupleVariable::components() const
+vector<SortPointer> const& SymbolicTupleVariable::components()
 {
 	auto tupleSort = dynamic_pointer_cast<TupleSort>(m_sort);
 	solAssert(tupleSort, "");
@@ -274,7 +256,7 @@ smtutil::Expression SymbolicTupleVariable::component(
 	size_t _index,
 	TypePointer _fromType,
 	TypePointer _toType
-) const
+)
 {
 	optional<smtutil::Expression> conversion = symbolicTypeConversion(_fromType, _toType);
 	if (conversion)
@@ -332,12 +314,12 @@ smtutil::Expression SymbolicArrayVariable::valueAtIndex(unsigned _index) const
 	return m_pair.valueAtIndex(_index);
 }
 
-smtutil::Expression SymbolicArrayVariable::elements() const
+smtutil::Expression SymbolicArrayVariable::elements()
 {
 	return m_pair.component(0);
 }
 
-smtutil::Expression SymbolicArrayVariable::length() const
+smtutil::Expression SymbolicArrayVariable::length()
 {
 	return m_pair.component(1);
 }
@@ -360,7 +342,7 @@ SymbolicStructVariable::SymbolicStructVariable(
 	}
 }
 
-smtutil::Expression SymbolicStructVariable::member(string const& _member) const
+smtutil::Expression SymbolicStructVariable::member(string const& _member)
 {
 	return smtutil::Expression::tuple_get(currentValue(), m_memberIndices.at(_member));
 }
@@ -382,21 +364,6 @@ smtutil::Expression SymbolicStructVariable::assignMember(string const& _member, 
 		auto newMember = memberName == _member ? _memberValue : oldMembers.at(i);
 		m_context.addAssertion(member(memberName) == newMember);
 	}
-
-	return currentValue();
-}
-
-smtutil::Expression SymbolicStructVariable::assignAllMembers(vector<smtutil::Expression> const& _memberValues)
-{
-	auto structType = dynamic_cast<StructType const*>(m_type);
-	solAssert(structType, "");
-
-	auto const& structDef = structType->structDefinition();
-	auto const& structMembers = structDef.members();
-	solAssert(_memberValues.size() == structMembers.size(), "");
-	increaseIndex();
-	for (unsigned i = 0; i < _memberValues.size(); ++i)
-		m_context.addAssertion(_memberValues[i] == member(structMembers[i]->name()));
 
 	return currentValue();
 }

@@ -17,8 +17,7 @@ contract C
 		// Should not fail since knowledge is erased only for mapping (uint => uint).
 		assert(severalMaps8[0][0] == 42);
 		// Should not fail since singleMap == severalMaps3d[0][0] is not possible.
-		// Removed because of Spacer nondeterminism.
-		//assert(severalMaps3d[0][0][0] == 42);
+		assert(severalMaps3d[0][0][0] == 42);
 		// Should fail since singleMap == map is possible.
 		assert(map[0] == 42);
 	}
@@ -27,4 +26,4 @@ contract C
 	}
 }
 // ----
-// Warning 6328: (830-850): CHC: Assertion violation happens here.\nCounterexample:\n\nx = 0\n\nTransaction trace:\nC.constructor()\nC.g(0)\n    C.f(map) -- internal call
+// Warning 6328: (781-801): CHC: Assertion violation happens here.

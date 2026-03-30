@@ -62,18 +62,6 @@ bool DeclarationTypeChecker::visit(ElementaryTypeName const& _typeName)
 	return true;
 }
 
-bool DeclarationTypeChecker::visit(EnumDefinition const& _enum)
-{
-	if (_enum.members().size() > 256)
-		m_errorReporter.declarationError(
-			1611_error,
-			_enum.location(),
-			"Enum with more than 256 members is not allowed."
-		);
-
-	return false;
-}
-
 bool DeclarationTypeChecker::visit(StructDefinition const& _struct)
 {
 	if (_struct.annotation().recursive.has_value())
@@ -145,7 +133,7 @@ void DeclarationTypeChecker::endVisit(UserDefinedTypeName const& _typeName)
 	if (_typeName.annotation().type)
 		return;
 
-	Declaration const* declaration = _typeName.pathNode().annotation().referencedDeclaration;
+	Declaration const* declaration = _typeName.annotation().referencedDeclaration;
 	solAssert(declaration, "");
 
 	if (StructDefinition const* structDef = dynamic_cast<StructDefinition const*>(declaration))
@@ -157,7 +145,11 @@ void DeclarationTypeChecker::endVisit(UserDefinedTypeName const& _typeName)
 	else if (EnumDefinition const* enumDef = dynamic_cast<EnumDefinition const*>(declaration))
 		_typeName.annotation().type = TypeProvider::enumType(*enumDef);
 	else if (ContractDefinition const* contract = dynamic_cast<ContractDefinition const*>(declaration))
+	{
+		if (contract->isLibrary())
+			m_errorReporter.typeError(1130_error, _typeName.location(), "Invalid use of a library name.");
 		_typeName.annotation().type = TypeProvider::contract(*contract);
+	}
 	else
 	{
 		_typeName.annotation().type = TypeProvider::emptyTuple();
@@ -167,16 +159,6 @@ void DeclarationTypeChecker::endVisit(UserDefinedTypeName const& _typeName)
 			"Name has to refer to a struct, enum or contract."
 		);
 	}
-}
-
-void DeclarationTypeChecker::endVisit(IdentifierPath const& _path)
-{
-	Declaration const* declaration = _path.annotation().referencedDeclaration;
-	solAssert(declaration, "");
-
-	if (ContractDefinition const* contract = dynamic_cast<ContractDefinition const*>(declaration))
-		if (contract->isLibrary())
-			m_errorReporter.typeError(1130_error, _path.location(), "Invalid use of a library name.");
 }
 
 bool DeclarationTypeChecker::visit(FunctionTypeName const& _typeName)
@@ -265,30 +247,26 @@ void DeclarationTypeChecker::endVisit(ArrayTypeName const& _typeName)
 	solAssert(baseType->storageBytes() != 0, "Illegal base type of storage size zero for array.");
 	if (Expression const* length = _typeName.length())
 	{
-		optional<rational> lengthValue;
-		if (length->annotation().type && length->annotation().type->category() == Type::Category::RationalNumber)
-			lengthValue = dynamic_cast<RationalNumberType const&>(*length->annotation().type).value();
-		else if (optional<ConstantEvaluator::TypedRational> value = ConstantEvaluator::evaluate(m_errorReporter, *length))
-			lengthValue = value->value;
-
-		if (!lengthValue || lengthValue > TypeProvider::uint256()->max())
+		TypePointer& lengthTypeGeneric = length->annotation().type;
+		if (!lengthTypeGeneric)
+			lengthTypeGeneric = ConstantEvaluator(m_errorReporter).evaluate(*length);
+		RationalNumberType const* lengthType = dynamic_cast<RationalNumberType const*>(lengthTypeGeneric);
+		u256 lengthValue = 0;
+		if (!lengthType || !lengthType->mobileType())
 			m_errorReporter.typeError(
 				5462_error,
 				length->location(),
 				"Invalid array length, expected integer literal or constant expression."
 			);
-		else if (*lengthValue == 0)
+		else if (lengthType->isZero())
 			m_errorReporter.typeError(1406_error, length->location(), "Array with zero length specified.");
-		else if (lengthValue->denominator() != 1)
+		else if (lengthType->isFractional())
 			m_errorReporter.typeError(3208_error, length->location(), "Array with fractional length specified.");
-		else if (*lengthValue < 0)
+		else if (lengthType->isNegative())
 			m_errorReporter.typeError(3658_error, length->location(), "Array with negative length specified.");
-
-		_typeName.annotation().type = TypeProvider::array(
-			DataLocation::Storage,
-			baseType,
-			lengthValue ? u256(lengthValue->numerator()) : u256(0)
-		);
+		else
+			lengthValue = lengthType->literalValue(nullptr);
+		_typeName.annotation().type = TypeProvider::array(DataLocation::Storage, baseType, lengthValue);
 	}
 	else
 		_typeName.annotation().type = TypeProvider::array(DataLocation::Storage, baseType);
@@ -412,16 +390,8 @@ void DeclarationTypeChecker::endVisit(VariableDeclaration const& _variable)
 		type = TypeProvider::withLocation(ref, typeLoc, isPointer);
 	}
 
-	if (_variable.isConstant() && !type->isValueType())
-	{
-		bool allowed = false;
-		if (auto arrayType = dynamic_cast<ArrayType const*>(type))
-			allowed = arrayType->isByteArray();
-		if (!allowed)
-			m_errorReporter.fatalDeclarationError(9259_error, _variable.location(), "Constants of non-value type not yet implemented.");
-	}
-
 	_variable.annotation().type = type;
+
 }
 
 bool DeclarationTypeChecker::visit(UsingForDirective const& _usingFor)
@@ -433,6 +403,7 @@ bool DeclarationTypeChecker::visit(UsingForDirective const& _usingFor)
 	if (!library || !library->isLibrary())
 		m_errorReporter.fatalTypeError(4357_error, _usingFor.libraryName().location(), "Library name expected.");
 
+	_usingFor.libraryName().annotation().type = TypeProvider::contract(*library);
 	if (_usingFor.typeName())
 		_usingFor.typeName()->accept(*this);
 

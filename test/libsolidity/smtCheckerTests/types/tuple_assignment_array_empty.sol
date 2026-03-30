@@ -10,7 +10,5 @@ contract C
 		assert(a[y] == 4);
 	}
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
 // Warning 6328: (136-153): CHC: Assertion violation happens here.

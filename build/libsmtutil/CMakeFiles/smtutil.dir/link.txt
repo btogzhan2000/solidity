@@ -1,0 +1,2 @@
+/usr/bin/ar qc libsmtutil.a CMakeFiles/smtutil.dir/CHCSmtLib2Interface.cpp.o CMakeFiles/smtutil.dir/SMTLib2Interface.cpp.o CMakeFiles/smtutil.dir/SMTPortfolio.cpp.o CMakeFiles/smtutil.dir/Sorts.cpp.o
+/usr/bin/ranlib libsmtutil.a

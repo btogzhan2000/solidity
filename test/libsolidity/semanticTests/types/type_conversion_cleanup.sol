@@ -1,8 +1,7 @@
 contract Test {
-    function test() public returns (uint ret) { return uint(uint160(address(uint160(uint128(type(uint200).max))))); }
+    function test() public returns (uint ret) { return uint(address(Test(address(0x11223344556677889900112233445566778899001122)))); }
 }
 // ====
 // compileViaYul: also
-// compileToEwasm: also
 // ----
-// test() -> 0xffffffffffffffffffffffffffffffff
+// test() -> 0x0000000000000000000000003344556677889900112233445566778899001122

@@ -209,7 +209,7 @@ evmc::result EVMHost::call(evmc_message const& _message) noexcept
 	{
 		// TODO this is not the right formula
 		// TODO is the nonce incremented on failure, too?
-		h160 createAddress(keccak256(
+		Address createAddress(keccak256(
 			bytes(begin(message.sender.bytes), end(message.sender.bytes)) +
 			asBytes(to_string(sender.nonce++))
 		));
@@ -218,7 +218,7 @@ evmc::result EVMHost::call(evmc_message const& _message) noexcept
 	}
 	else if (message.kind == EVMC_CREATE2)
 	{
-		h160 createAddress(keccak256(
+		Address createAddress(keccak256(
 			bytes(1, 0xff) +
 			bytes(begin(message.sender.bytes), end(message.sender.bytes)) +
 			bytes(begin(message.create2_salt.bytes), end(message.create2_salt.bytes)) +
@@ -292,15 +292,15 @@ evmc::bytes32 EVMHost::get_block_hash(int64_t _number) const noexcept
 	return convertToEVMC(u256("0x3737373737373737373737373737373737373737373737373737373737373737") + _number);
 }
 
-h160 EVMHost::convertFromEVMC(evmc::address const& _addr)
+Address EVMHost::convertFromEVMC(evmc::address const& _addr)
 {
-	return h160(bytes(begin(_addr.bytes), end(_addr.bytes)));
+	return Address(bytes(begin(_addr.bytes), end(_addr.bytes)));
 }
 
-evmc::address EVMHost::convertToEVMC(h160 const& _addr)
+evmc::address EVMHost::convertToEVMC(Address const& _addr)
 {
 	evmc::address a;
-	for (unsigned i = 0; i < 20; ++i)
+	for (size_t i = 0; i < 20; ++i)
 		a.bytes[i] = _addr[i];
 	return a;
 }
@@ -313,7 +313,7 @@ h256 EVMHost::convertFromEVMC(evmc::bytes32 const& _data)
 evmc::bytes32 EVMHost::convertToEVMC(h256 const& _data)
 {
 	evmc::bytes32 d;
-	for (unsigned i = 0; i < 32; ++i)
+	for (size_t i = 0; i < 32; ++i)
 		d.bytes[i] = _data[i];
 	return d;
 }

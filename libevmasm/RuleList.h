@@ -365,11 +365,6 @@ std::vector<SimplificationRule<Pattern>> simplificationRuleListPart6(
 		[=]() -> Pattern { return Builtins::EQ(X, Y); }
 	});
 
-	rules.push_back({
-		Builtins::ISZERO(Builtins::SUB(X, Y)),
-		[=]() -> Pattern { return Builtins::EQ(X, Y); }
-	});
-
 	return rules;
 }
 

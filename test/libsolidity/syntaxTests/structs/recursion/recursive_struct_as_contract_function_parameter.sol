@@ -1,4 +1,4 @@
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 contract Test {
     struct MyStructName {

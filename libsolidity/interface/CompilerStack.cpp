@@ -60,7 +60,6 @@
 #include <libyul/AsmJsonConverter.h>
 #include <libyul/AssemblyStack.h>
 #include <libyul/AsmParser.h>
-#include <libyul/AST.h>
 
 #include <liblangutil/Scanner.h>
 #include <liblangutil/SemVerHandler.h>
@@ -88,6 +87,7 @@ static int g_compilerStackCounts = 0;
 
 CompilerStack::CompilerStack(ReadCallback::Callback _readFile):
 	m_readFile{std::move(_readFile)},
+	m_modelCheckerEngine{ModelCheckerEngine::All()},
 	m_enabledSMTSolvers{smtutil::SMTSolverChoice::All()},
 	m_errorReporter{m_errorList}
 {
@@ -132,13 +132,6 @@ void CompilerStack::setRemappings(vector<Remapping> const& _remappings)
 	m_remappings = _remappings;
 }
 
-void CompilerStack::setViaIR(bool _viaIR)
-{
-	if (m_stackState >= ParsedAndImported)
-		BOOST_THROW_EXCEPTION(CompilerError() << errinfo_comment("Must set viaIR before parsing."));
-	m_viaIR = _viaIR;
-}
-
 void CompilerStack::setEVMVersion(langutil::EVMVersion _version)
 {
 	if (m_stackState >= ParsedAndImported)
@@ -146,11 +139,11 @@ void CompilerStack::setEVMVersion(langutil::EVMVersion _version)
 	m_evmVersion = _version;
 }
 
-void CompilerStack::setModelCheckerSettings(ModelCheckerSettings _settings)
+void CompilerStack::setModelCheckerEngine(ModelCheckerEngine _engine)
 {
 	if (m_stackState >= ParsedAndImported)
-		BOOST_THROW_EXCEPTION(CompilerError() << errinfo_comment("Must set model checking settings before parsing."));
-	m_modelCheckerSettings = _settings;
+		BOOST_THROW_EXCEPTION(CompilerError() << errinfo_comment("Must set enabled model checking engines before parsing."));
+	m_modelCheckerEngine = _engine;
 }
 
 void CompilerStack::setSMTSolverChoice(smtutil::SMTSolverChoice _enabledSMTSolvers)
@@ -221,9 +214,8 @@ void CompilerStack::reset(bool _keepSettings)
 	{
 		m_remappings.clear();
 		m_libraries.clear();
-		m_viaIR = false;
 		m_evmVersion = langutil::EVMVersion();
-		m_modelCheckerSettings = ModelCheckerSettings{};
+		m_modelCheckerEngine = ModelCheckerEngine::All();
 		m_enabledSMTSolvers = smtutil::SMTSolverChoice::All();
 		m_generateIR = false;
 		m_generateEwasm = false;
@@ -460,7 +452,7 @@ bool CompilerStack::analyze()
 
 		if (noErrors)
 		{
-			ModelChecker modelChecker(m_errorReporter, m_smtlib2Responses, m_modelCheckerSettings, m_readFile, m_enabledSMTSolvers);
+			ModelChecker modelChecker(m_errorReporter, m_smtlib2Responses, m_modelCheckerEngine, m_readFile, m_enabledSMTSolvers);
 			for (Source const* source: m_sourceOrder)
 				if (source->ast)
 					modelChecker.analyze(*source->ast);
@@ -533,7 +525,6 @@ bool CompilerStack::compile(State _stopAfter)
 
 	// Only compile contracts individually which have been requested.
 	map<ContractDefinition const*, shared_ptr<Compiler const>> otherCompilers;
-
 	for (Source const* source: m_sourceOrder)
 		for (ASTPointer<ASTNode> const& node: source->ast->nodes())
 			if (auto contract = dynamic_cast<ContractDefinition const*>(node.get()))
@@ -541,15 +532,10 @@ bool CompilerStack::compile(State _stopAfter)
 				{
 					try
 					{
-						if (m_viaIR || m_generateIR || m_generateEwasm)
-							generateIR(*contract);
 						if (m_generateEvmBytecode)
-						{
-							if (m_viaIR)
-								generateEVMFromIR(*contract);
-							else
-								compileContract(*contract, otherCompilers);
-						}
+							compileContract(*contract, otherCompilers);
+						if (m_generateIR || m_generateEwasm)
+							generateIR(*contract);
 						if (m_generateEwasm)
 							generateEwasm(*contract);
 					}
@@ -627,7 +613,7 @@ evmasm::AssemblyItems const* CompilerStack::assemblyItems(string const& _contrac
 		BOOST_THROW_EXCEPTION(CompilerError() << errinfo_comment("Compilation was not successful."));
 
 	Contract const& currentContract = contract(_contractName);
-	return currentContract.evmAssembly ? &currentContract.evmAssembly->items() : nullptr;
+	return currentContract.compiler ? &contract(_contractName).compiler->assemblyItems() : nullptr;
 }
 
 evmasm::AssemblyItems const* CompilerStack::runtimeAssemblyItems(string const& _contractName) const
@@ -636,7 +622,7 @@ evmasm::AssemblyItems const* CompilerStack::runtimeAssemblyItems(string const& _
 		BOOST_THROW_EXCEPTION(CompilerError() << errinfo_comment("Compilation was not successful."));
 
 	Contract const& currentContract = contract(_contractName);
-	return currentContract.evmRuntimeAssembly ? &currentContract.evmRuntimeAssembly->items() : nullptr;
+	return currentContract.compiler ? &contract(_contractName).compiler->runtimeAssemblyItems() : nullptr;
 }
 
 Json::Value CompilerStack::generatedSources(string const& _contractName, bool _runtime) const
@@ -790,8 +776,8 @@ string CompilerStack::assemblyString(string const& _contractName, StringMap _sou
 		BOOST_THROW_EXCEPTION(CompilerError() << errinfo_comment("Compilation was not successful."));
 
 	Contract const& currentContract = contract(_contractName);
-	if (currentContract.evmAssembly)
-		return currentContract.evmAssembly->assemblyString(_sourceCodes);
+	if (currentContract.compiler)
+		return currentContract.compiler->assemblyString(_sourceCodes);
 	else
 		return string();
 }
@@ -803,8 +789,8 @@ Json::Value CompilerStack::assemblyJSON(string const& _contractName) const
 		BOOST_THROW_EXCEPTION(CompilerError() << errinfo_comment("Compilation was not successful."));
 
 	Contract const& currentContract = contract(_contractName);
-	if (currentContract.evmAssembly)
-		return currentContract.evmAssembly->assemblyJSON(sourceIndices());
+	if (currentContract.compiler)
+		return currentContract.compiler->assemblyJSON(sourceIndices());
 	else
 		return Json::Value();
 }
@@ -977,7 +963,7 @@ size_t CompilerStack::functionEntryPoint(
 	evmasm::AssemblyItem tag = compiler->functionEntryLabel(_function);
 	if (tag.type() == evmasm::UndefinedItem)
 		return 0;
-	evmasm::AssemblyItems const& items = compiler->runtimeAssembly().items();
+	evmasm::AssemblyItems const& items = compiler->runtimeAssemblyItems();
 	for (size_t i = 0; i < items.size(); ++i)
 		if (items.at(i).type() == evmasm::Tag && items.at(i).data() == tag.data())
 			return i;
@@ -1174,14 +1160,10 @@ void CompilerStack::compileContract(
 	if (m_hasError)
 		BOOST_THROW_EXCEPTION(CompilerError() << errinfo_comment("Called compile with errors."));
 
-	if (_otherCompilers.count(&_contract))
+	if (_otherCompilers.count(&_contract) || !_contract.canBeDeployed())
 		return;
-
 	for (auto const* dependency: _contract.annotation().contractDependencies)
 		compileContract(*dependency, _otherCompilers);
-
-	if (!_contract.canBeDeployed())
-		return;
 
 	Contract& compiledContract = m_contracts.at(_contract.fullyQualifiedName());
 
@@ -1200,25 +1182,20 @@ void CompilerStack::compileContract(
 		solAssert(false, "Optimizer exception during compilation");
 	}
 
-	compiledContract.evmAssembly = compiler->assemblyPtr();
-	solAssert(compiledContract.evmAssembly, "");
 	try
 	{
 		// Assemble deployment (incl. runtime)  object.
-		compiledContract.object = compiledContract.evmAssembly->assemble();
+		compiledContract.object = compiler->assembledObject();
 	}
 	catch(evmasm::AssemblyException const&)
 	{
 		solAssert(false, "Assembly exception for bytecode");
 	}
-	solAssert(compiledContract.object.immutableReferences.empty(), "Leftover immutables.");
 
-	compiledContract.evmRuntimeAssembly = compiler->runtimeAssemblyPtr();
-	solAssert(compiledContract.evmRuntimeAssembly, "");
 	try
 	{
 		// Assemble runtime object.
-		compiledContract.runtimeObject = compiledContract.evmRuntimeAssembly->assemble();
+		compiledContract.runtimeObject = compiler->runtimeObject();
 	}
 	catch(evmasm::AssemblyException const&)
 	{
@@ -1226,7 +1203,7 @@ void CompilerStack::compileContract(
 	}
 
 	// Throw a warning if EIP-170 limits are exceeded:
-	//   If contract creation returns data with length greater than 0x6000 (214 + 213) bytes,
+	//   If contract creation initialization returns data with length of more than 0x6000 (214 + 213) bytes,
 	//   contract creation fails with an out of gas error.
 	if (
 		m_evmVersion >= langutil::EVMVersion::spuriousDragon() &&
@@ -1250,79 +1227,24 @@ void CompilerStack::generateIR(ContractDefinition const& _contract)
 	if (m_hasError)
 		BOOST_THROW_EXCEPTION(CompilerError() << errinfo_comment("Called generateIR with errors."));
 
+	if (!_contract.canBeDeployed())
+		return;
+
+	map<ContractDefinition const*, string const> otherYulSources;
+
 	Contract& compiledContract = m_contracts.at(_contract.fullyQualifiedName());
 	if (!compiledContract.yulIR.empty())
 		return;
 
-	if (!*_contract.sourceUnit().annotation().useABICoderV2)
-		m_errorReporter.warning(
-			2066_error,
-			_contract.location(),
-			"Contract requests the ABI coder v1, which is incompatible with the IR. "
-			"Using ABI coder v2 instead."
-		);
-
 	string dependenciesSource;
 	for (auto const* dependency: _contract.annotation().contractDependencies)
+	{
 		generateIR(*dependency);
-
-	if (!_contract.canBeDeployed())
-		return;
-
-	map<ContractDefinition const*, string_view const> otherYulSources;
-	for (auto const& pair: m_contracts)
-		otherYulSources.emplace(pair.second.contract, pair.second.yulIR);
+		otherYulSources.emplace(dependency, m_contracts.at(dependency->fullyQualifiedName()).yulIR);
+	}
 
 	IRGenerator generator(m_evmVersion, m_revertStrings, m_optimiserSettings);
 	tie(compiledContract.yulIR, compiledContract.yulIROptimized) = generator.run(_contract, otherYulSources);
-}
-
-void CompilerStack::generateEVMFromIR(ContractDefinition const& _contract)
-{
-	solAssert(m_stackState >= AnalysisPerformed, "");
-	if (m_hasError)
-		BOOST_THROW_EXCEPTION(CompilerError() << errinfo_comment("Called generateEVMFromIR with errors."));
-
-	if (!_contract.canBeDeployed())
-		return;
-
-	Contract& compiledContract = m_contracts.at(_contract.fullyQualifiedName());
-	solAssert(!compiledContract.yulIROptimized.empty(), "");
-	if (!compiledContract.object.bytecode.empty())
-		return;
-
-	// Re-parse the Yul IR in EVM dialect
-	yul::AssemblyStack stack(m_evmVersion, yul::AssemblyStack::Language::StrictAssembly, m_optimiserSettings);
-	stack.parseAndAnalyze("", compiledContract.yulIROptimized);
-	stack.optimize();
-
-	//cout << yul::AsmPrinter{}(*stack.parserResult()->code) << endl;
-
-	// TODO: support passing metadata
-	// TODO: use stack.assemble here!
-	yul::MachineAssemblyObject init;
-	yul::MachineAssemblyObject runtime;
-	std::tie(init, runtime) = stack.assembleAndGuessRuntime();
-	compiledContract.object = std::move(*init.bytecode);
-	compiledContract.runtimeObject = std::move(*runtime.bytecode);
-	// TODO: refactor assemblyItems, runtimeAssemblyItems, generatedSources,
-	//       assemblyString, assemblyJSON, and functionEntryPoints to work with this code path
-
-	// Throw a warning if EIP-170 limits are exceeded:
-	//   If contract creation returns data with length greater than 0x6000 (214 + 213) bytes,
-	//   contract creation fails with an out of gas error.
-	if (
-		m_evmVersion >= langutil::EVMVersion::spuriousDragon() &&
-		compiledContract.runtimeObject.bytecode.size() > 0x6000
-	)
-		m_errorReporter.warning(
-			9609_error,
-			_contract.location(),
-			"Contract code size exceeds 24576 bytes (a limit introduced in Spurious Dragon). "
-			"This contract may not be deployable on mainnet. "
-			"Consider enabling the optimizer (with a low \"runs\" value!), "
-			"turning off revert strings, or using libraries."
-		);
 }
 
 void CompilerStack::generateEwasm(ContractDefinition const& _contract)
@@ -1330,9 +1252,6 @@ void CompilerStack::generateEwasm(ContractDefinition const& _contract)
 	solAssert(m_stackState >= AnalysisPerformed, "");
 	if (m_hasError)
 		BOOST_THROW_EXCEPTION(CompilerError() << errinfo_comment("Called generateEwasm with errors."));
-
-	if (!_contract.canBeDeployed())
-		return;
 
 	Contract& compiledContract = m_contracts.at(_contract.fullyQualifiedName());
 	solAssert(!compiledContract.yulIROptimized.empty(), "");
@@ -1470,8 +1389,6 @@ string CompilerStack::createMetadata(Contract const& _contract) const
 	static vector<string> hashes{"ipfs", "bzzr1", "none"};
 	meta["settings"]["metadata"]["bytecodeHash"] = hashes.at(unsigned(m_metadataHash));
 
-	if (m_viaIR)
-		meta["settings"]["viaIR"] = m_viaIR;
 	meta["settings"]["evmVersion"] = m_evmVersion.name();
 	meta["settings"]["compilationTarget"][_contract.contract->sourceUnitName()] =
 		*_contract.contract->annotation().canonicalName;
@@ -1520,7 +1437,7 @@ public:
 
 	bytes serialise() const
 	{
-		size_t size = m_data.size() + 1;
+		unsigned size = m_data.size() + 1;
 		solAssert(size <= 0xffff, "Metadata too large.");
 		solAssert(m_entryCount <= 0x1f, "Too many map entries.");
 
@@ -1536,7 +1453,7 @@ public:
 private:
 	void pushTextString(string const& key)
 	{
-		size_t length = key.size();
+		unsigned length = key.size();
 		if (length < 24)
 		{
 			m_data += bytes{static_cast<unsigned char>(0x60 + length)};
@@ -1552,7 +1469,7 @@ private:
 	}
 	void pushByteString(bytes const& key)
 	{
-		size_t length = key.size();
+		unsigned length = key.size();
 		if (length < 24)
 		{
 			m_data += bytes{static_cast<unsigned char>(0x40 + length)};
@@ -1594,7 +1511,7 @@ bytes CompilerStack::createCBORMetadata(Contract const& _contract) const
 	else
 		solAssert(m_metadataHash == MetadataHash::None, "Invalid metadata hash");
 
-	if (experimentalMode || m_viaIR)
+	if (experimentalMode)
 		encoder.pushBool("experimental", true);
 	if (m_release)
 		encoder.pushBytes("solc", VersionCompactBytes);

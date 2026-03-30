@@ -17,7 +17,6 @@ contract C
 }
 // ====
 // EVMVersion: >spuriousDragon
-// SMTIgnoreCex: yes
 // ----
 // Warning 2072: (224-240): Unused local variable.
 // Warning 6328: (266-281): CHC: Assertion violation happens here.

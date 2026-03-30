@@ -4,4 +4,5 @@ contract C {
     mapping(uint => uint) constant x;
 }
 // ----
-// DeclarationError 9259: (148-180): Constants of non-value type not yet implemented.
+// TypeError 9259: (148-180): Constants of non-value type not yet implemented.
+// TypeError 4266: (148-180): Uninitialized "constant" variable.

@@ -25,8 +25,6 @@
 #include <iostream>
 #include <boost/test/framework.hpp>
 #include <test/libsolidity/SolidityExecutionFramework.h>
-#include <liblangutil/Exceptions.h>
-#include <liblangutil/SourceReferenceFormatter.h>
 
 using namespace solidity;
 using namespace solidity::test;
@@ -62,7 +60,7 @@ bytes SolidityExecutionFramework::multiSourceCompileContract(
 			for (auto const& error: m_compiler.errors())
 				if (error->type() == langutil::Error::Type::CodeGenerationError)
 					BOOST_THROW_EXCEPTION(*error);
-		langutil::SourceReferenceFormatter formatter(std::cerr, true, false);
+		langutil::SourceReferenceFormatter formatter(std::cerr);
 
 		for (auto const& error: m_compiler.errors())
 			formatter.printErrorInformation(*error);
@@ -99,7 +97,6 @@ bytes SolidityExecutionFramework::multiSourceCompileContract(
 				{
 					asmStack.optimize();
 					obj = std::move(*asmStack.assemble(yul::AssemblyStack::Machine::EVM).bytecode);
-					obj.link(_libraryAddresses);
 					break;
 				}
 				catch (...)
@@ -135,13 +132,10 @@ string SolidityExecutionFramework::addPreamble(string const& _sourceCode)
 {
 	// Silence compiler version warning
 	string preamble = "pragma solidity >=0.0;\n";
-	if (_sourceCode.find("// SPDX-License-Identifier:") == string::npos)
-		preamble += "// SPDX-License-Identifier: unlicensed\n";
 	if (
-		solidity::test::CommonOptions::get().useABIEncoderV1 &&
-		_sourceCode.find("pragma experimental ABIEncoderV2;") == string::npos &&
-		_sourceCode.find("pragma abicoder") == string::npos
+		solidity::test::CommonOptions::get().useABIEncoderV2 &&
+		_sourceCode.find("pragma experimental ABIEncoderV2;") == string::npos
 	)
-		preamble += "pragma abicoder v1;\n";
+		preamble += "pragma experimental ABIEncoderV2;\n";
 	return preamble + _sourceCode;
 }

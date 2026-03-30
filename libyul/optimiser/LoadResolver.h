@@ -24,9 +24,13 @@
 
 #include <libyul/optimiser/DataFlowAnalyzer.h>
 #include <libyul/optimiser/OptimiserStep.h>
+#include <libevmasm/Instruction.h>
 
 namespace solidity::yul
 {
+
+struct EVMDialect;
+struct BuiltinFunctionForEVM;
 
 /**
  * Optimisation stage that replaces expressions of type ``sload(x)`` and ``mload(x)`` by the value
@@ -59,7 +63,7 @@ protected:
 
 	void tryResolve(
 		Expression& _e,
-		StoreLoadLocation _location,
+		evmasm::Instruction _instruction,
 		std::vector<Expression> const& _arguments
 	);
 

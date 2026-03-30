@@ -5,6 +5,5 @@ contract Test {
 }
 // ====
 // compileViaYul: also
-// compileToEwasm: also
 // ----
 // bytesToUint(bytes1): "a" -> 0x61

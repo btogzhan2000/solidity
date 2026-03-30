@@ -56,7 +56,7 @@ Surround top level declarations in solidity source with two blank lines.
 Yes::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.4.0 <0.9.0;
+    pragma solidity >=0.4.0 <0.8.0;
 
     contract A {
         // ...
@@ -75,7 +75,7 @@ Yes::
 No::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.4.0 <0.9.0;
+    pragma solidity >=0.4.0 <0.8.0;
 
     contract A {
         // ...
@@ -95,7 +95,7 @@ Blank lines may be omitted between groups of related one-liners (such as stub fu
 Yes::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.6.0 <0.9.0;
+    pragma solidity >=0.6.0 <0.8.0;
 
     abstract contract A {
         function spam() public virtual pure;
@@ -116,7 +116,7 @@ Yes::
 No::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.6.0 <0.9.0;
+    pragma solidity >=0.6.0 <0.8.0;
 
     abstract contract A {
         function spam() virtual pure public;
@@ -251,7 +251,7 @@ Import statements should always be placed at the top of the file.
 Yes::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.4.0 <0.9.0;
+    pragma solidity >=0.4.0 <0.8.0;
 
     import "./Owned.sol";
 
@@ -266,7 +266,7 @@ Yes::
 No::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.4.0 <0.9.0;
+    pragma solidity >=0.4.0 <0.8.0;
 
     contract A {
         // ...
@@ -300,7 +300,8 @@ Within a grouping, place the ``view`` and ``pure`` functions last.
 Yes::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.7.0 <0.9.0;
+    pragma solidity ^0.7.0;
+
     contract A {
         constructor() {
             // ...
@@ -336,7 +337,8 @@ Yes::
 No::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.7.0 <0.9.0;
+    pragma solidity ^0.7.0;
+
     contract A {
 
         // External functions
@@ -443,7 +445,7 @@ should:
 Yes::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.4.0 <0.9.0;
+    pragma solidity >=0.4.0 <0.8.0;
 
     contract Coin {
         struct Bank {
@@ -455,7 +457,7 @@ Yes::
 No::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.4.0 <0.9.0;
+    pragma solidity >=0.4.0 <0.8.0;
 
     contract Coin
     {
@@ -558,7 +560,7 @@ Yes::
         return x + 1;
     }
 
-    function increment(uint x) public pure onlyOwner returns (uint) {
+    function increment(uint x) public pure onlyowner returns (uint) {
         return x + 1;
     }
 
@@ -594,7 +596,7 @@ Yes::
         return balanceOf[from];
     }
 
-    function shutdown() public onlyOwner {
+    function shutdown() public onlyowner {
         selfdestruct(owner);
     }
 
@@ -604,7 +606,7 @@ No::
         return balanceOf[from];
     }
 
-    function shutdown() onlyOwner public {
+    function shutdown() onlyowner public {
         selfdestruct(owner);
     }
 
@@ -661,7 +663,7 @@ Yes::
 
     function thisFunctionNameIsReallyLong(address x, address y, address z)
         public
-        onlyOwner
+        onlyowner
         priced
         returns (address)
     {
@@ -674,7 +676,7 @@ Yes::
         address z,
     )
         public
-        onlyOwner
+        onlyowner
         priced
         returns (address)
     {
@@ -685,21 +687,21 @@ No::
 
     function thisFunctionNameIsReallyLong(address x, address y, address z)
                                           public
-                                          onlyOwner
+                                          onlyowner
                                           priced
                                           returns (address) {
         doSomething();
     }
 
     function thisFunctionNameIsReallyLong(address x, address y, address z)
-        public onlyOwner priced returns (address)
+        public onlyowner priced returns (address)
     {
         doSomething();
     }
 
     function thisFunctionNameIsReallyLong(address x, address y, address z)
         public
-        onlyOwner
+        onlyowner
         priced
         returns (address) {
         doSomething();
@@ -756,7 +758,8 @@ manner as modifiers if the function declaration is long or hard to read.
 Yes::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.7.0 <0.9.0;
+    pragma solidity ^0.7.0;
+
     // Base contracts just to make this compile
     contract B {
         constructor(uint) {
@@ -787,7 +790,8 @@ Yes::
 No::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.7.0 <0.9.0;
+    pragma solidity ^0.7.0;
+
 
     // Base contracts just to make this compile
     contract B {
@@ -1008,7 +1012,8 @@ As shown in the example below, if the contract name is ``Congress`` and the libr
 Yes::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.7.0 <0.9.0;
+    pragma solidity ^0.7.0;
+
 
     // Owned.sol
     contract Owned {
@@ -1031,7 +1036,7 @@ Yes::
 and in ``Congress.sol``::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.4.0 <0.9.0;
+    pragma solidity >=0.4.0 <0.8.0;
 
     import "./Owned.sol";
 
@@ -1043,7 +1048,8 @@ and in ``Congress.sol``::
 No::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.7.0 <0.9.0;
+    pragma solidity ^0.7.0;
+
 
     // owned.sol
     contract owned {
@@ -1064,10 +1070,6 @@ No::
     }
 
 and in ``Congress.sol``::
-
-    // SPDX-License-Identifier: GPL-3.0
-    pragma solidity ^0.7.0;
-
 
     import "./owned.sol";
 
@@ -1151,7 +1153,7 @@ For example, the contract from :ref:`a simple smart contract <simple-smart-contr
 added looks like the one below::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.4.16 <0.9.0;
+    pragma solidity >=0.4.16 <0.8.0;
 
 
     /// @author The Solidity Team

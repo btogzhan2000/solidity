@@ -24,9 +24,9 @@
 #include <liblangutil/Exceptions.h>
 #include <liblangutil/EVMVersion.h>
 
-#include <libyul/ASTForward.h>
 #include <libyul/Dialect.h>
-#include <libyul/Scope.h>
+#include <libyul/AsmScope.h>
+#include <libyul/AsmDataForward.h>
 
 #include <libyul/backends/evm/AbstractAssembly.h>
 #include <libyul/backends/evm/EVMDialect.h>
@@ -114,7 +114,10 @@ private:
 
 	bool validateInstructions(evmasm::Instruction _instr, langutil::SourceLocation const& _location);
 	bool validateInstructions(std::string const& _instrIdentifier, langutil::SourceLocation const& _location);
-	bool validateInstructions(FunctionCall const& _functionCall);
+	bool validateInstructions(FunctionCall const& _functionCall)
+	{
+		return validateInstructions(_functionCall.functionName.name.str(), _functionCall.functionName.location);
+	}
 
 	yul::ExternalIdentifierAccess::Resolver m_resolver;
 	Scope* m_currentScope = nullptr;

@@ -79,7 +79,7 @@ public:
 	/// If @reversed is true, the order of the variables after <headStart> is reversed.
 	std::string tupleEncoder(
 		TypePointers const& _givenTypes,
-		TypePointers _targetTypes,
+		TypePointers const& _targetTypes,
 		bool _encodeAsLibraryTypes = false,
 		bool _reversed = false
 	);
@@ -106,7 +106,7 @@ public:
 	/// If @reversed is true, the order of the variables after <headStart> is reversed.
 	std::string tupleEncoderPacked(
 		TypePointers const& _givenTypes,
-		TypePointers _targetTypes,
+		TypePointers const& _targetTypes,
 		bool _reversed = false
 	);
 
@@ -164,16 +164,6 @@ public:
 		Type const& _targetType,
 		EncodingOptions const& _options
 	);
-
-	/// Decodes array in case of dynamic arrays with offset pointing to
-	/// data and length already on stack
-	/// signature: (dataOffset, length, dataEnd) -> decodedArray
-	std::string abiDecodingFunctionArrayAvailableLength(ArrayType const& _type, bool _fromMemory);
-
-	/// Internal decoding function that is also used by some copying routines.
-	/// @returns the name of a function that decodes structs.
-	/// signature: (dataStart, dataEnd) -> decodedStruct
-	std::string abiDecodingFunctionStruct(StructType const& _type, bool _fromMemory);
 
 private:
 	/// Part of @a abiEncodingFunction for array target type and given calldata array.
@@ -244,12 +234,15 @@ private:
 	std::string abiDecodingFunctionArray(ArrayType const& _type, bool _fromMemory);
 	/// Part of @a abiDecodingFunction for calldata array types.
 	std::string abiDecodingFunctionCalldataArray(ArrayType const& _type);
-	/// Part of @a abiDecodingFunctionArrayWithAvailableLength
-	std::string abiDecodingFunctionByteArrayAvailableLength(ArrayType const& _type, bool _fromMemory);
+	/// Part of @a abiDecodingFunction for byte array types.
+	std::string abiDecodingFunctionByteArray(ArrayType const& _type, bool _fromMemory);
 	/// Part of @a abiDecodingFunction for calldata struct types.
 	std::string abiDecodingFunctionCalldataStruct(StructType const& _type);
+	/// Part of @a abiDecodingFunction for struct types.
+	std::string abiDecodingFunctionStruct(StructType const& _type, bool _fromMemory);
 	/// Part of @a abiDecodingFunction for array types.
 	std::string abiDecodingFunctionFunctionType(FunctionType const& _type, bool _fromMemory, bool _forUseOnStack);
+
 	/// @returns the name of a function that retrieves an element from calldata.
 	std::string calldataAccessFunction(Type const& _type);
 

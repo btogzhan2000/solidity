@@ -1,5 +1,5 @@
 ==== Source: A ====
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 library L {
     struct Item {
@@ -9,7 +9,6 @@ library L {
     function f(uint) external view returns (Item memory) {}
 }
 ==== Source: B ====
-pragma abicoder v1;
 import "A";
 
 contract D {
@@ -20,4 +19,4 @@ contract D {
     }
 }
 // ----
-// TypeError 2428: (B:106-117): The type of return parameter 1, struct L.Item, is only supported in ABI coder v2. Use "pragma abicoder v2;" to enable the feature.
+// TypeError 2428: (B:86-97): The type of return parameter 1, struct L.Item, is only supported in ABIEncoderV2. Use "pragma experimental ABIEncoderV2;" to enable the feature.

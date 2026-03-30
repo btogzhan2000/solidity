@@ -27,8 +27,7 @@ using namespace solidity;
 using namespace solidity::util;
 using namespace solidity::smtutil;
 
-CVC4Interface::CVC4Interface(optional<unsigned> _queryTimeout):
-	SolverInterface(_queryTimeout),
+CVC4Interface::CVC4Interface():
 	m_solver(&m_context)
 {
 	reset();
@@ -39,10 +38,7 @@ void CVC4Interface::reset()
 	m_variables.clear();
 	m_solver.reset();
 	m_solver.setOption("produce-models", true);
-	if (m_queryTimeout)
-		m_solver.setTimeLimit(*m_queryTimeout);
-	else
-		m_solver.setResourceLimit(resourceLimit);
+	m_solver.setResourceLimit(resourceLimit);
 }
 
 void CVC4Interface::push()
@@ -209,7 +205,7 @@ CVC4::Expr CVC4Interface::toCVC4Expr(Expression const& _expr)
 		else if (n == "int2bv")
 		{
 			size_t size = std::stoul(_expr.arguments[1].name);
-			auto i2bvOp = m_context.mkConst(CVC4::IntToBitVector(static_cast<unsigned>(size)));
+			auto i2bvOp = m_context.mkConst(CVC4::IntToBitVector(size));
 			// CVC4 treats all BVs as unsigned, so we need to manually apply 2's complement if needed.
 			return m_context.mkExpr(
 				CVC4::kind::ITE,

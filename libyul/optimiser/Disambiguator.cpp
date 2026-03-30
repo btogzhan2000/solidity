@@ -21,10 +21,10 @@
 
 #include <libyul/optimiser/Disambiguator.h>
 
-#include <libyul/AST.h>
-#include <libyul/Dialect.h>
 #include <libyul/Exceptions.h>
-#include <libyul/Scope.h>
+#include <libyul/AsmData.h>
+#include <libyul/AsmScope.h>
+#include <libyul/Dialect.h>
 
 using namespace std;
 using namespace solidity;

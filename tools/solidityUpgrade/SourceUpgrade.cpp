@@ -18,13 +18,14 @@
 #include <tools/solidityUpgrade/SourceUpgrade.h>
 
 #include <liblangutil/Exceptions.h>
-#include <liblangutil/SourceReferenceFormatter.h>
+#include <liblangutil/SourceReferenceFormatterHuman.h>
 
 #include <libsolidity/ast/AST.h>
 
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/operations.hpp>
 #include <boost/algorithm/string.hpp>
+#include <fstream>
 
 #ifdef _WIN32 // windows
 	#include <io.h>
@@ -397,7 +398,7 @@ void SourceUpgrade::applyChange(
 
 void SourceUpgrade::printErrors() const
 {
-	auto formatter = make_unique<langutil::SourceReferenceFormatter>(cout, true, false);
+	auto formatter = make_unique<langutil::SourceReferenceFormatterHuman>(cout, true, false);
 
 	for (auto const& error: m_compiler->errors())
 		if (error->type() != langutil::Error::Type::Warning)

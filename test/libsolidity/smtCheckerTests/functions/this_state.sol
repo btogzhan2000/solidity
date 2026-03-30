@@ -6,6 +6,7 @@ contract C
     function g() public {
 		x = 0;
         this.h();
+		// Fails as false positive because CHC does not support `this`.
 		assert(x == 2);
     }
     function h() public {
@@ -13,3 +14,4 @@ contract C
     }
 }
 // ----
+// Warning 6328: (186-200): CHC: Assertion violation happens here.

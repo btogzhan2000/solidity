@@ -1,9 +1,6 @@
 contract C {
-    function f() public view {
+    function f() public pure {
         assembly { pop(chainid()) }
-    }
-    function g() public view returns (uint) {
-        return block.chainid;
     }
 }
 // ====

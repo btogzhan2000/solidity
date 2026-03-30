@@ -39,7 +39,6 @@ namespace solidity::frontend
  *  - issues deprecation warnings for unary '+'
  *  - issues deprecation warning for throw
  *  - whether the msize instruction is used and the Yul optimizer is enabled at the same time.
- *  - selection of the ABI coder through pragmas.
  */
 class SyntaxChecker: private ASTConstVisitor
 {
@@ -72,9 +71,6 @@ private:
 	bool visit(ForStatement const& _forStatement) override;
 	void endVisit(ForStatement const& _forStatement) override;
 
-	bool visit(Block const& _block) override;
-	void endVisit(Block const& _block) override;
-
 	bool visit(Continue const& _continueStatement) override;
 	bool visit(Break const& _breakStatement) override;
 
@@ -103,9 +99,6 @@ private:
 
 	/// Flag that indicates whether some version pragma was present.
 	bool m_versionPragmaFound = false;
-
-	/// Flag that indicates whether we are inside an unchecked block.
-	bool m_uncheckedArithmetic = false;
 
 	int m_inLoopDepth = 0;
 	std::optional<ContractKind> m_currentContractKind;

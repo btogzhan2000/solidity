@@ -5,17 +5,11 @@ contract A {
 }
 
 contract B is A {
-	constructor() {
-		assert(x == 1);
-		x = 2;
-	}
+	constructor() { x = 2; }
 }
 
 contract C is A {
-	constructor() {
-		assert(x == 1);
-		x = 3;
-	}
+	constructor() { x = 3; }
 }
 
 contract D is B, C {
@@ -25,5 +19,4 @@ contract D is B, C {
 	}
 }
 // ----
-// Warning 6328: (167-181): CHC: Assertion violation happens here.\nCounterexample:\nx = 2\n\nTransaction trace:\nD.constructor()
-// Warning 6328: (256-270): CHC: Assertion violation happens here.\nCounterexample:\nx = 3\n\nTransaction trace:\nD.constructor()
+// Warning 6328: (214-228): CHC: Assertion violation happens here.

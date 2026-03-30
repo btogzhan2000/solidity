@@ -72,7 +72,7 @@ inheritanceSpecifierList:
  * Inheritance specifier for contracts and interfaces.
  * Can optionally supply base constructor arguments.
  */
-inheritanceSpecifier: name=identifierPath arguments=callArgumentList?;
+inheritanceSpecifier: name=userDefinedTypeName arguments=callArgumentList?;
 
 /**
  * Declarations that can be used in contracts, interfaces and libraries.
@@ -84,8 +84,7 @@ contractBodyElement:
 	constructorDefinition
 	| functionDefinition
 	| modifierDefinition
-	| fallbackFunctionDefinition
-	| receiveFunctionDefinition
+	| fallbackReceiveFunctionDefinition
 	| structDefinition
 	| enumDefinition
 	| stateVariableDeclaration
@@ -99,15 +98,15 @@ namedArgument: name=identifier Colon value=expression;
  */
 callArgumentList: LParen ((expression (Comma expression)*)? | LBrace (namedArgument (Comma namedArgument)*)? RBrace) RParen;
 /**
- * Qualified name.
+ * Qualified name of a user defined type.
  */
-identifierPath: identifier (Period identifier)*;
+userDefinedTypeName: identifier (Period identifier)*;
 
 /**
  * Call to a modifier. If the modifier takes no arguments, the argument list can be skipped entirely
  * (including opening and closing parentheses).
  */
-modifierInvocation: identifierPath callArgumentList?;
+modifierInvocation: identifier callArgumentList?;
 /**
  * Visibility for functions and function types.
  */
@@ -145,7 +144,7 @@ stateMutability: Pure | View | Payable;
  * In cases where there are ambiguous declarations in several base contracts being overridden,
  * a complete list of base contracts has to be given.
  */
-overrideSpecifier: Override (LParen overrides+=identifierPath (Comma overrides+=identifierPath)* RParen)?;
+overrideSpecifier: Override (LParen overrides+=userDefinedTypeName (Comma overrides+=userDefinedTypeName)* RParen)?;
 /**
  * The definition of contract, library and interface functions.
  * Depending on the context in which the function is defined, further restrictions may apply,
@@ -190,32 +189,9 @@ locals[
 	(Semicolon | body=block);
 
 /**
- * Definition of the special fallback function.
+ * Definitions of the special fallback and receive functions.
  */
-fallbackFunctionDefinition
-locals[
-	boolean visibilitySet = false,
-	boolean mutabilitySet = false,
-	boolean virtualSet = false,
-	boolean overrideSpecifierSet = false,
-	boolean hasParameters = false
-]
-:
-	kind=Fallback LParen (parameterList { $hasParameters = true; } )? RParen
-	(
-		{!$visibilitySet}? External {$visibilitySet = true;}
-		| {!$mutabilitySet}? stateMutability {$mutabilitySet = true;}
-		| modifierInvocation
-		| {!$virtualSet}? Virtual {$virtualSet = true;}
-		| {!$overrideSpecifierSet}? overrideSpecifier {$overrideSpecifierSet = true;}
-	)*
-	( {$hasParameters}? Returns LParen returnParameters=parameterList RParen | {!$hasParameters}? )
-	(Semicolon | body=block);
-
-/**
- * Definition of the special receive function.
- */
-receiveFunctionDefinition
+fallbackReceiveFunctionDefinition
 locals[
 	boolean visibilitySet = false,
 	boolean mutabilitySet = false,
@@ -223,10 +199,10 @@ locals[
 	boolean overrideSpecifierSet = false
 ]
 :
-	kind=Receive LParen RParen
+	kind=(Fallback | Receive) LParen RParen
 	(
-		{!$visibilitySet}? External {$visibilitySet = true;}
-		| {!$mutabilitySet}? Payable {$mutabilitySet = true;}
+		{!$visibilitySet}? visibility {$visibilitySet = true;}
+		| {!$mutabilitySet}? stateMutability {$mutabilitySet = true;}
 		| modifierInvocation
 		| {!$virtualSet}? Virtual {$virtualSet = true;}
 		| {!$overrideSpecifierSet}? overrideSpecifier {$overrideSpecifierSet = true;}
@@ -293,12 +269,12 @@ eventDefinition:
  * Using directive to bind library functions to types.
  * Can occur within contracts and libraries.
  */
-usingDirective: Using identifierPath For (Mul | typeName) Semicolon;
+usingDirective: Using userDefinedTypeName For (Mul | typeName) Semicolon;
 /**
  * A type name can be an elementary type, a function type, a mapping type, a user-defined type
  * (e.g. a contract or struct) or an array type.
  */
-typeName: elementaryTypeName[true] | functionTypeName | mappingType | identifierPath | typeName LBrack expression? RBrack;
+typeName: elementaryTypeName[true] | functionTypeName | mappingType | userDefinedTypeName | typeName LBrack expression? RBrack;
 elementaryTypeName[boolean allowAddressPayable]: Address | {$allowAddressPayable}? Address Payable | Bool | String | Bytes | SignedIntegerType | UnsignedIntegerType | FixedBytes | Fixed | Ufixed;
 functionTypeName
 locals [boolean visibilitySet = false, boolean mutabilitySet = false]
@@ -353,6 +329,7 @@ expression:
 		identifier
 		| literal
 		| elementaryTypeName[false]
+		| userDefinedTypeName
 	  ) # PrimaryExpression
 ;
 
@@ -391,10 +368,7 @@ numberLiteral: (DecimalNumber | HexNumber) NumberUnit?;
 /**
  * A curly-braced block of statements. Opens its own scope.
  */
-block:
-	LBrace ( statement | uncheckedBlock )* RBrace;
-
-uncheckedBlock: Unchecked block;
+block: LBrace statement* RBrace;
 
 statement:
 	block
@@ -475,7 +449,7 @@ mappingType: Mapping LParen key=mappingKeyType DoubleArrow value=typeName RParen
 /**
  * Only elementary types or user defined types are viable as mapping keys.
  */
-mappingKeyType: elementaryTypeName[false] | identifierPath;
+mappingKeyType: elementaryTypeName[false] | userDefinedTypeName;
 
 /**
  * A Yul statement within an inline assembly block.

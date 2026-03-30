@@ -42,11 +42,9 @@ source test/externalTests/common.sh
 
 printTask "Running external tests..."
 
-"$REPO_ROOT/externalTests/zeppelin.sh" "$SOLJSON"
-"$REPO_ROOT/externalTests/gnosis.sh" "$SOLJSON"
-"$REPO_ROOT/externalTests/gnosis-v2.sh" "$SOLJSON"
-"$REPO_ROOT/externalTests/colony.sh" "$SOLJSON"
-"$REPO_ROOT/externalTests/ens.sh" "$SOLJSON"
+$REPO_ROOT/externalTests/zeppelin.sh "$SOLJSON"
+$REPO_ROOT/externalTests/gnosis.sh "$SOLJSON"
+$REPO_ROOT/externalTests/colony.sh "$SOLJSON"
 
 # Disabled temporarily as it needs to be updated to latest Truffle first.
 #test_truffle Gnosis https://github.com/axic/pm-contracts.git solidity-050

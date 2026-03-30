@@ -22,7 +22,7 @@
 #include <libyul/optimiser/NameCollector.h>
 #include <libyul/optimiser/Semantics.h>
 #include <libyul/optimiser/SSAValueTracker.h>
-#include <libyul/AST.h>
+#include <libyul/AsmData.h>
 #include <libsolutil/CommonData.h>
 
 #include <utility>

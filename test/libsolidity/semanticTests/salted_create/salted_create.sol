@@ -17,7 +17,6 @@ contract A {
     }
 }
 // ====
-// compileViaYul: also
 // EVMVersion: >=constantinople
 // ----
 // different_salt() -> true

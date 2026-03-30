@@ -9,4 +9,3 @@ contract C {
     }
 }
 // ----
-// Warning 6328: (166-183): CHC: Assertion violation might happen here.

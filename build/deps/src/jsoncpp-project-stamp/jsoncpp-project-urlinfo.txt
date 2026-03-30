@@ -1,0 +1,12 @@
+# This is a generated file and its contents are an internal implementation detail.
+# The download step will be re-executed if anything in this file changes.
+# No other meaning or use of this file is supported.
+
+method=url
+command=/opt/homebrew/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/download-jsoncpp-project.cmake;COMMAND;/opt/homebrew/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/verify-jsoncpp-project.cmake;COMMAND;/opt/homebrew/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/extract-jsoncpp-project.cmake
+source_dir=/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project
+work_dir=/Users/togzhan/Documents/Github/solidity/build/deps/src
+url(s)=https://github.com/open-source-parsers/jsoncpp/archive/1.9.3.tar.gz
+hash=SHA256=8593c1d69e703563d94d8c12244e2e18893eeb9a8a9f8aa3d09a327aa45c8f7d
+      no_extract=
+

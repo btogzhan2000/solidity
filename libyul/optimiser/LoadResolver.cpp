@@ -26,7 +26,7 @@
 #include <libyul/optimiser/Semantics.h>
 #include <libyul/optimiser/CallGraphGenerator.h>
 #include <libyul/SideEffects.h>
-#include <libyul/AST.h>
+#include <libyul/AsmData.h>
 
 using namespace std;
 using namespace solidity;
@@ -46,18 +46,21 @@ void LoadResolver::visit(Expression& _e)
 {
 	DataFlowAnalyzer::visit(_e);
 
-	if (FunctionCall const* funCall = std::get_if<FunctionCall>(&_e))
-		for (auto location: { StoreLoadLocation::Memory, StoreLoadLocation::Storage })
-			if (funCall->functionName.name == m_loadFunctionName[static_cast<unsigned>(location)])
-			{
-				tryResolve(_e, location, funCall->arguments);
-				break;
-			}
+	if (!dynamic_cast<EVMDialect const*>(&m_dialect))
+		return;
+
+	if (holds_alternative<FunctionCall>(_e))
+	{
+		FunctionCall const& funCall = std::get<FunctionCall>(_e);
+		if (auto const* builtin = dynamic_cast<EVMDialect const&>(m_dialect).builtin(funCall.functionName.name))
+			if (builtin->instruction)
+				tryResolve(_e, *builtin->instruction, funCall.arguments);
+	}
 }
 
 void LoadResolver::tryResolve(
 	Expression& _e,
-	StoreLoadLocation _location,
+	evmasm::Instruction _instruction,
 	vector<Expression> const& _arguments
 )
 {
@@ -65,14 +68,15 @@ void LoadResolver::tryResolve(
 		return;
 
 	YulString key = std::get<Identifier>(_arguments.at(0)).name;
-	if (_location == StoreLoadLocation::Storage)
-	{
-		if (auto value = util::valueOrNullptr(m_storage, key))
-			if (inScope(*value))
-				_e = Identifier{locationOf(_e), *value};
-	}
-	else if (m_optimizeMLoad && _location == StoreLoadLocation::Memory)
-		if (auto value = util::valueOrNullptr(m_memory, key))
-			if (inScope(*value))
-				_e = Identifier{locationOf(_e), *value};
+	if (
+		_instruction == evmasm::Instruction::SLOAD &&
+		m_storage.values.count(key)
+	)
+		_e = Identifier{locationOf(_e), m_storage.values[key]};
+	else if (
+		m_optimizeMLoad &&
+		_instruction == evmasm::Instruction::MLOAD &&
+		m_memory.values.count(key)
+	)
+		_e = Identifier{locationOf(_e), m_memory.values[key]};
 }

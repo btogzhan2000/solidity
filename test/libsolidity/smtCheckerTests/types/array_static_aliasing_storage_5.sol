@@ -12,8 +12,7 @@ contract C
 		// erase knowledge about memory references.
 		assert(c[0] == 42);
 		// Fails because b1 == a is possible.
-		// Disabled because Spacer seg faults.
-		//assert(a[0] == 2);
+		assert(a[0] == 2);
 		assert(b1[0] == 1);
 	}
 	function g(bool x, uint[2] memory c) public {
@@ -21,6 +20,5 @@ contract C
 		else f(b2, c);
 	}
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
+// Warning 6328: (338-355): CHC: Assertion violation happens here.

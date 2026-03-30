@@ -74,7 +74,6 @@ private:
 	ASTPointer<PragmaDirective> createPragmaDirective(Json::Value const& _node);
 	ASTPointer<ImportDirective> createImportDirective(Json::Value const& _node);
 	ASTPointer<ContractDefinition> createContractDefinition(Json::Value const& _node);
-	ASTPointer<IdentifierPath> createIdentifierPath(Json::Value const& _node);
 	ASTPointer<InheritanceSpecifier> createInheritanceSpecifier(Json::Value const& _node);
 	ASTPointer<UsingForDirective> createUsingForDirective(Json::Value const& _node);
 	ASTPointer<ASTNode> createStructDefinition(Json::Value const& _node);
@@ -93,7 +92,7 @@ private:
 	ASTPointer<Mapping> createMapping(Json::Value const& _node);
 	ASTPointer<ArrayTypeName> createArrayTypeName(Json::Value const& _node);
 	ASTPointer<InlineAssembly> createInlineAssembly(Json::Value const& _node);
-	ASTPointer<Block> createBlock(Json::Value const& _node, bool _unchecked);
+	ASTPointer<Block> createBlock(Json::Value const& _node);
 	ASTPointer<PlaceholderStatement> createPlaceholderStatement(Json::Value const& _node);
 	ASTPointer<IfStatement> createIfStatement(Json::Value const& _node);
 	ASTPointer<TryCatchClause> createTryCatchClause(Json::Value const& _node);

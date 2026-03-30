@@ -294,7 +294,6 @@ public:
 		return *m_stackItems;
 	}
 	/// Total number of stack slots occupied by this type. This is the sum of ``sizeOnStack`` of all ``stackItems()``.
-	// TODO: consider changing the return type to be size_t
 	unsigned sizeOnStack() const
 	{
 		if (!m_stackSize)
@@ -307,7 +306,7 @@ public:
 					++sizeOnStack;
 			m_stackSize = sizeOnStack;
 		}
-		return static_cast<unsigned>(*m_stackSize);
+		return *m_stackSize;
 	}
 	/// If it is possible to initialize such a value in memory by just writing zeros
 	/// of the size memoryHeadSize().
@@ -568,11 +567,6 @@ public:
 	std::string toString(bool _short) const override;
 	u256 literalValue(Literal const* _literal) const override;
 	TypePointer mobileType() const override;
-
-	/// @returns the underlying raw literal value.
-	///
-	/// @see literalValue(Literal const*))
-	rational const& value() const noexcept { return m_value; }
 
 	/// @returns the smallest integer type that can hold the value or an empty pointer if not possible.
 	IntegerType const* integerType() const;
@@ -1144,6 +1138,11 @@ public:
 		ECRecover, ///< CALL to special contract for ecrecover
 		SHA256, ///< CALL to special contract for sha256
 		RIPEMD160, ///< CALL to special contract for ripemd160
+		Log0,
+		Log1,
+		Log2,
+		Log3,
+		Log4,
 		Event, ///< syntactic sugar for LOG*
 		SetGas, ///< modify the default gas value for the function call
 		SetValue, ///< modify the default value transfer for the function call
@@ -1245,7 +1244,6 @@ public:
 	static FunctionTypePointer newExpressionType(ContractDefinition const& _contract);
 
 	TypePointers parameterTypes() const;
-	TypePointers const& parameterTypesIncludingSelf() const;
 	std::vector<std::string> parameterNames() const;
 	TypePointers const& returnParameterTypes() const { return m_returnParameterTypes; }
 	/// @returns the list of return parameter types. All dynamically-sized types (this excludes

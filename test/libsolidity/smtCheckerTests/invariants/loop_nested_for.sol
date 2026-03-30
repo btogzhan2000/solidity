@@ -9,8 +9,8 @@ contract Simple {
 			for (x = 0; x < 10; ++x) {}
 			assert(x == 10);
 		}
-		// Disabled because of Spacer nondeterminism.
-		//assert(y == x);
+		assert(y == x);
 	}
 }
 // ----
+// Warning 4661: (187-201): BMC: Assertion violation happens here.

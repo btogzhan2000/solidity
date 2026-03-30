@@ -15,4 +15,5 @@ library L {
 	}
 }
 // ----
-// Warning 6328: (c:113-126): CHC: Assertion violation happens here.\nCounterexample:\n\nx = 0\n\nTransaction trace:\nC.constructor()\nC.g(0)\n    L.f() -- internal call
+// Warning 6328: (c:113-126): CHC: Assertion violation happens here.
+// Warning 8364: (c:104-105): Assertion checker does not yet implement type type(library L)

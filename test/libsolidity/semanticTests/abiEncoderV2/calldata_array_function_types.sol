@@ -1,4 +1,4 @@
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 contract C {
     function f(function() external returns (uint)[] calldata s) external returns (uint, uint, uint) {
@@ -25,8 +25,6 @@ contract C {
         return reenc ? this.f_reenc(a) : this.f(a);
     }
 }
-// ====
-// compileViaYul: also
 // ----
 // g(bool): false -> 23, 37, 71
 // g(bool): true -> 23, 37, 71

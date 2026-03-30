@@ -20,8 +20,6 @@ contract C {
 		s.a.pop();
 	}
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
-// Warning 2529: (121-130): CHC: Empty array "pop" happens here.
+// Warning 2529: (121-130): CHC: Empty array "pop" detected here.
 // Warning 6328: (230-254): CHC: Assertion violation happens here.

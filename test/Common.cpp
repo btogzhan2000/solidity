@@ -30,9 +30,6 @@ namespace po = boost::program_options;
 namespace solidity::test
 {
 
-namespace
-{
-
 /// If non-empty returns the value of the env. variable ETH_TEST_PATH, otherwise
 /// it tries to find a path that contains the directories "libsolidity/syntaxTests"
 /// and returns it if found.
@@ -87,8 +84,6 @@ std::string envOrDefaultPath(std::string const& env_name, std::string const& lib
 	return {};
 }
 
-}
-
 CommonOptions::CommonOptions(std::string _caption):
 	options(_caption,
 		po::options_description::m_default_line_length,
@@ -103,7 +98,7 @@ CommonOptions::CommonOptions(std::string _caption):
 		("no-smt", po::bool_switch(&disableSMT), "disable SMT checker")
 		("optimize", po::bool_switch(&optimize), "enables optimization")
 		("enforce-via-yul", po::bool_switch(&enforceViaYul), "Enforce compiling all tests via yul to see if additional tests can be activated.")
-		("abiencoderv1", po::bool_switch(&useABIEncoderV1), "enables abi encoder v1")
+		("abiencoderv2", po::bool_switch(&useABIEncoderV2), "enables abi encoder v2")
 		("show-messages", po::bool_switch(&showMessages), "enables message output")
 		("show-metadata", po::bool_switch(&showMetadata), "enables metadata output");
 }

@@ -5,7 +5,7 @@
 #
 # The documentation for solidity is hosted at:
 #
-#     https://docs.soliditylang.org
+#     https://solidity.readthedocs.org
 #
 # ------------------------------------------------------------------------------
 # This file is part of solidity.
@@ -62,9 +62,6 @@ else
     log_directory=""
 fi
 
-printTask "Testing Python scripts..."
-"$REPO_ROOT/test/pyscriptTests.py"
-
 printTask "Running commandline tests..."
 # Only run in parallel if this is run on CI infrastructure
 if [[ -n "$CI" ]]
@@ -93,28 +90,28 @@ for optimize in "" "--optimize"
 do
     for vm in $EVM_VERSIONS
     do
-        FORCE_ABIV1_RUNS="no"
+        FORCE_ABIV2_RUNS="no"
         if [[ "$vm" == "istanbul" ]]
         then
-            FORCE_ABIV1_RUNS="no yes" # run both in istanbul
+            FORCE_ABIV2_RUNS="no yes" # run both in istanbul
         fi
-        for abiv1 in $FORCE_ABIV1_RUNS
+        for abiv2 in $FORCE_ABIV2_RUNS
         do
-            force_abiv1_flag=""
-            if [[ "$abiv1" == "yes" ]]
+            force_abiv2_flag=""
+            if [[ "$abiv2" == "yes" ]]
             then
-                force_abiv1_flag="--abiencoderv1"
+                force_abiv2_flag="--abiencoderv2"
             fi
-            printTask "--> Running tests using "$optimize" --evm-version "$vm" $force_abiv1_flag..."
+            printTask "--> Running tests using "$optimize" --evm-version "$vm" $force_abiv2_flag..."
 
             log=""
             if [ -n "$log_directory" ]
             then
                 if [ -n "$optimize" ]
                 then
-                    log=--logger=JUNIT,error,$log_directory/opt_$vm.xml
+                    log=--logger=JUNIT,error,$log_directory/opt_$vm.xml $testargs
                 else
-                    log=--logger=JUNIT,error,$log_directory/noopt_$vm.xml
+                    log=--logger=JUNIT,error,$log_directory/noopt_$vm.xml $testargs_no_opt
                 fi
             fi
 
@@ -122,7 +119,7 @@ do
             [ "${vm}" = "byzantium" ] && [ "${optimize}" = "" ] && EWASM_ARGS="--ewasm"
 
             set +e
-            "${SOLIDITY_BUILD_DIR}"/test/soltest --show-progress $log -- ${EWASM_ARGS} --testpath "$REPO_ROOT"/test "$optimize" --evm-version "$vm" $SMT_FLAGS $force_abiv1_flag
+            "${SOLIDITY_BUILD_DIR}"/test/soltest --show-progress $log -- ${EWASM_ARGS} --testpath "$REPO_ROOT"/test "$optimize" --evm-version "$vm" $SMT_FLAGS $force_abiv2_flag
 
             if test "0" -ne "$?"; then
                 exit 1

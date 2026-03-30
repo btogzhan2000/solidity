@@ -94,8 +94,6 @@ struct SourceUnitAnnotation: ASTAnnotation
 	SetOnce<std::map<ASTString, std::vector<Declaration const*>>> exportedSymbols;
 	/// Experimental features.
 	std::set<ExperimentalFeature> experimentalFeatures;
-	/// Using the new ABI coder. Set to `false` if using ABI coder v1.
-	SetOnce<bool> useABICoderV2;
 };
 
 struct ScopableAnnotation
@@ -199,8 +197,8 @@ struct InlineAssemblyAnnotation: StatementAnnotation
 	struct ExternalIdentifierInfo
 	{
 		Declaration const* declaration = nullptr;
-		/// Suffix used, one of "slot", "offset", "length" or empty.
-		std::string suffix;
+		bool isSlot = false; ///< Whether the storage slot of a variable is queried.
+		bool isOffset = false; ///< Whether the intra-slot offset of a storage variable is queried.
 		size_t valueSize = size_t(-1);
 	};
 
@@ -235,12 +233,10 @@ struct TypeNameAnnotation: ASTAnnotation
 	TypePointer type = nullptr;
 };
 
-struct IdentifierPathAnnotation: ASTAnnotation
+struct UserDefinedTypeNameAnnotation: TypeNameAnnotation
 {
 	/// Referenced declaration, set during reference resolution stage.
 	Declaration const* referencedDeclaration = nullptr;
-	/// What kind of lookup needs to be done (static, virtual, super) find the declaration.
-	SetOnce<VirtualLookup> requiredLookup;
 };
 
 struct ExpressionAnnotation: ASTAnnotation
@@ -263,15 +259,6 @@ struct ExpressionAnnotation: ASTAnnotation
 	/// Types and - if given - names of arguments if the expr. is a function
 	/// that is called, used for overload resolution
 	std::optional<FuncCallArguments> arguments;
-
-	/// True if the expression consists solely of the name of the function and the function is called immediately
-	/// instead of being stored or processed. The name may be qualified with the name of a contract, library
-	/// module, etc., that clarifies the scope. For example: `m.L.f()`, where `m` is a module, `L` is a library
-	/// and `f` is a function is a direct call. This means that the function to be called is known at compilation
-	/// time and it's not necessary to rely on any runtime dispatch mechanism to resolve it.
-	/// Note that even the simplest expressions, like `(f)()`, result in an indirect call even if they consist of
-	/// values known at compilation time.
-	bool calledDirectly = false;
 };
 
 struct IdentifierAnnotation: ExpressionAnnotation

@@ -11,7 +11,5 @@ contract C
 		assert(array[p] < 90);
 	}
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
 // Warning 6328: (191-212): CHC: Assertion violation happens here.

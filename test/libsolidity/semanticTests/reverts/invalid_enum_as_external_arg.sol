@@ -16,7 +16,6 @@ contract C {
     }
 }
 // ====
-// EVMVersion: >=byzantium
 // compileViaYul: also
 // ----
-// test() -> FAILURE, hex"4e487b71", 33 # should throw #
+// test() -> FAILURE # should throw #

@@ -10,7 +10,5 @@ contract c {
     }
 }
 
-// ====
-// compileViaYul: also
 // ----
 // test() -> 9, 4

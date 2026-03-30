@@ -1,4 +1,4 @@
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 contract C {
     function g(address x) external pure returns (uint256 r) {

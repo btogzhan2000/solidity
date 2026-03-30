@@ -15,7 +15,5 @@ contract D
 		assert(z == _y);
 	}
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
 // Warning 6328: (191-206): CHC: Assertion violation happens here.

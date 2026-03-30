@@ -445,8 +445,8 @@
                     "tryCall": false,
                     "typeDescriptions":
                     {
-                      "typeIdentifier": "t_address",
-                      "typeString": "address"
+                      "typeIdentifier": "t_address_payable",
+                      "typeString": "address payable"
                     }
                   },
                   "src": "232:17:1",

@@ -22,7 +22,6 @@ contract C {
     }
 }
 // ====
-// compileViaYul: also
 // EVMVersion: >homestead
 // ----
 // library: L

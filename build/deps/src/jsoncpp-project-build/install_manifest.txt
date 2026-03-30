@@ -1,0 +1,14 @@
+/Users/togzhan/Documents/Github/solidity/build/deps/lib/cmake/jsoncpp/jsoncppConfig.cmake
+/Users/togzhan/Documents/Github/solidity/build/deps/lib/cmake/jsoncpp/jsoncppConfig-release.cmake
+/Users/togzhan/Documents/Github/solidity/build/deps/lib/cmake/jsoncpp/jsoncppConfigVersion.cmake
+/Users/togzhan/Documents/Github/solidity/build/deps/lib/libjsoncpp.a
+/Users/togzhan/Documents/Github/solidity/build/deps/include/json/allocator.h
+/Users/togzhan/Documents/Github/solidity/build/deps/include/json/assertions.h
+/Users/togzhan/Documents/Github/solidity/build/deps/include/json/config.h
+/Users/togzhan/Documents/Github/solidity/build/deps/include/json/forwards.h
+/Users/togzhan/Documents/Github/solidity/build/deps/include/json/json.h
+/Users/togzhan/Documents/Github/solidity/build/deps/include/json/json_features.h
+/Users/togzhan/Documents/Github/solidity/build/deps/include/json/reader.h
+/Users/togzhan/Documents/Github/solidity/build/deps/include/json/value.h
+/Users/togzhan/Documents/Github/solidity/build/deps/include/json/version.h
+/Users/togzhan/Documents/Github/solidity/build/deps/include/json/writer.h

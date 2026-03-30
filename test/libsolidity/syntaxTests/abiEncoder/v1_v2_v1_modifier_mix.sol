@@ -1,5 +1,4 @@
 ==== Source: C ====
-pragma abicoder v1;
 import "X";
 import "V1A";
 import "V2A";
@@ -15,7 +14,6 @@ contract C is V1A, V2A, V1B {
     }
 }
 ==== Source: V1A ====
-pragma abicoder v1;
 import "X";
 
 contract V1A {
@@ -24,7 +22,6 @@ contract V1A {
     }
 }
 ==== Source: V1B ====
-pragma abicoder v1;
 import "X";
 
 contract V1B {
@@ -33,17 +30,17 @@ contract V1B {
     }
 }
 ==== Source: V2A ====
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 import "X";
 
 contract V2A {
     modifier modV2A() {
-        X(address(0x00)).get();
+        X(0x00).get();
         _;
     }
 }
 ==== Source: X ====
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 struct Data {
     bool flag;

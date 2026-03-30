@@ -37,12 +37,10 @@ using namespace solidity::smtutil;
 
 CHCSmtLib2Interface::CHCSmtLib2Interface(
 	map<h256, string> const& _queryResponses,
-	ReadCallback::Callback _smtCallback,
-	optional<unsigned> _queryTimeout
+	ReadCallback::Callback const& _smtCallback
 ):
-	CHCSolverInterface(_queryTimeout),
-	m_smtlib2(make_unique<SMTLib2Interface>(_queryResponses, _smtCallback, m_queryTimeout)),
-	m_queryResponses(move(_queryResponses)),
+	m_smtlib2(make_unique<SMTLib2Interface>(_queryResponses, _smtCallback)),
+	m_queryResponses(_queryResponses),
 	m_smtCallback(_smtCallback)
 {
 	reset();
@@ -53,8 +51,6 @@ void CHCSmtLib2Interface::reset()
 	m_accumulatedOutput.clear();
 	m_variables.clear();
 	m_unhandledQueries.clear();
-	if (m_queryTimeout)
-		write("(set-option :timeout " + to_string(*m_queryTimeout) + ")");
 }
 
 void CHCSmtLib2Interface::registerRelation(Expression const& _expr)

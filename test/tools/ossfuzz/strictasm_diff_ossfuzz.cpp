@@ -26,6 +26,7 @@
 #include <liblangutil/Exceptions.h>
 #include <liblangutil/ErrorReporter.h>
 #include <liblangutil/EVMVersion.h>
+#include <liblangutil/SourceReferenceFormatter.h>
 
 #include <libsolutil/CommonIO.h>
 #include <libsolutil/CommonData.h>
@@ -42,9 +43,6 @@ using namespace solidity::yul;
 using namespace solidity::util;
 using namespace solidity::langutil;
 using namespace solidity::yul::test::yul_fuzzer;
-
-// Prototype as we can't use the FuzzerInterface.h header.
-extern "C" int LLVMFuzzerTestOneInput(uint8_t const* _data, size_t _size);
 
 extern "C" int LLVMFuzzerTestOneInput(uint8_t const* _data, size_t _size)
 {

@@ -1,0 +1,2 @@
+/usr/bin/ar qc libsolutil.a CMakeFiles/solutil.dir/CommonData.cpp.o CMakeFiles/solutil.dir/CommonIO.cpp.o CMakeFiles/solutil.dir/Exceptions.cpp.o CMakeFiles/solutil.dir/IndentedWriter.cpp.o CMakeFiles/solutil.dir/IpfsHash.cpp.o CMakeFiles/solutil.dir/JSON.cpp.o CMakeFiles/solutil.dir/Keccak256.cpp.o CMakeFiles/solutil.dir/StringUtils.cpp.o CMakeFiles/solutil.dir/SwarmHash.cpp.o CMakeFiles/solutil.dir/UTF8.cpp.o CMakeFiles/solutil.dir/Whiskers.cpp.o
+/usr/bin/ranlib libsolutil.a

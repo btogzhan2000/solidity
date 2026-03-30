@@ -23,7 +23,7 @@
 
 #include <libyul/optimiser/NameCollector.h>
 #include <libyul/AsmAnalysisInfo.h>
-#include <libyul/AST.h>
+#include <libyul/AsmData.h>
 #include <libyul/Utilities.h>
 
 #include <liblangutil/Exceptions.h>
@@ -222,7 +222,7 @@ void CodeTransform::operator()(VariableDeclaration const& _varDecl)
 			m_unusedStackSlots.erase(m_unusedStackSlots.begin());
 			m_context->variableStackHeights[&var] = slot;
 			if (size_t heightDiff = variableHeightDiff(var, varName, true))
-				m_assembly.appendInstruction(evmasm::swapInstruction(static_cast<unsigned>(heightDiff - 1)));
+				m_assembly.appendInstruction(evmasm::swapInstruction(heightDiff - 1));
 			m_assembly.appendInstruction(evmasm::Instruction::POP);
 		}
 	}
@@ -314,7 +314,7 @@ void CodeTransform::operator()(Identifier const& _identifier)
 			// TODO: opportunity for optimization: Do not DUP if this is the last reference
 			// to the top most element of the stack
 			if (size_t heightDiff = variableHeightDiff(_var, _identifier.name, false))
-				m_assembly.appendInstruction(evmasm::dupInstruction(static_cast<unsigned>(heightDiff)));
+				m_assembly.appendInstruction(evmasm::dupInstruction(heightDiff));
 			else
 				// Store something to balance the stack
 				m_assembly.appendConstant(u256(0));
@@ -483,10 +483,8 @@ void CodeTransform::operator()(FunctionDefinition const& _function)
 
 		if (stackLayout.size() > 17)
 		{
-			StackTooDeepError error(
-				_function.name,
-				YulString{},
-				static_cast<int>(stackLayout.size()) - 17,
+			StackTooDeepError error(_function.name, YulString{}, static_cast<int>(stackLayout.size()) - 17);
+			error << errinfo_comment(
 				"The function " +
 				_function.name.str() +
 				" has " +
@@ -696,7 +694,7 @@ void CodeTransform::generateAssignment(Identifier const& _variableName)
 	{
 		Scope::Variable const& _var = std::get<Scope::Variable>(*var);
 		if (size_t heightDiff = variableHeightDiff(_var, _variableName.name, true))
-			m_assembly.appendInstruction(evmasm::swapInstruction(static_cast<unsigned>(heightDiff - 1)));
+			m_assembly.appendInstruction(evmasm::swapInstruction(heightDiff - 1));
 		m_assembly.appendInstruction(evmasm::Instruction::POP);
 		decreaseReference(_variableName.name, _var);
 	}
@@ -718,9 +716,8 @@ size_t CodeTransform::variableHeightDiff(Scope::Variable const& _var, YulString 
 	size_t limit = _forSwap ? 17 : 16;
 	if (heightDiff > limit)
 	{
-		m_stackErrors.emplace_back(
-			_varName,
-			heightDiff - limit,
+		m_stackErrors.emplace_back(_varName, heightDiff - limit);
+		m_stackErrors.back() << errinfo_comment(
 			"Variable " +
 			_varName.str() +
 			" is " +

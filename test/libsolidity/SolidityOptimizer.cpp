@@ -119,8 +119,8 @@ protected:
 	u256 m_gasUsedNonOptimized;
 	bytes m_nonOptimizedBytecode;
 	bytes m_optimizedBytecode;
-	h160 m_optimizedContract;
-	h160 m_nonOptimizedContract;
+	Address m_optimizedContract;
+	Address m_nonOptimizedContract;
 };
 
 BOOST_FIXTURE_TEST_SUITE(SolidityOptimizer, OptimizerTestFramework)
@@ -224,8 +224,8 @@ BOOST_AUTO_TEST_CASE(function_calls)
 {
 	char const* sourceCode = R"(
 		contract test {
-			function f1(uint x) public returns (uint) { unchecked { return x*x; } }
-			function f(uint x) public returns (uint) { unchecked { return f1(7+x) - this.f1(x**9); } }
+			function f1(uint x) public returns (uint) { return x*x; }
+			function f(uint x) public returns (uint) { return f1(7+x) - this.f1(x**9); }
 		}
 	)";
 	compileBothVersions(sourceCode);
@@ -348,7 +348,7 @@ BOOST_AUTO_TEST_CASE(incorrect_storage_access_bug)
 			function f() public returns (uint)
 			{
 				if (data[block.timestamp] == 0)
-					data[type(uint).max - 6] = 5;
+					data[uint(-7)] = 5;
 				return data[block.timestamp];
 			}
 		}
@@ -437,7 +437,7 @@ BOOST_AUTO_TEST_CASE(constant_optimization_early_exit)
 	char const* sourceCode = R"(
 	contract HexEncoding {
 		function hexEncodeTest(address addr) public returns (bytes32 ret) {
-			uint x = uint(uint160(addr)) / 2**32;
+			uint x = uint(addr) / 2**32;
 
 			// Nibble interleave
 			x = x & 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff;
@@ -457,7 +457,7 @@ BOOST_AUTO_TEST_CASE(constant_optimization_early_exit)
 			assembly {
 				mstore(0, x)
 			}
-			x = uint160(addr) * 2**96;
+			x = uint(addr) * 2**96;
 
 			// Nibble interleave
 			x = x & 0x00000000000000000000000000000000ffffffffffffffffffffffffffffffff;
@@ -495,7 +495,7 @@ BOOST_AUTO_TEST_CASE(constant_optimization_early_exit)
 	maxDuration = numeric_limits<size_t>::max();
 	BOOST_TEST_MESSAGE("Disabled constant optimizer run time check for address sanitizer build.");
 #endif
-	BOOST_CHECK_MESSAGE(duration <= double(maxDuration), "Compilation of constants took longer than 20 seconds.");
+	BOOST_CHECK_MESSAGE(duration <= maxDuration, "Compilation of constants took longer than 20 seconds.");
 	compareVersions("hexEncodeTest(address)", u256(0x123456789));
 }
 
@@ -679,7 +679,7 @@ BOOST_AUTO_TEST_CASE(byte_access)
 	char const* sourceCode = R"(
 		contract C
 		{
-			function f(bytes32 x) public returns (bytes1 r)
+			function f(bytes32 x) public returns (byte r)
 			{
 				assembly { r := and(byte(x, 31), 0xff) }
 			}
@@ -696,11 +696,11 @@ BOOST_AUTO_TEST_CASE(shift_optimizer_bug)
 		{
 			function f(uint x) public returns (uint)
 			{
-				return (x << 1) << type(uint).max;
+				return (x << 1) << uint(-1);
 			}
 			function g(uint x) public returns (uint)
 			{
-				return (x >> 1) >> type(uint).max;
+				return (x >> 1) >> uint(-1);
 			}
 		}
 	)";

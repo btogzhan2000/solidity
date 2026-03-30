@@ -6,12 +6,11 @@ contract C {
     S public s;
 
     constructor() {
-        s = S({x: true, a: 1});
+        s = S({a: 1, x: true});
     }
 }
 
 // ====
 // compileViaYul: also
-// compileToEwasm: also
 // ----
 // s() -> 1, true

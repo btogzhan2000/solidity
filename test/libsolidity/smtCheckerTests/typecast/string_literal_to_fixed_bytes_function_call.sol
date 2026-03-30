@@ -8,8 +8,6 @@ contract B {
 		assert(a == "1234567");
 	}
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
 // Warning 6328: (162-184): CHC: Assertion violation happens here.
 // Warning 6328: (136-158): CHC: Assertion violation happens here.

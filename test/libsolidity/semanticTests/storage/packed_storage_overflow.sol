@@ -4,14 +4,13 @@ contract C {
     uint16 b;
 
     function f() public returns (uint256, uint256, uint256, uint256) {
-        unchecked { a++; }
+        a++;
         uint256 c = b;
         delete b;
-        unchecked { a -= 2; }
+        a -= 2;
         return (x, c, b, a);
     }
 }
-// ====
-// compileViaYul: also
+
 // ----
 // f() -> 0x1234, 0x0, 0x0, 0xfffe

@@ -67,7 +67,7 @@ private:
 	void outputCompilationResults();
 
 	void handleCombinedJSON();
-	void handleAst();
+	void handleAst(std::string const& _argStr);
 	void handleBinary(std::string const& _contract);
 	void handleOpcode(std::string const& _contract);
 	void handleIR(std::string const& _contract);
@@ -133,8 +133,8 @@ private:
 	RevertStrings m_revertStrings = RevertStrings::Default;
 	/// Chosen hash method for the bytecode metadata.
 	CompilerStack::MetadataHash m_metadataHash = CompilerStack::MetadataHash::IPFS;
-	/// Model checker settings.
-	ModelCheckerSettings m_modelCheckerSettings;
+	/// Chosen model checker engine.
+	ModelCheckerEngine m_modelCheckerEngine = ModelCheckerEngine::All();
 	/// Whether or not to colorize diagnostics output.
 	bool m_coloredOutput = true;
 	/// Whether or not to output error IDs.

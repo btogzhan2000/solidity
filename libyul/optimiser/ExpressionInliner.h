@@ -21,7 +21,7 @@
 #pragma once
 
 #include <libyul/optimiser/ASTWalker.h>
-#include <libyul/ASTForward.h>
+#include <libyul/AsmDataForward.h>
 
 #include <optional>
 #include <set>

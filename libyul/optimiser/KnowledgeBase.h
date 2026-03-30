@@ -21,9 +21,8 @@
 
 #pragma once
 
-#include <libyul/ASTForward.h>
+#include <libyul/AsmDataForward.h>
 #include <libyul/YulString.h>
-
 #include <map>
 
 namespace solidity::yul

@@ -23,6 +23,7 @@
 #include <libevmasm/ConstantOptimiser.h>
 #include <libevmasm/Assembly.h>
 #include <libevmasm/GasMeter.h>
+#include <libsolutil/CommonData.h>
 
 using namespace std;
 using namespace solidity;

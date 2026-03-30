@@ -11,4 +11,3 @@ contract Simple {
 }
 // ====
 // SMTSolvers: z3
-// ----

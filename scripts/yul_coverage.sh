@@ -30,7 +30,7 @@
 #
 # The documentation for solidity is hosted at:
 #
-#     https://docs.soliditylang.org
+#     https://solidity.readthedocs.org
 #
 # ------------------------------------------------------------------------------
 # This file is part of solidity.

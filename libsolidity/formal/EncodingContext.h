@@ -23,7 +23,8 @@
 
 #include <libsmtutil/SolverInterface.h>
 
-#include <map>
+#include <unordered_map>
+#include <set>
 
 namespace solidity::frontend::smt
 {
@@ -66,20 +67,12 @@ public:
 		return m_solver->newVariable(move(_name), move(_sort));
 	}
 
-	struct IdCompare
-	{
-		bool operator()(ASTNode const* lhs, ASTNode const* rhs) const
-		{
-			return lhs->id() < rhs->id();
-		}
-	};
-
 	/// Variables.
 	//@{
 	/// @returns the symbolic representation of a program variable.
 	std::shared_ptr<SymbolicVariable> variable(frontend::VariableDeclaration const& _varDecl);
 	/// @returns all symbolic variables.
-	std::map<frontend::VariableDeclaration const*, std::shared_ptr<SymbolicVariable>, IdCompare> const& variables() const { return m_variables; }
+	std::unordered_map<frontend::VariableDeclaration const*, std::shared_ptr<SymbolicVariable>> const& variables() const { return m_variables; }
 
 	/// Creates a symbolic variable and
 	/// @returns true if a variable's type is not supported and is therefore abstract.
@@ -112,7 +105,7 @@ public:
 	/// @returns the symbolic representation of an AST node expression.
 	std::shared_ptr<SymbolicVariable> expression(frontend::Expression const& _e);
 	/// @returns all symbolic expressions.
-	std::map<frontend::Expression const*, std::shared_ptr<SymbolicVariable>, IdCompare> const& expressions() const { return m_expressions; }
+	std::unordered_map<frontend::Expression const*, std::shared_ptr<SymbolicVariable>> const& expressions() const { return m_expressions; }
 
 	/// Creates the expression (value can be arbitrary).
 	/// @returns true if type is not supported.
@@ -126,7 +119,7 @@ public:
 	/// Global variables and functions.
 	std::shared_ptr<SymbolicVariable> globalSymbol(std::string const& _name);
 	/// @returns all symbolic globals.
-	std::map<std::string, std::shared_ptr<SymbolicVariable>> const& globalSymbols() const { return m_globalContext; }
+	std::unordered_map<std::string, std::shared_ptr<SymbolicVariable>> const& globalSymbols() const { return m_globalContext; }
 
 	/// Defines a new global variable or function
 	/// and @returns true if type was abstracted.
@@ -142,7 +135,7 @@ public:
 	void pushSolver();
 	void popSolver();
 	void addAssertion(smtutil::Expression const& _e);
-	size_t solverStackHeigh() { return m_assertions.size(); } const
+	unsigned solverStackHeigh() { return m_assertions.size(); } const
 	smtutil::SolverInterface* solver()
 	{
 		solAssert(m_solver, "");
@@ -156,14 +149,14 @@ private:
 	/// Symbolic expressions.
 	//{@
 	/// Symbolic variables.
-	std::map<frontend::VariableDeclaration const*, std::shared_ptr<SymbolicVariable>, IdCompare> m_variables;
+	std::unordered_map<frontend::VariableDeclaration const*, std::shared_ptr<SymbolicVariable>> m_variables;
 
 	/// Symbolic expressions.
-	std::map<frontend::Expression const*, std::shared_ptr<SymbolicVariable>, IdCompare> m_expressions;
+	std::unordered_map<frontend::Expression const*, std::shared_ptr<SymbolicVariable>> m_expressions;
 
 	/// Symbolic representation of global symbols including
 	/// variables and functions.
-	std::map<std::string, std::shared_ptr<smt::SymbolicVariable>> m_globalContext;
+	std::unordered_map<std::string, std::shared_ptr<smt::SymbolicVariable>> m_globalContext;
 
 	/// Symbolic representation of the blockchain state.
 	SymbolicState m_state;

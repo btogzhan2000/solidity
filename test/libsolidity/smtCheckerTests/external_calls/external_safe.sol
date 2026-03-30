@@ -16,4 +16,3 @@ contract C {
 		assert(x < 11);
 	}
 }
-// ----

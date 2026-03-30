@@ -20,7 +20,7 @@
  */
 
 #include <libyul/optimiser/EquivalentFunctionCombiner.h>
-#include <libyul/AST.h>
+#include <libyul/AsmData.h>
 #include <libsolutil/CommonData.h>
 
 using namespace std;

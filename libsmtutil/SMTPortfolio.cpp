@@ -35,19 +35,17 @@ using namespace solidity::smtutil;
 SMTPortfolio::SMTPortfolio(
 	map<h256, string> _smtlib2Responses,
 	frontend::ReadCallback::Callback _smtCallback,
-	[[maybe_unused]] SMTSolverChoice _enabledSolvers,
-	optional<unsigned> _queryTimeout
-):
-	SolverInterface(_queryTimeout)
+	[[maybe_unused]] SMTSolverChoice _enabledSolvers
+)
 {
-	m_solvers.emplace_back(make_unique<SMTLib2Interface>(move(_smtlib2Responses), move(_smtCallback), m_queryTimeout));
+	m_solvers.emplace_back(make_unique<SMTLib2Interface>(move(_smtlib2Responses), move(_smtCallback)));
 #ifdef HAVE_Z3
-	if (_enabledSolvers.z3 && Z3Interface::available())
-		m_solvers.emplace_back(make_unique<Z3Interface>(m_queryTimeout));
+	if (_enabledSolvers.z3)
+		m_solvers.emplace_back(make_unique<Z3Interface>());
 #endif
 #ifdef HAVE_CVC4
 	if (_enabledSolvers.cvc4)
-		m_solvers.emplace_back(make_unique<CVC4Interface>(m_queryTimeout));
+		m_solvers.emplace_back(make_unique<CVC4Interface>());
 #endif
 }
 

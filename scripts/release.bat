@@ -5,7 +5,7 @@ REM Batch file for implementing release flow for solidity for Windows.
 REM
 REM The documentation for solidity is hosted at:
 REM
-REM     https://docs.soliditylang.org
+REM     https://solidity.readthedocs.org
 REM
 REM ---------------------------------------------------------------------------
 REM This file is part of solidity.

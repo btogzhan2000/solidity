@@ -1,4 +1,4 @@
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 
 contract C {
@@ -13,7 +13,6 @@ contract C {
 }
 // ====
 // compileViaYul: also
-// compileToEwasm: also
 // ----
 // f(uint256[][]): 0x20, 0x0 -> 42 # valid access stub #
 // f(uint256[][]): 0x20, 0x1 -> FAILURE # invalid on argument decoding #

@@ -301,7 +301,7 @@ void ContractLevelChecker::checkBaseConstructorArguments(ContractDefinition cons
 		if (FunctionDefinition const* constructor = contract->constructor())
 			for (auto const& modifier: constructor->modifiers())
 				if (auto baseContract = dynamic_cast<ContractDefinition const*>(
-					modifier->name().annotation().referencedDeclaration
+					modifier->name()->annotation().referencedDeclaration
 				))
 				{
 					if (modifier->arguments())
@@ -450,7 +450,7 @@ void ContractLevelChecker::checkLibraryRequirements(ContractDefinition const& _c
 
 void ContractLevelChecker::checkBaseABICompatibility(ContractDefinition const& _contract)
 {
-	if (*_contract.sourceUnit().annotation().useABICoderV2)
+	if (_contract.sourceUnit().annotation().experimentalFeatures.count(ExperimentalFeature::ABIEncoderV2))
 		return;
 
 	if (_contract.isLibrary())
@@ -469,7 +469,7 @@ void ContractLevelChecker::checkBaseABICompatibility(ContractDefinition const& _
 	{
 		solAssert(func.second->hasDeclaration(), "Function has no declaration?!");
 
-		if (!*func.second->declaration().sourceUnit().annotation().useABICoderV2)
+		if (!func.second->declaration().sourceUnit().annotation().experimentalFeatures.count(ExperimentalFeature::ABIEncoderV2))
 			continue;
 
 		auto const& currentLoc = func.second->declaration().location();
@@ -489,9 +489,9 @@ void ContractLevelChecker::checkBaseABICompatibility(ContractDefinition const& _
 			errors,
 			std::string("Contract \"") +
 			_contract.name() +
-			"\" does not use ABI coder v2 but wants to inherit from a contract " +
+			"\" does not use ABIEncoderV2 but wants to inherit from a contract " +
 			"which uses types that require it. " +
-			"Use \"pragma abicoder v2;\" for the inheriting contract as well to enable the feature."
+			"Use \"pragma experimental ABIEncoderV2;\" for the inheriting contract as well to enable the feature."
 		);
 
 }

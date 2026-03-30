@@ -1,6 +1,3 @@
-
-.. index: calldata layout
-
 *******************
 Layout of Call Data
 *******************

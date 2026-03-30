@@ -12,6 +12,5 @@ contract C {
 	}
 }
 // ----
-// Warning 4281: (141-166): CHC: Division by zero happens here.\nCounterexample:\n\n\nTransaction trace:\nC.constructor()\nC.f()
-// Warning 6328: (170-184): CHC: Assertion violation happens here.\nCounterexample:\n\n\nTransaction trace:\nC.constructor()\nC.f()
-// Warning 4281: (263-278): CHC: Division by zero happens here.\nCounterexample:\n\nx = 0\ny = 0\nk = 0\n = 0\n\nTransaction trace:\nC.constructor()\nC.g(0, 0, 0)
+// Warning 3046: (141-166): BMC: Division by zero happens here.
+// Warning 3046: (263-278): BMC: Division by zero happens here.

@@ -23,6 +23,8 @@
 
 #include <libyul/optimiser/ASTWalker.h>
 
+#include <libsolutil/InvertibleMap.h>
+
 #include <map>
 #include <optional>
 #include <set>

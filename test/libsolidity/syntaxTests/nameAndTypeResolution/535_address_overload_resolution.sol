@@ -4,7 +4,7 @@ contract C {
         return 1;
     }
     function transfer(uint amount) public {
-        payable(this).transfer(amount); // to avoid pureness warning
+        address(this).transfer(amount); // to avoid pureness warning
     }
     receive() payable external {
     }

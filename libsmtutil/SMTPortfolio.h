@@ -42,8 +42,7 @@ public:
 	SMTPortfolio(
 		std::map<util::h256, std::string> _smtlib2Responses = {},
 		frontend::ReadCallback::Callback _smtCallback = {},
-		SMTSolverChoice _enabledSolvers = SMTSolverChoice::All(),
-		std::optional<unsigned> _queryTimeout = {}
+		SMTSolverChoice _enabledSolvers = SMTSolverChoice::All()
 	);
 
 	void reset() override;
@@ -58,7 +57,7 @@ public:
 	std::pair<CheckResult, std::vector<std::string>> check(std::vector<Expression> const& _expressionsToEvaluate) override;
 
 	std::vector<std::string> unhandledQueries() override;
-	size_t solvers() override { return m_solvers.size(); }
+	unsigned solvers() override { return m_solvers.size(); }
 private:
 	static bool solverAnswered(CheckResult result);
 

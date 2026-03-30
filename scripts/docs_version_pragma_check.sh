@@ -32,8 +32,6 @@ SOLIDITY_BUILD_DIR=${SOLIDITY_BUILD_DIR:-${REPO_ROOT}/build}
 source "${REPO_ROOT}/scripts/common.sh"
 source "${REPO_ROOT}/scripts/common_cmdline.sh"
 
-developmentVersion=$("$REPO_ROOT/scripts/get_version.sh")
-
 function versionGreater()
 {
     v1=$1
@@ -56,7 +54,7 @@ function versionGreater()
 
 function versionEqual()
 {
-    if [[ "$1" == "$2" ]]
+    if [ "$1" == "$2" ]
     then
         return 0
     fi
@@ -67,7 +65,7 @@ function getAllAvailableVersions()
 {
     allVersions=()
     local allListedVersions=( $(
-        wget -q -O- https://binaries.soliditylang.org/bin/list.txt |
+        wget -q -O- https://ethereum.github.io/solc-bin/bin/list.txt |
         grep -Po '(?<=soljson-v)\d+.\d+.\d+(?=\+commit)' |
         sort -V
     ) )
@@ -106,23 +104,22 @@ function findMinimalVersion()
     fi
 
     version=""
-    for ver in "${allVersions[@]}" "$developmentVersion"
+    for ver in "${allVersions[@]}"
     do
         if versionGreater "$ver" "$pragmaVersion"
         then
-            version="$ver"
+            minVersion="$ver"
             break
-        elif [[ "$greater" == false ]] && versionEqual "$ver" "$pragmaVersion"
+        elif ([ $greater == false ]) && versionEqual "$ver" "$pragmaVersion"
         then
             version="$ver"
             break
         fi
     done
 
-    if [[ "$version" == "" ]]
+    if [ -z version ]
     then
-        printError "No release ${sign}${pragmaVersion} was listed in available releases!"
-        exit 1
+        printError "No release $sign$pragmaVersion was listed in available releases!"
     fi
 }
 
@@ -158,13 +155,8 @@ SOLTMPDIR=$(mktemp -d)
         opts="$opts -o"
 
         findMinimalVersion $f
-        if [[ "$version" == "" ]]
+        if [ -z "$version" ]
         then
-            continue
-        fi
-        if [[ "$version" == "$developmentVersion" ]]
-        then
-            printWarning "Skipping unreleased development version $developmentVersion"
             continue
         fi
 

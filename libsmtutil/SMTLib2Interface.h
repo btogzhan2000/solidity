@@ -40,8 +40,7 @@ class SMTLib2Interface: public SolverInterface, public boost::noncopyable
 public:
 	explicit SMTLib2Interface(
 		std::map<util::h256, std::string> _queryResponses = {},
-		frontend::ReadCallback::Callback _smtCallback = {},
-		std::optional<unsigned> _queryTimeout = {}
+		frontend::ReadCallback::Callback _smtCallback = {}
 	);
 
 	void reset() override;

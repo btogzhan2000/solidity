@@ -14,8 +14,6 @@ contract C {
     }
 }
 
-// ====
-// compileViaYul: also
 // ----
 // f(bool): true -> 0
 // f(bool): false -> 3

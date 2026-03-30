@@ -18,7 +18,7 @@
 
 #include <libsolidity/analysis/ViewPureChecker.h>
 #include <libsolidity/ast/ExperimentalFeatures.h>
-#include <libyul/AST.h>
+#include <libyul/AsmData.h>
 #include <libyul/backends/evm/EVMDialect.h>
 #include <liblangutil/ErrorReporter.h>
 #include <libevmasm/SemanticInformation.h>
@@ -186,13 +186,7 @@ void ViewPureChecker::endVisit(Identifier const& _identifier)
 	bool writes = _identifier.annotation().willBeWrittenTo;
 	if (VariableDeclaration const* varDecl = dynamic_cast<VariableDeclaration const*>(declaration))
 	{
-		if (varDecl->immutable())
-		{
-			// Immutables that are assigned literals are pure.
-			if (!(varDecl->value() && varDecl->value()->annotation().type->category() == Type::Category::RationalNumber))
-				mutability = StateMutability::View;
-		}
-		else if (varDecl->isStateVariable() && !varDecl->isConstant())
+		if (varDecl->isStateVariable() && !varDecl->isConstant())
 			mutability = writes ? StateMutability::NonPayable : StateMutability::View;
 	}
 	else if (MagicVariableDeclaration const* magicVar = dynamic_cast<MagicVariableDeclaration const*>(declaration))
@@ -200,8 +194,8 @@ void ViewPureChecker::endVisit(Identifier const& _identifier)
 		switch (magicVar->type()->category())
 		{
 		case Type::Category::Contract:
-			solAssert(_identifier.name() == "this", "");
-			if (dynamic_cast<ContractType const*>(magicVar->type()))
+			solAssert(_identifier.name() == "this" || _identifier.name() == "super", "");
+			if (!dynamic_cast<ContractType const&>(*magicVar->type()).isSuper())
 				// reads the address
 				mutability = StateMutability::View;
 			break;
@@ -297,7 +291,7 @@ void ViewPureChecker::reportMutability(
 		m_currentFunction->stateMutability() == StateMutability::Pure ||
 		m_currentFunction->stateMutability() == StateMutability::NonPayable,
 		""
-	);
+				);
 }
 
 ViewPureChecker::MutabilityAndLocation const& ViewPureChecker::modifierMutability(
@@ -356,7 +350,7 @@ void ViewPureChecker::endVisit(MemberAccess const& _memberAccess)
 	switch (_memberAccess.expression().annotation().type->category())
 	{
 	case Type::Category::Address:
-		if (member == "balance" || member == "code" || member == "codehash")
+		if (member == "balance")
 			mutability = StateMutability::View;
 		break;
 	case Type::Category::Magic:
@@ -368,6 +362,7 @@ void ViewPureChecker::endVisit(MemberAccess const& _memberAccess)
 			{MagicType::Kind::ABI, "encodePacked"},
 			{MagicType::Kind::ABI, "encodeWithSelector"},
 			{MagicType::Kind::ABI, "encodeWithSignature"},
+			{MagicType::Kind::Block, "blockhash"},
 			{MagicType::Kind::Message, "data"},
 			{MagicType::Kind::Message, "sig"},
 			{MagicType::Kind::MetaType, "creationCode"},
@@ -437,11 +432,13 @@ void ViewPureChecker::endVisit(IndexRangeAccess const& _indexRangeAccess)
 
 void ViewPureChecker::endVisit(ModifierInvocation const& _modifier)
 {
-	if (ModifierDefinition const* mod = dynamic_cast<decltype(mod)>(_modifier.name().annotation().referencedDeclaration))
+	solAssert(_modifier.name(), "");
+	if (ModifierDefinition const* mod = dynamic_cast<decltype(mod)>(_modifier.name()->annotation().referencedDeclaration))
 	{
 		MutabilityAndLocation const& mutAndLocation = modifierMutability(*mod);
 		reportMutability(mutAndLocation.mutability, _modifier.location(), mutAndLocation.location);
 	}
 	else
-		solAssert(dynamic_cast<ContractDefinition const*>(_modifier.name().annotation().referencedDeclaration), "");
+		solAssert(dynamic_cast<ContractDefinition const*>(_modifier.name()->annotation().referencedDeclaration), "");
 }
+

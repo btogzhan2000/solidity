@@ -1,0 +1,13 @@
+# Target labels
+ jsoncpp-project
+# Source files and their labels
+/Users/togzhan/Documents/Github/solidity/build/CMakeFiles/jsoncpp-project
+/Users/togzhan/Documents/Github/solidity/build/CMakeFiles/jsoncpp-project.rule
+/Users/togzhan/Documents/Github/solidity/build/CMakeFiles/jsoncpp-project-complete.rule
+/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/jsoncpp-project-build.rule
+/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/jsoncpp-project-configure.rule
+/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/jsoncpp-project-download.rule
+/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/jsoncpp-project-install.rule
+/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/jsoncpp-project-mkdir.rule
+/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/jsoncpp-project-patch.rule
+/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/jsoncpp-project-update.rule

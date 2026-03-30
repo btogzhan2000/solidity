@@ -28,7 +28,4 @@ class VariableDeclaration;
 /// Returns nullptr if an identifier in the chain is not referencing a constant variable declaration.
 VariableDeclaration const* rootConstVariableDeclaration(VariableDeclaration const& _varDecl);
 
-/// Returns true if the constant variable declaration is recursive.
-bool isConstantVariableRecursive(VariableDeclaration const& _varDecl);
-
 }

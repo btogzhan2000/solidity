@@ -1,6 +1,6 @@
 {
   "absolutePath": "a",
-  "id": 13,
+  "id": 12,
   "nodeType": "SourceUnit",
   "nodes":
   [
@@ -9,7 +9,7 @@
       "baseContracts": [],
       "contractDependencies": [],
       "contractKind": "contract",
-      "id": 12,
+      "id": 11,
       "name": "C",
       "nodeType": "ContractDefinition",
       "nodes":
@@ -46,7 +46,7 @@
         },
         {
           "constant": false,
-          "id": 6,
+          "id": 5,
           "mutability": "mutable",
           "name": "s",
           "nodeType": "VariableDeclaration",
@@ -56,15 +56,9 @@
           "typeDescriptions": {},
           "typeName":
           {
-            "id": 5,
+            "id": 4,
+            "name": "S",
             "nodeType": "UserDefinedTypeName",
-            "pathNode":
-            {
-              "id": 4,
-              "name": "S",
-              "nodeType": "IdentifierPath",
-              "src": "42:1:1"
-            },
             "src": "42:1:1",
             "typeDescriptions": {}
           },
@@ -73,7 +67,7 @@
         {
           "body":
           {
-            "id": 10,
+            "id": 9,
             "nodeType": "Block",
             "src": "76:70:1",
             "statements":
@@ -147,13 +141,13 @@
                 },
                 "evmVersion": %EVMVERSION%,
                 "externalReferences": [],
-                "id": 9,
+                "id": 8,
                 "nodeType": "InlineAssembly",
                 "src": "86:54:1"
               }
             ]
           },
-          "id": 11,
+          "id": 10,
           "implemented": true,
           "kind": "function",
           "modifiers": [],
@@ -161,14 +155,14 @@
           "nodeType": "FunctionDefinition",
           "parameters":
           {
-            "id": 7,
+            "id": 6,
             "nodeType": "ParameterList",
             "parameters": [],
             "src": "61:2:1"
           },
           "returnParameters":
           {
-            "id": 8,
+            "id": 7,
             "nodeType": "ParameterList",
             "parameters": [],
             "src": "76:0:1"

@@ -4,7 +4,7 @@ contract C {
         assembly {
             sstore(b.slot, or("deadbeef", 0x08))
         }
-        bytes1 s = b[3];
+        byte s = b[3];
         uint r;
         assembly {
             r := s
@@ -14,6 +14,5 @@ contract C {
 }
 // ====
 // compileViaYul: also
-// compileToEwasm: also
 // ----
 // f() -> true

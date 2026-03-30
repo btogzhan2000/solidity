@@ -2,8 +2,7 @@ pragma experimental SMTChecker;
 
 contract C
 {
-	function f(bool b, uint[] memory c) public pure {
-		require(c.length >= 1 && c.length <= 2);
+	function f(bool b, uint[] memory c) public {
 		c[0] = 0;
 		if (b)
 			c[0] = 1;
@@ -11,4 +10,5 @@ contract C
 	}
 }
 // ----
-// Warning 6328: (176-192): CHC: Assertion violation happens here.\nCounterexample:\n\nb = false\nc = [0, 11]\n\nTransaction trace:\nC.constructor()\nC.f(false, [38, 11])
+// Warning 2018: (47-148): Function state mutability can be restricted to pure
+// Warning 6328: (128-144): CHC: Assertion violation happens here.

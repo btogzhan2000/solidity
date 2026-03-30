@@ -1,4 +1,4 @@
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 interface I {
     struct S { int a; }
     function f(S calldata) external pure;

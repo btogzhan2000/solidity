@@ -12,7 +12,5 @@ contract C {
 		assert(s.a[1] == s.a[0]);
 	}
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
 // Warning 6328: (148-172): CHC: Assertion violation happens here.

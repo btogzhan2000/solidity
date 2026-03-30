@@ -1,4 +1,4 @@
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 
 contract C {
@@ -22,6 +22,5 @@ contract C {
 
 // ====
 // compileViaYul: also
-// compileToEwasm: also
 // ----
 // f((uint256,uint256)[]): 0x20, 0x2, 0x1, 0x2, 0x3, 0x4 -> 2, 1, 2, 3, 4

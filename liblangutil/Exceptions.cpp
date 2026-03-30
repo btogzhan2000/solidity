@@ -27,12 +27,7 @@ using namespace std;
 using namespace solidity;
 using namespace solidity::langutil;
 
-Error::Error(
-	ErrorId _errorId, Error::Type _type,
-	std::string const& _description,
-	SourceLocation const& _location,
-	SecondarySourceLocation const& _secondaryLocation
-):
+Error::Error(ErrorId _errorId, Type _type, SourceLocation const& _location, string const& _description):
 	m_errorId(_errorId),
 	m_type(_type)
 {
@@ -63,8 +58,14 @@ Error::Error(
 
 	if (_location.isValid())
 		*this << errinfo_sourceLocation(_location);
-	if (!_secondaryLocation.infos.empty())
-		*this << errinfo_secondarySourceLocation(_secondaryLocation);
 	if (!_description.empty())
 		*this << util::errinfo_comment(_description);
+}
+
+Error::Error(ErrorId _errorId, Error::Type _type, std::string const& _description, SourceLocation const& _location):
+	Error(_errorId, _type)
+{
+	if (_location.isValid())
+		*this << errinfo_sourceLocation(_location);
+	*this << util::errinfo_comment(_description);
 }

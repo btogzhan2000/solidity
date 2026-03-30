@@ -29,7 +29,6 @@ detect_stray_source_files("${contracts_sources}" "contracts/")
 set(libsolutil_sources
     libsolutil/Checksum.cpp
     libsolutil/CommonData.cpp
-    libsolutil/FixedHash.cpp
     libsolutil/IndentedWriter.cpp
     libsolutil/IpfsHash.cpp
     libsolutil/IterateReplacing.cpp
@@ -137,8 +136,6 @@ set(libyul_sources
     libyul/YulInterpreterTest.h
     libyul/YulOptimizerTest.cpp
     libyul/YulOptimizerTest.h
-    libyul/YulOptimizerTestCommon.cpp
-    libyul/YulOptimizerTestCommon.h
 )
 detect_stray_source_files("${libyul_sources}" "libyul/")
 

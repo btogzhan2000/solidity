@@ -1,5 +1,5 @@
 ==== Source: A ====
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 contract C {
     struct Item {
@@ -9,7 +9,6 @@ contract C {
     function get(Item memory _item) external {}
 }
 ==== Source: B ====
-pragma abicoder v1;
 import "A";
 
 contract Test {
@@ -20,4 +19,4 @@ contract Test {
     }
 }
 // ----
-// TypeError 2443: (B:166-175): The type of this parameter, struct C.Item, is only supported in ABI coder v2. Use "pragma abicoder v2;" to enable the feature.
+// TypeError 2443: (B:146-155): The type of this parameter, struct C.Item, is only supported in ABIEncoderV2. Use "pragma experimental ABIEncoderV2;" to enable the feature.

@@ -1,4 +1,4 @@
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 library Lib {
     struct Items {
@@ -16,8 +16,6 @@ contract C {
         assembly { slot := ptr.slot }
     }
 }
-// ====
-// compileViaYul: also
 // ----
 // library: Lib
 // f() -> 123

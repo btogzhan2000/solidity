@@ -1,4 +1,4 @@
-pragma abicoder v2;
+pragma experimental ABIEncoderV2;
 
 
 contract C {
@@ -19,7 +19,6 @@ contract C {
         c = s.c;
     }
 }
-// ====
-// compileViaYul: also
+
 // ----
 // f((uint256,uint256[2],uint256)): 42, 1, 2, 23 -> 42, 1, 2, 23

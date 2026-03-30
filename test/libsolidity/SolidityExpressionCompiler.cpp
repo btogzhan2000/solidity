@@ -27,7 +27,6 @@
 #include <libsolidity/parsing/Parser.h>
 #include <libsolidity/analysis/NameAndTypeResolver.h>
 #include <libsolidity/analysis/Scoper.h>
-#include <libsolidity/analysis/SyntaxChecker.h>
 #include <libsolidity/analysis/DeclarationTypeChecker.h>
 #include <libsolidity/codegen/CompilerContext.h>
 #include <libsolidity/codegen/ExpressionCompiler.h>
@@ -35,7 +34,6 @@
 #include <libsolidity/ast/TypeProvider.h>
 #include <libsolidity/analysis/TypeChecker.h>
 #include <liblangutil/ErrorReporter.h>
-#include <libevmasm/LinkerObject.h>
 #include <test/Common.h>
 
 #include <boost/test/unit_test.hpp>
@@ -95,20 +93,18 @@ Declaration const& resolveDeclaration(
 }
 
 bytes compileFirstExpression(
-	string const& _sourceCode,
+	const string& _sourceCode,
 	vector<vector<string>> _functions = {},
 	vector<vector<string>> _localVariables = {}
 )
 {
-	string sourceCode = "pragma solidity >=0.0; // SPDX-License-Identifier: GPL-3\n" + _sourceCode;
-
 	ASTPointer<SourceUnit> sourceUnit;
 	try
 	{
 		ErrorList errors;
 		ErrorReporter errorReporter(errors);
 		sourceUnit = Parser(errorReporter, solidity::test::CommonOptions::get().evmVersion()).parse(
-			make_shared<Scanner>(CharStream(sourceCode, ""))
+			make_shared<Scanner>(CharStream(_sourceCode, ""))
 		);
 		if (!sourceUnit)
 			return bytes();
@@ -123,7 +119,6 @@ bytes compileFirstExpression(
 	ErrorReporter errorReporter(errors);
 	GlobalContext globalContext;
 	Scoper::assignScopes(*sourceUnit);
-	BOOST_REQUIRE(SyntaxChecker(errorReporter, false).checkSyntax(*sourceUnit));
 	NameAndTypeResolver resolver(globalContext, solidity::test::CommonOptions::get().evmVersion(), errorReporter);
 	resolver.registerDeclarations(*sourceUnit);
 	BOOST_REQUIRE_MESSAGE(resolver.resolveNamesAndTypes(*sourceUnit), "Resolving names failed");
@@ -144,13 +139,12 @@ bytes compileFirstExpression(
 			);
 			context.resetVisitedNodes(contract);
 			context.setMostDerivedContract(*contract);
-			context.setArithmetic(Arithmetic::Wrapping);
 			size_t parametersSize = _localVariables.size(); // assume they are all one slot on the stack
 			context.adjustStackOffset(static_cast<int>(parametersSize));
 			for (vector<string> const& variable: _localVariables)
 				context.addVariable(
 					dynamic_cast<VariableDeclaration const&>(resolveDeclaration(*sourceUnit, variable, resolver)),
-					static_cast<unsigned>(parametersSize--)
+					parametersSize--
 				);
 
 			ExpressionCompiler(
@@ -162,10 +156,7 @@ bytes compileFirstExpression(
 				context << context.functionEntryLabel(dynamic_cast<FunctionDefinition const&>(
 					resolveDeclaration(*sourceUnit, function, resolver)
 				));
-			BOOST_REQUIRE(context.assemblyPtr());
-			LinkerObject const& object = context.assemblyPtr()->assemble();
-			BOOST_REQUIRE(object.immutableReferences.empty());
-			bytes instructions = object.bytecode;
+			bytes instructions = context.assembledObject().bytecode;
 			// debug
 			// cout << evmasm::disassemble(instructions) << endl;
 			return instructions;
@@ -195,7 +186,7 @@ BOOST_AUTO_TEST_CASE(literal_false)
 {
 	char const* sourceCode = R"(
 		contract test {
-			function f() public { bool x = false; }
+			function f() { bool x = false; }
 		}
 	)";
 	bytes code = compileFirstExpression(sourceCode);
@@ -208,7 +199,7 @@ BOOST_AUTO_TEST_CASE(int_literal)
 {
 	char const* sourceCode = R"(
 		contract test {
-		  function f() public { uint x = 0x12345678901234567890; }
+		  function f() { uint x = 0x12345678901234567890; }
 		}
 	)";
 	bytes code = compileFirstExpression(sourceCode);
@@ -237,7 +228,7 @@ BOOST_AUTO_TEST_CASE(int_with_gwei_ether_subdenomination)
 {
 	char const* sourceCode = R"(
 		contract test {
-			function f() public {
+			function test () {
 				uint x = 1 gwei;
 			}
 		}
@@ -267,7 +258,7 @@ BOOST_AUTO_TEST_CASE(comparison)
 {
 	char const* sourceCode = R"(
 		contract test {
-			function f() public { bool x = (0x10aa < 0x11aa) != true; }
+			function f() { bool x = (0x10aa < 0x11aa) != true; }
 		}
 	)";
 	bytes code = compileFirstExpression(sourceCode);
@@ -299,7 +290,7 @@ BOOST_AUTO_TEST_CASE(short_circuiting)
 {
 	char const* sourceCode = R"(
 		contract test {
-			function f() public { bool x = true != (4 <= 8 + 10 || 9 != 2); }
+			function f() { bool x = true != (4 <= 8 + 10 || 9 != 2); }
 		}
 	)";
 	bytes code = compileFirstExpression(sourceCode);
@@ -330,28 +321,14 @@ BOOST_AUTO_TEST_CASE(arithmetic)
 {
 	char const* sourceCode = R"(
 		contract test {
-			function f(uint y) public { unchecked { ((((((((y ^ 8) & 7) | 6) - 5) + 4) % 3) / 2) * 1); } }
+			function f(uint y) { ((((((((y ^ 8) & 7) | 6) - 5) + 4) % 3) / 2) * 1); }
 		}
 	)";
 	bytes code = compileFirstExpression(sourceCode, {}, {{"test", "f", "y"}});
 
-	bytes panic =
-		bytes{uint8_t(Instruction::PUSH32)} +
-		fromHex("4E487B7100000000000000000000000000000000000000000000000000000000") +
-		bytes{
-			uint8_t(Instruction::PUSH1), 0x0,
-			uint8_t(Instruction::MSTORE),
-			uint8_t(Instruction::PUSH1), 0x12,
-			uint8_t(Instruction::PUSH1), 0x4,
-			uint8_t(Instruction::MSTORE),
-			uint8_t(Instruction::PUSH1), 0x24,
-			uint8_t(Instruction::PUSH1), 0x0,
-			uint8_t(Instruction::REVERT)
-		};
-
 	bytes expectation;
 	if (solidity::test::CommonOptions::get().optimize)
-		expectation = bytes{
+		expectation = {
 			uint8_t(Instruction::PUSH1), 0x2,
 			uint8_t(Instruction::PUSH1), 0x3,
 			uint8_t(Instruction::PUSH1), 0x5,
@@ -368,24 +345,24 @@ BOOST_AUTO_TEST_CASE(arithmetic)
 			uint8_t(Instruction::DUP2),
 			uint8_t(Instruction::ISZERO),
 			uint8_t(Instruction::ISZERO),
-			uint8_t(Instruction::PUSH1), 0x48,
-			uint8_t(Instruction::JUMPI)
-		} + panic + bytes{
+			uint8_t(Instruction::PUSH1), 0x1b,
+			uint8_t(Instruction::JUMPI),
+			uint8_t(Instruction::INVALID),
 			uint8_t(Instruction::JUMPDEST),
 			uint8_t(Instruction::MOD),
 			uint8_t(Instruction::DUP2),
 			uint8_t(Instruction::ISZERO),
 			uint8_t(Instruction::ISZERO),
-			uint8_t(Instruction::PUSH1), 0x7e,
-			uint8_t(Instruction::JUMPI)
-		} + panic + bytes{
+			uint8_t(Instruction::PUSH1), 0x24,
+			uint8_t(Instruction::JUMPI),
+			uint8_t(Instruction::INVALID),
 			uint8_t(Instruction::JUMPDEST),
 			uint8_t(Instruction::DIV),
 			uint8_t(Instruction::PUSH1), 0x1,
 			uint8_t(Instruction::MUL)
 		};
 	else
-		expectation = bytes{
+		expectation = {
 			uint8_t(Instruction::PUSH1), 0x1,
 			uint8_t(Instruction::PUSH1), 0x2,
 			uint8_t(Instruction::PUSH1), 0x3,
@@ -403,22 +380,21 @@ BOOST_AUTO_TEST_CASE(arithmetic)
 			uint8_t(Instruction::DUP2),
 			uint8_t(Instruction::ISZERO),
 			uint8_t(Instruction::ISZERO),
-			uint8_t(Instruction::PUSH1), 0x4a,
-			uint8_t(Instruction::JUMPI)
-		} + panic + bytes{
+			uint8_t(Instruction::PUSH1), 0x1d,
+			uint8_t(Instruction::JUMPI),
+			uint8_t(Instruction::INVALID),
 			uint8_t(Instruction::JUMPDEST),
 			uint8_t(Instruction::MOD),
 			uint8_t(Instruction::DUP2),
 			uint8_t(Instruction::ISZERO),
 			uint8_t(Instruction::ISZERO),
-			uint8_t(Instruction::PUSH1), 0x80,
-			uint8_t(Instruction::JUMPI)
-		} + panic + bytes{
+			uint8_t(Instruction::PUSH1), 0x26,
+			uint8_t(Instruction::JUMPI),
+			uint8_t(Instruction::INVALID),
 			uint8_t(Instruction::JUMPDEST),
 			uint8_t(Instruction::DIV),
 			uint8_t(Instruction::MUL)
 		};
-
 	BOOST_CHECK_EQUAL_COLLECTIONS(code.begin(), code.end(), expectation.begin(), expectation.end());
 }
 
@@ -426,7 +402,7 @@ BOOST_AUTO_TEST_CASE(unary_operators)
 {
 	char const* sourceCode = R"(
 		contract test {
-			function f(int y) public { unchecked { !(~- y == 2); } }
+			function f(int y) { !(~- y == 2); }
 		}
 	)";
 	bytes code = compileFirstExpression(sourceCode, {}, {{"test", "f", "y"}});
@@ -459,7 +435,7 @@ BOOST_AUTO_TEST_CASE(unary_inc_dec)
 {
 	char const* sourceCode = R"(
 		contract test {
-			function f(uint a) public returns (uint x) { unchecked { x = --a ^ (a-- ^ (++a ^ a++)); } }
+			function f(uint a) public returns (uint x) { x = --a ^ (a-- ^ (++a ^ a++)); }
 		}
 	)";
 	bytes code = compileFirstExpression(sourceCode, {}, {{"test", "f", "a"}, {"test", "f", "x"}});
@@ -516,7 +492,7 @@ BOOST_AUTO_TEST_CASE(assignment)
 {
 	char const* sourceCode = R"(
 		contract test {
-			function f(uint a, uint b) public { unchecked { (a += b) * 2; } }
+			function f(uint a, uint b) { (a += b) * 2; }
 		}
 	)";
 	bytes code = compileFirstExpression(sourceCode, {}, {{"test", "f", "a"}, {"test", "f", "b"}});
@@ -554,7 +530,7 @@ BOOST_AUTO_TEST_CASE(negative_literals_8bits)
 {
 	char const* sourceCode = R"(
 		contract test {
-			function f() public { int8 x = -0x80; }
+			function f() { int8 x = -0x80; }
 		}
 	)";
 	bytes code = compileFirstExpression(sourceCode);
@@ -567,7 +543,7 @@ BOOST_AUTO_TEST_CASE(negative_literals_16bits)
 {
 	char const* sourceCode = R"(
 		contract test {
-			function f() public { int64 x = ~0xabc; }
+			function f() { int64 x = ~0xabc; }
 		}
 	)";
 	bytes code = compileFirstExpression(sourceCode);
@@ -582,7 +558,7 @@ BOOST_AUTO_TEST_CASE(intermediately_overflowing_literals)
 	// have been applied
 	char const* sourceCode = R"(
 		contract test {
-			function f() public { uint8 x = (0x00ffffffffffffffffffffffffffffffffffffffff * 0xffffffffffffffffffffffffff01) & 0xbf; }
+			function f() { uint8 x = (0x00ffffffffffffffffffffffffffffffffffffffff * 0xffffffffffffffffffffffffff01) & 0xbf; }
 		}
 	)";
 	bytes code = compileFirstExpression(sourceCode);
@@ -595,7 +571,7 @@ BOOST_AUTO_TEST_CASE(blockhash)
 {
 	char const* sourceCode = R"(
 		contract test {
-			function f() public {
+			function f() {
 				blockhash(3);
 			}
 		}
@@ -627,7 +603,7 @@ BOOST_AUTO_TEST_CASE(selfbalance)
 {
 	char const* sourceCode = R"(
 		contract test {
-			function f() public returns (uint) {
+			function f() returns (uint) {
 				return address(this).balance;
 			}
 		}

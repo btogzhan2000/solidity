@@ -17,10 +17,8 @@
 
 #include <libyul/optimiser/NameSimplifier.h>
 #include <libyul/optimiser/NameCollector.h>
-#include <libyul/AST.h>
+#include <libyul/AsmData.h>
 #include <libyul/Dialect.h>
-#include <libyul/YulString.h>
-#include <libyul/optimiser/NameDispenser.h>
 #include <libyul/optimiser/OptimizerUtilities.h>
 
 #include <libsolutil/CommonData.h>
@@ -30,13 +28,19 @@
 using namespace solidity::yul;
 using namespace std;
 
-NameSimplifier::NameSimplifier(OptimiserStepContext& _context, Block const& _ast):
-	m_context(_context)
+NameSimplifier::NameSimplifier(
+	OptimiserStepContext& _context,
+	Block const& _ast
+):
+	m_context(_context),
+	m_usedNames(_context.reservedIdentifiers)
 {
-	for (YulString name: _context.reservedIdentifiers)
+	for (YulString name: m_usedNames)
 		m_translations[name] = name;
 
-	for (YulString const& name: NameCollector(_ast).names())
+	set<YulString> allNames = NameCollector(_ast).names();
+	m_usedNames += allNames;
+	for (YulString name: allNames)
 		findSimplification(name);
 }
 
@@ -73,7 +77,7 @@ void NameSimplifier::operator()(FunctionCall& _funCall)
 	ASTModifier::operator()(_funCall);
 }
 
-void NameSimplifier::findSimplification(YulString const& _name)
+void NameSimplifier::findSimplification(YulString _name)
 {
 	if (m_translations.count(_name))
 		return;
@@ -94,19 +98,19 @@ void NameSimplifier::findSimplification(YulString const& _name)
 		{regex("index_access_t_array"), "index_access"},
 		{regex("[0-9]*_$"), ""}
 	};
-
 	for (auto const& [pattern, substitute]: replacements)
 	{
 		string candidate = regex_replace(name, pattern, substitute);
-		if (!m_context.dispenser.illegalName(YulString(candidate)))
+		if (
+			!isRestrictedIdentifier(m_context.dialect, YulString(candidate)) &&
+			!m_usedNames.count(YulString(candidate))
+		)
 			name = candidate;
 	}
-
 	if (name != _name.str())
 	{
-		YulString newName{name};
-		m_context.dispenser.markUsed(newName);
-		m_translations[_name] = move(newName);
+		m_usedNames.insert(YulString(name));
+		m_translations[_name] = YulString(name);
 	}
 }
 

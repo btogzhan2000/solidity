@@ -18,8 +18,7 @@
 
 #include <libyul/optimiser/ForLoopConditionIntoBody.h>
 #include <libyul/optimiser/OptimiserStep.h>
-#include <libyul/AST.h>
-
+#include <libyul/AsmData.h>
 #include <libsolutil/CommonData.h>
 
 using namespace std;

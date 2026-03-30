@@ -158,9 +158,9 @@ double mean(std::vector<T> const& _samples)
 
 	double sum = 0;
 	for (T const& sample: _samples)
-		sum += double(sample);
+		sum += static_cast<double>(sample);
 
-	return sum / double(_samples.size());
+	return sum / _samples.size();
 }
 
 /// Calculates the sum of squared differences between @a _expectedValue and the values of a series
@@ -179,9 +179,9 @@ double meanSquaredError(std::vector<T> const& _samples, double _expectedValue)
 
 	double sumOfSquaredDifferences = 0;
 	for (T const& sample: _samples)
-		sumOfSquaredDifferences += (double(sample) - _expectedValue) * (double(sample) - _expectedValue);
+		sumOfSquaredDifferences += (sample - _expectedValue) * (sample - _expectedValue);
 
-	return sumOfSquaredDifferences / double(_samples.size());
+	return sumOfSquaredDifferences / _samples.size();
 }
 
 }

@@ -25,9 +25,9 @@ set -ev
 keyid=70D110489D66E2F6
 email=builds@ethereum.org
 packagename=libz3-static-dev
-version=4.8.10
+version=4.8.9
 
-DISTRIBUTIONS="focal groovy"
+DISTRIBUTIONS="bionic focal groovy"
 
 for distribution in $DISTRIBUTIONS
 do

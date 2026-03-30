@@ -22,7 +22,7 @@
 
 #pragma once
 
-#include <libyul/ASTForward.h>
+#include <libyul/AsmDataForward.h>
 
 namespace solidity::yul
 {

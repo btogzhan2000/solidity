@@ -27,6 +27,8 @@
 #include <liblangutil/EVMVersion.h>
 
 #include <libsolutil/Assertions.h>
+#include <libsolutil/CommonData.h>
+#include <libsolutil/CommonIO.h>
 
 #include <vector>
 

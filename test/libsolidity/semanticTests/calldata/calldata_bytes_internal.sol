@@ -1,8 +1,8 @@
 contract C {
-    function f(bytes calldata b, uint i) internal pure returns (bytes1) {
+    function f(bytes calldata b, uint i) internal pure returns (byte) {
         return b[i];
     }
-    function f(uint, bytes calldata b, uint) external pure returns (bytes1) {
+    function f(uint, bytes calldata b, uint) external pure returns (byte) {
         return f(b, 2);
     }
 }

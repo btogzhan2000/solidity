@@ -1,5 +1,12 @@
 ./test/docsCodeStyle.sh
 ./test/cmdlineTests.sh
+./test/externalTests.sh
+./test/externalTests/common.sh
+./test/externalTests/gnosis.sh
+./test/externalTests/zeppelin.sh
+./test/externalTests/colony.sh
+./test/externalTests/solc-js/solc-js.sh
+./scripts/common.sh
 ./scripts/isoltest.sh
 ./scripts/get_version.sh
 ./scripts/soltest.sh
@@ -10,10 +17,13 @@
 ./scripts/wasm-rebuild/docker-scripts/patch.sh
 ./scripts/wasm-rebuild/rebuild.sh
 ./scripts/build_emscripten.sh
-./scripts/ci/build_emscripten.sh
+./scripts/travis-emscripten/build_emscripten.sh
+./scripts/travis-emscripten/install_deps.sh
+./scripts/travis-emscripten/publish_binary.sh
 ./scripts/docker_build.sh
 ./scripts/docs_version_pragma_check.sh
 ./scripts/uniqueErrors.sh
+./scripts/report_errors.sh
 ./scripts/tests.sh
 ./scripts/docker_deploy.sh
 ./scripts/bytecodecompare/storebytecode.sh
@@ -23,6 +33,7 @@
 ./scripts/install_obsolete_jsoncpp_1_7_4.sh
 ./scripts/install_deps.sh
 ./scripts/build.sh
+./scripts/check_style.sh
 ./scripts/run_proofs.sh
 ./scripts/common_cmdline.sh
 ./scripts/docker_deploy_manual.sh

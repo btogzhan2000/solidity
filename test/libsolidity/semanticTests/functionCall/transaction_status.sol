@@ -5,8 +5,7 @@ contract test {
 }
 // ====
 // compileViaYul: also
-// compileToEwasm: also
 // ----
 // f() ->
 // g() -> FAILURE
-// h() -> FAILURE, hex"4e487b71", 0x01
+// h() -> FAILURE

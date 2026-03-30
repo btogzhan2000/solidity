@@ -29,6 +29,7 @@
 #include <boost/test/unit_test.hpp>
 
 #include <algorithm>
+#include <fstream>
 
 using namespace std;
 using namespace solidity::util;

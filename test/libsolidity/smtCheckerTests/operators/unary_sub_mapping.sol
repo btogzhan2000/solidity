@@ -14,7 +14,5 @@ contract C
 		assert(b > 4);
 	}
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
 // Warning 6328: (244-257): CHC: Assertion violation happens here.

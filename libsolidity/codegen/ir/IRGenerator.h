@@ -53,13 +53,13 @@ public:
 	/// (or just pretty-printed, depending on the optimizer settings).
 	std::pair<std::string, std::string> run(
 		ContractDefinition const& _contract,
-		std::map<ContractDefinition const*, std::string_view const> const& _otherYulSources
+		std::map<ContractDefinition const*, std::string const> const& _otherYulSources
 	);
 
 private:
 	std::string generate(
 		ContractDefinition const& _contract,
-		std::map<ContractDefinition const*, std::string_view const> const& _otherYulSources
+		std::map<ContractDefinition const*, std::string const> const& _otherYulSources
 	);
 	std::string generate(Block const& _block);
 
@@ -73,12 +73,6 @@ private:
 	InternalDispatchMap generateInternalDispatchFunctions();
 	/// Generates code for and returns the name of the function.
 	std::string generateFunction(FunctionDefinition const& _function);
-	std::string generateModifier(
-		ModifierInvocation const& _modifierInvocation,
-		FunctionDefinition const& _function,
-		std::string const& _nextFunction
-	);
-	std::string generateFunctionWithModifierInner(FunctionDefinition const& _function);
 	/// Generates a getter for the given declaration and returns its name
 	std::string generateGetter(VariableDeclaration const& _varDecl);
 

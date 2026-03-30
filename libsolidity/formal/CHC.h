@@ -31,7 +31,6 @@
 
 #pragma once
 
-#include <libsolidity/formal/ModelCheckerSettings.h>
 #include <libsolidity/formal/Predicate.h>
 #include <libsolidity/formal/SMTEncoder.h>
 
@@ -56,14 +55,13 @@ public:
 		langutil::ErrorReporter& _errorReporter,
 		std::map<util::h256, std::string> const& _smtlib2Responses,
 		ReadCallback::Callback const& _smtCallback,
-		smtutil::SMTSolverChoice _enabledSolvers,
-		ModelCheckerSettings const& _settings
+		smtutil::SMTSolverChoice _enabledSolvers
 	);
 
 	void analyze(SourceUnit const& _sources);
 
-	std::map<ASTNode const*, std::set<VerificationTargetType>> const& safeTargets() const { return m_safeTargets; }
-	std::map<ASTNode const*, std::set<VerificationTargetType>> const& unsafeTargets() const { return m_unsafeTargets; }
+	std::map<ASTNode const*, std::set<VerificationTarget::Type>> const& safeTargets() const { return m_safeTargets; }
+	std::map<ASTNode const*, std::set<VerificationTarget::Type>> const& unsafeTargets() const { return m_unsafeTargets; }
 
 	/// This is used if the Horn solver is not directly linked into this binary.
 	/// @returns a list of inputs to the Horn solver that were not part of the argument to
@@ -84,17 +82,11 @@ private:
 	void endVisit(Break const& _node) override;
 	void endVisit(Continue const& _node) override;
 	void endVisit(IndexRangeAccess const& _node) override;
-	void endVisit(Return const& _node) override;
-	bool visit(TryStatement const& _node) override;
-
-	void pushInlineFrame(CallableDeclaration const& _callable) override;
-	void popInlineFrame(CallableDeclaration const& _callable) override;
 
 	void visitAssert(FunctionCall const& _funCall);
 	void visitAddMulMod(FunctionCall const& _funCall) override;
 	void internalFunctionCall(FunctionCall const& _funCall);
 	void externalFunctionCall(FunctionCall const& _funCall);
-	void externalFunctionCallToTrustedCode(FunctionCall const& _funCall);
 	void unknownFunctionCall(FunctionCall const& _funCall);
 	void makeArrayPopVerificationTarget(FunctionCall const& _arrayPop) override;
 	/// Creates underflow/overflow verification targets.
@@ -107,6 +99,14 @@ private:
 	) override;
 	//@}
 
+	struct IdCompare
+	{
+		bool operator()(ASTNode const* lhs, ASTNode const* rhs) const
+		{
+			return lhs->id() < rhs->id();
+		}
+	};
+
 	/// Helpers.
 	//@{
 	void resetSourceAnalysis();
@@ -114,7 +114,7 @@ private:
 	void eraseKnowledge();
 	void clearIndices(ContractDefinition const* _contract, FunctionDefinition const* _function = nullptr) override;
 	void setCurrentBlock(Predicate const& _block);
-	std::set<unsigned> transactionVerificationTargetsIds(ASTNode const* _txRoot);
+	std::set<Expression const*, IdCompare> transactionAssertions(ASTNode const* _txRoot);
 	//@}
 
 	/// Sort helpers.
@@ -132,11 +132,6 @@ private:
 	/// in a given _source.
 	void defineInterfacesAndSummaries(SourceUnit const& _source);
 
-	/// Creates a CHC system that, for a given contract,
-	/// - initializes its state variables (as 0 or given value, if any).
-	/// - "calls" the explicit constructor function of the contract, if any.
-	void defineContractInitializer(ContractDefinition const& _contract);
-
 	/// Interface predicate over current variables.
 	smtutil::Expression interface();
 	smtutil::Expression interface(ContractDefinition const& _contract);
@@ -148,25 +143,13 @@ private:
 	Predicate const* createBlock(ASTNode const* _node, PredicateType _predType, std::string const& _prefix = "");
 	/// Creates a call block for the given function _function from contract _contract.
 	/// The contract is needed here because of inheritance.
-	/// There are different types of summaries, where the most common is FunctionSummary,
-	/// but other summaries are also used for internal and external function calls.
-	Predicate const* createSummaryBlock(
-		FunctionDefinition const& _function,
-		ContractDefinition const& _contract,
-		PredicateType _type = PredicateType::FunctionSummary
-	);
-
-	/// @returns a block related to @a _contract's constructor.
-	Predicate const* createConstructorBlock(ContractDefinition const& _contract, std::string const& _prefix);
+	Predicate const* createSummaryBlock(FunctionDefinition const& _function, ContractDefinition const& _contract);
 
 	/// Creates a new error block to be used by an assertion.
 	/// Also registers the predicate.
 	void createErrorBlock();
 
 	void connectBlocks(smtutil::Expression const& _from, smtutil::Expression const& _to, smtutil::Expression const& _constraints = smtutil::Expression(true));
-
-	/// @returns The initial constraints that set up the beginning of a function.
-	smtutil::Expression initialConstraints(ContractDefinition const& _contract, FunctionDefinition const* _function = nullptr);
 
 	/// @returns the symbolic values of the state variables at the beginning
 	/// of the current transaction.
@@ -183,8 +166,6 @@ private:
 	smtutil::Expression predicate(Predicate const& _block);
 	/// @returns the summary predicate for the called function.
 	smtutil::Expression predicate(FunctionCall const& _funCall);
-	/// @returns a predicate that defines a contract initializer.
-	smtutil::Expression initializer(ContractDefinition const& _contract);
 	/// @returns a predicate that defines a constructor summary.
 	smtutil::Expression summary(ContractDefinition const& _contract);
 	/// @returns a predicate that defines a function summary.
@@ -200,14 +181,18 @@ private:
 	/// @returns <false, model> otherwise.
 	std::pair<smtutil::CheckResult, smtutil::CHCSolverInterface::CexGraph> query(smtutil::Expression const& _query, langutil::SourceLocation const& _location);
 
-	void verificationTargetEncountered(ASTNode const* const _errorNode, VerificationTargetType _type, smtutil::Expression const& _errorCondition);
+	void addVerificationTarget(ASTNode const* _scope, VerificationTarget::Type _type, smtutil::Expression _from, smtutil::Expression _constraints, smtutil::Expression _errorId);
+	void addVerificationTarget(ASTNode const* _scope, VerificationTarget::Type _type, smtutil::Expression _errorId);
+	void addAssertVerificationTarget(ASTNode const* _scope, smtutil::Expression _from, smtutil::Expression _constraints, smtutil::Expression _errorId);
 
 	void checkVerificationTargets();
 	// Forward declaration. Definition is below.
 	struct CHCVerificationTarget;
 	void checkAssertTarget(ASTNode const* _scope, CHCVerificationTarget const& _target);
 	void checkAndReportTarget(
+		ASTNode const* _scope,
 		CHCVerificationTarget const& _target,
+		unsigned _errorId,
 		langutil::ErrorId _errorReporterId,
 		std::string _satMsg,
 		std::string _unknownMsg = ""
@@ -215,17 +200,9 @@ private:
 
 	std::optional<std::string> generateCounterexample(smtutil::CHCSolverInterface::CexGraph const& _graph, std::string const& _root);
 
-	/// @returns a call graph for function summaries in the counterexample graph.
-	/// The returned map also contains a key _root, whose value are the
-	/// summaries called by _root.
-	std::map<unsigned, std::vector<unsigned>> summaryCalls(
-		smtutil::CHCSolverInterface::CexGraph const& _graph,
-		unsigned _root
-	);
-
 	/// @returns a set of pairs _var = _value separated by _separator.
 	template <typename T>
-	std::string formatVariableModel(std::vector<T> const& _variables, std::vector<std::optional<std::string>> const& _values, std::string const& _separator) const
+	std::string formatVariableModel(std::vector<T> const& _variables, std::vector<std::string> const& _values, std::string const& _separator) const
 	{
 		solAssert(_variables.size() == _values.size(), "");
 
@@ -233,8 +210,8 @@ private:
 		for (unsigned i = 0; i < _values.size(); ++i)
 		{
 			auto var = _variables.at(i);
-			if (var && _values.at(i))
-				assignments.emplace_back(var->name() + " = " + *_values.at(i));
+			if (var && var->type()->isValueType())
+				assignments.emplace_back(var->name() + " = " + _values.at(i));
 		}
 
 		return boost::algorithm::join(assignments, _separator);
@@ -256,7 +233,7 @@ private:
 
 	/// @returns a new unique error id associated with _expr and stores
 	/// it into m_errorIds.
-	unsigned newErrorId();
+	unsigned newErrorId(Expression const& _expr);
 
 	smt::SymbolicState& state();
 	smt::SymbolicIntVariable& errorFlag();
@@ -264,6 +241,10 @@ private:
 
 	/// Predicates.
 	//@{
+	/// Constructor summary predicate, exists after the constructor
+	/// (implicit or explicit) and before the interface.
+	Predicate const* m_constructorSummaryPredicate = nullptr;
+
 	/// Artificial Interface predicate.
 	/// Single entry block for all functions.
 	std::map<ContractDefinition const*, Predicate const*> m_interfaces;
@@ -273,9 +254,6 @@ private:
 	/// which means that the analyzed contract can potentially be called
 	/// nondeterministically.
 	std::map<ContractDefinition const*, Predicate const*> m_nondetInterfaces;
-
-	std::map<ContractDefinition const*, Predicate const*> m_constructorSummaries;
-	std::map<ContractDefinition const*, Predicate const*> m_contractInitializers;
 
 	/// Artificial Error predicate.
 	/// Single error block for all assertions.
@@ -296,42 +274,29 @@ private:
 	//@{
 	struct CHCVerificationTarget: VerificationTarget
 	{
-		unsigned const errorId;
-		ASTNode const* const errorNode;
+		smtutil::Expression errorId;
 	};
 
-	/// Query placeholder stores information necessary to create the final query edge in the CHC system.
-	/// It is combined with the unique error id (and error type) to create a complete Verification Target.
-	struct CHCQueryPlaceholder
-	{
-		smtutil::Expression const constraints;
-		smtutil::Expression const errorExpression;
-		smtutil::Expression const fromPredicate;
-	};
-
-	/// Query placeholders for constructors, if the key has type ContractDefinition*,
-	/// or external functions, if the key has type FunctionDefinition*.
-	/// A placeholder is created for each possible context of a function (e.g. multiple contracts in contract inheritance hierarchy).
-	std::map<ASTNode const*, std::vector<CHCQueryPlaceholder>, smt::EncodingContext::IdCompare> m_queryPlaceholders;
-
-	/// Records verification conditions IDs per function encountered during an analysis of that function.
-	/// The key is the ASTNode of the function where the verification condition has been encountered,
-	/// or the ASTNode of the contract if the verification condition happens inside an implicit constructor.
-	std::map<ASTNode const*, std::vector<unsigned>, smt::EncodingContext::IdCompare> m_functionTargetIds;
-	/// Helper mapping unique IDs to actual verification targets.
-	std::map<unsigned, CHCVerificationTarget> m_verificationTargets;
+	std::map<ASTNode const*, CHCVerificationTarget, IdCompare> m_verificationTargets;
 
 	/// Targets proven safe.
-	std::map<ASTNode const*, std::set<VerificationTargetType>> m_safeTargets;
+	std::map<ASTNode const*, std::set<VerificationTarget::Type>> m_safeTargets;
 	/// Targets proven unsafe.
-	std::map<ASTNode const*, std::set<VerificationTargetType>> m_unsafeTargets;
+	std::map<ASTNode const*, std::set<VerificationTarget::Type>> m_unsafeTargets;
 	//@}
 
 	/// Control-flow.
 	//@{
 	FunctionDefinition const* m_currentFunction = nullptr;
 
-	std::map<ASTNode const*, std::set<ASTNode const*, smt::EncodingContext::IdCompare>, smt::EncodingContext::IdCompare> m_callGraph;
+	std::map<ASTNode const*, std::set<ASTNode const*, IdCompare>, IdCompare> m_callGraph;
+
+	std::map<ASTNode const*, std::set<Expression const*>, IdCompare> m_functionAssertions;
+
+	/// Maps ASTNode ids to error ids.
+	/// A multimap is used instead of map anticipating the UnderOverflow
+	/// target which has 2 error ids.
+	std::multimap<unsigned, unsigned> m_errorIds;
 
 	/// The current block.
 	smtutil::Expression m_currentBlock = smtutil::Expression(true);
@@ -343,22 +308,9 @@ private:
 	bool m_unknownFunctionCallSeen = false;
 
 	/// Block where a loop break should go to.
-	Predicate const* m_breakDest = nullptr;
+	Predicate const* m_breakDest;
 	/// Block where a loop continue should go to.
-	Predicate const* m_continueDest = nullptr;
-
-	/// Block where an error condition should go to.
-	/// This can be:
-	/// 1) Constructor initializer summary, if error happens while evaluating initial values of state variables.
-	/// 2) Constructor summary, if error happens while evaluating base constructor arguments.
-	/// 3) Function summary, if error happens inside a function.
-	Predicate const* m_errorDest = nullptr;
-
-	/// Represents the stack of destinations where a `return` should go.
-	/// This is different from `m_errorDest` above:
-	/// - Constructor initializers and constructor summaries will never be `return` targets because they are artificial.
-	/// - Modifiers also have their own `return` target blocks, whereas they do not have their own error destination.
-	std::vector<Predicate const*> m_returnDests;
+	Predicate const* m_continueDest;
 	//@}
 
 	/// CHC solver.
@@ -369,8 +321,6 @@ private:
 
 	/// SMT solvers that are chosen at runtime.
 	smtutil::SMTSolverChoice m_enabledSolvers;
-
-	ModelCheckerSettings const& m_settings;
 };
 
 }

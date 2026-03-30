@@ -18,7 +18,7 @@
 #include <tools/solidityUpgrade/UpgradeChange.h>
 
 #include <liblangutil/SourceReferenceExtractor.h>
-#include <liblangutil/SourceReferenceFormatter.h>
+#include <liblangutil/SourceReferenceFormatterHuman.h>
 
 using namespace std;
 using namespace solidity;
@@ -37,7 +37,7 @@ void UpgradeChange::apply()
 void UpgradeChange::log(bool const _shorten) const
 {
 	stringstream os;
-	SourceReferenceFormatter formatter{os, true, false};
+	SourceReferenceFormatterHuman formatter{os, true, false};
 
 	string start = to_string(m_location.start);
 	string end = to_string(m_location.end);

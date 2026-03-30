@@ -30,8 +30,6 @@ using namespace solidity::util;
 using namespace solidity::frontend::test;
 using namespace std;
 
-using Token = soltest::Token;
-
 string TestFunctionCall::format(
 	ErrorReporter& _errorReporter,
 	string const& _linePrefix,
@@ -39,6 +37,9 @@ string TestFunctionCall::format(
 	bool const _highlight
 ) const
 {
+	using namespace soltest;
+	using Token = soltest::Token;
+
 	stringstream stream;
 
 	bool highlight = !matchesExpectation() && _highlight;
@@ -55,23 +56,9 @@ string TestFunctionCall::format(
 		string newline = formatToken(Token::Newline);
 		string failure = formatToken(Token::Failure);
 
-		if (m_call.kind == FunctionCall::Kind::Library)
+		if (m_call.isLibrary)
 		{
 			stream << _linePrefix << newline << ws << "library:" << ws << m_call.signature;
-			return;
-		}
-		else if (m_call.kind == FunctionCall::Kind::Storage)
-		{
-			stream << _linePrefix << newline << ws << "storage" << colon << ws;
-			soltestAssert(m_rawBytes.size() == 1, "");
-			soltestAssert(m_call.expectations.rawBytes().size() == 1, "");
-			bool isEmpty = _renderResult ? m_rawBytes.front() == 0 : m_call.expectations.rawBytes().front() == 0;
-			string output = isEmpty ? "empty" : "nonempty";
-			if (_renderResult && !matchesExpectation())
-				AnsiColorized(stream, highlight, {util::formatting::RED_BACKGROUND}) << output;
-			else
-				stream << output;
-
 			return;
 		}
 
@@ -278,6 +265,8 @@ string TestFunctionCall::formatFailure(
 	bool _highlight
 ) const
 {
+	using Token = soltest::Token;
+
 	stringstream os;
 
 	os << formatToken(Token::Failure);

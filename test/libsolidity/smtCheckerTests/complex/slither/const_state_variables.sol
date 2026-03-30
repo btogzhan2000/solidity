@@ -50,8 +50,6 @@ contract MyConc{
     }
 
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
 // Warning 2519: (773-792): This declaration shadows an existing declaration.
 // Warning 2018: (1009-1086): Function state mutability can be restricted to view

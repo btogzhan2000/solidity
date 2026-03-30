@@ -30,7 +30,7 @@ Team Calls
 If you have issues or pull requests to discuss, or are interested in hearing what
 the team and contributors are working on, you can join our public team calls:
 
-- Mondays at 3pm CET/CEST.
+- Mondays at 12pm CET/CEST.
 - Wednesdays at 2pm CET/CEST.
 
 Both calls take place on `Google Meet <https://meet.google.com/mrq-kbwv-edg>`_.
@@ -93,9 +93,6 @@ tries to discover the location of the ``evmone`` library, which can be located
 in the current directory, installed on the system level, or the ``deps`` folder
 in the project top level. The required file is called ``libevmone.so`` on Linux
 systems, ``evmone.dll`` on Windows systems and ``libevmone.dylib`` on macOS.
-
-On macOS some of the testing scripts expect GNU coreutils to be installed.
-This can be easiest accomplished using Homebrew: ``brew install coreutils``.
 
 Running the Tests
 -----------------
@@ -449,7 +446,7 @@ or ``interface`` using the ``./test/cmdlineTests.sh`` script when you create a P
 ensure they work and pass tests before creating the PR.
 
 Ensure that all code examples begin with a ``pragma`` version that spans the largest where the contract code is valid.
-For example ``pragma solidity >=0.4.0 <0.9.0;``.
+For example ``pragma solidity >=0.4.0 <0.8.0;``.
 
 Running Documentation Tests
 ---------------------------

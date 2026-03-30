@@ -59,8 +59,6 @@ contract C {
 		assert(origin != tx.origin);
 	}
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
 // Warning 6328: (545-576): CHC: Assertion violation happens here.
 // Warning 6328: (580-610): CHC: Assertion violation happens here.

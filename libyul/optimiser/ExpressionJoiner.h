@@ -21,7 +21,7 @@
  */
 #pragma once
 
-#include <libyul/ASTForward.h>
+#include <libyul/AsmDataForward.h>
 #include <libyul/optimiser/ASTWalker.h>
 
 #include <map>
@@ -31,6 +31,7 @@ namespace solidity::yul
 
 class NameCollector;
 struct OptimiserStepContext;
+
 
 /**
  * Optimiser component that modifies an AST in place, turning sequences

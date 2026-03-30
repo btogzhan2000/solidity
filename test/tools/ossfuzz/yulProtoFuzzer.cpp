@@ -19,24 +19,16 @@
 #include <fstream>
 
 #include <test/tools/ossfuzz/yulProto.pb.h>
-#include <test/tools/ossfuzz/protoToYul.h>
-
 #include <test/tools/fuzzer_common.h>
-
-#include <test/libyul/YulOptimizerTestCommon.h>
+#include <test/tools/ossfuzz/protoToYul.h>
+#include <src/libfuzzer/libfuzzer_macro.h>
 
 #include <libyul/AssemblyStack.h>
-#include <libyul/Exceptions.h>
-
-#include <libyul/backends/evm/EVMDialect.h>
-
 #include <liblangutil/EVMVersion.h>
-
-#include <src/libfuzzer/libfuzzer_macro.h>
+#include <libyul/Exceptions.h>
 
 using namespace solidity;
 using namespace solidity::yul;
-using namespace solidity::yul::test;
 using namespace solidity::yul::test::yul_fuzzer;
 using namespace solidity::langutil;
 using namespace std;
@@ -77,11 +69,5 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 		yulAssert(false, "Proto fuzzer generated malformed program");
 
 	// Optimize
-	YulOptimizerTestCommon optimizerTest(
-		stack.parserResult(),
-		EVMDialect::strictAssemblyForEVMObjects(version)
-	);
-	optimizerTest.setStep(optimizerTest.randomOptimiserStep(_input.step()));
-	shared_ptr<solidity::yul::Block> astBlock = optimizerTest.run();
-	yulAssert(astBlock != nullptr, "Optimiser error.");
+	stack.optimize();
 }

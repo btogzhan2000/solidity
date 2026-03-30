@@ -21,7 +21,7 @@
 
 #pragma once
 
-#include <libyul/ASTForward.h>
+#include <libyul/AsmDataForward.h>
 
 #include <libyul/Exceptions.h>
 #include <libyul/YulString.h>

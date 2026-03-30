@@ -1,5 +1,5 @@
 ==== Source: A ====
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 contract C {
     struct Item {
@@ -9,13 +9,13 @@ contract C {
     function get() external view returns(Item memory) {}
 }
 ==== Source: B ====
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 import "A";
 
 contract Test {
     function foo() public view {
-        C(address(0x00)).get();
+        C(0x00).get();
     }
 }
 // ----

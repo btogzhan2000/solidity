@@ -32,6 +32,9 @@
 
 #include <libyul/AssemblyStack.h>
 
+#include <liblangutil/Exceptions.h>
+#include <liblangutil/SourceReferenceFormatter.h>
+
 namespace solidity::frontend::test
 {
 
@@ -69,8 +72,8 @@ public:
 		std::map<std::string, solidity::test::Address> const& _libraryAddresses = {}
 	);
 
-	/// Returns @param _sourceCode prefixed with the version pragma and the abi coder v1 pragma,
-	/// the latter only if it is forced.
+	/// Returns @param _sourceCode prefixed with the version pragma and the ABIEncoderV2 pragma,
+	/// the latter only if it is required.
 	static std::string addPreamble(std::string const& _sourceCode);
 protected:
 

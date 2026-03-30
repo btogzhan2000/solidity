@@ -22,7 +22,6 @@ contract C is A {
         _;
     }
 }
-// ====
-// compileViaYul: also
+
 // ----
 // getData() -> 6

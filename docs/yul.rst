@@ -9,7 +9,7 @@ Yul
 Yul (previously also called JULIA or IULIA) is an intermediate language that can be
 compiled to bytecode for different backends.
 
-Support for EVM 1.0, EVM 1.5 and Ewasm is planned, and it is designed to
+Support for EVM 1.0, EVM 1.5 and eWASM is planned, and it is designed to
 be a usable common denominator of all three
 platforms. It can already be used in stand-alone mode and
 for "inline assembly" inside Solidity
@@ -54,7 +54,7 @@ be omitted to help readability.
 To keep the language simple and flexible, Yul does not have
 any built-in operations, functions or types in its pure form.
 These are added together with their semantics when specifying a dialect of Yul,
-which allows specializing Yul to the requirements of different
+which allows to specialize Yul to the requirements of different
 target platforms and feature sets.
 
 Currently, there is only one specified dialect of Yul. This dialect uses
@@ -526,7 +526,7 @@ The ``leave`` statement can only be used inside a function.
 
 Functions cannot be defined anywhere inside for loop init blocks.
 
-Literals cannot be larger than their type. The largest type defined is 256-bit wide.
+Literals cannot be larger than the their type. The largest type defined is 256-bit wide.
 
 During assignments and function calls, the types of the respective values have to match.
 There is no implicit type conversion. Type conversion in general can only be achieved
@@ -896,11 +896,12 @@ the ``dup`` and ``swap`` instructions as well as ``jump`` instructions, labels a
 
 .. note::
   The ``call*`` instructions use the ``out`` and ``outsize`` parameters to define an area in memory where
-  the return or failure data is placed. This area is written to depending on how many bytes the called contract returns.
+  the return data is placed. This area is written to depending on how many bytes the called contract returns.
   If it returns more data, only the first ``outsize`` bytes are written. You can access the rest of the data
   using the ``returndatacopy`` opcode. If it returns less data, then the remaining bytes are not touched at all.
   You need to use the ``returndatasize`` opcode to check which part of this memory area contains the return data.
-  The remaining bytes will retain their values as of before the call.
+  The remaining bytes will retain their values as of before the call. If the call fails (it returns ``0``),
+  nothing is written to that area, but you can still retrieve the failure data using ``returndatacopy``.
 
 
 In some internal dialects, there are additional functions:
@@ -919,12 +920,12 @@ For the EVM, the ``datacopy`` function is equivalent to ``codecopy``.
 setimmutable, loadimmutable
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-The functions ``setimmutable(offset, "name", value)`` and ``loadimmutable("name")`` are
+The functions ``setimmutable("name", value)`` and ``loadimmutable("name")`` are
 used for the immutable mechanism in Solidity and do not nicely map to pure Yul.
-The call to ``setimmutable(offset, "name", value)`` assumes that the runtime code of the contract
-containing the given named immutable was copied to memory at offset ``offset`` and will write ``value`` to all
-positions in memory (relative to ``offset``) that contain the placeholder that was generated for calls
-to ``loadimmutable("name")`` in the runtime code.
+The function ``setimmutable`` assumes that the runtime code of a contract
+is currently copied to memory at offset zero. The call to ``setimmutable("name", value)``
+will store ``value`` at all points in memory that contain a call to
+``loadimmutable("name")``.
 
 
 linkersymbol
@@ -946,7 +947,7 @@ is equivalent to
 
     let a := 0x1234567890123456789012345678901234567890
 
-when the linker is invoked with ``--libraries "file.sol:Math=0x1234567890123456789012345678901234567890``
+when the linker is invoked with ``--libraries "file.sol:Math:0x1234567890123456789012345678901234567890``
 option.
 
 See :ref:`Using the Commandline Compiler <commandline-compiler>` for details about the Solidity linker.
@@ -1027,7 +1028,7 @@ An example Yul Object is shown below:
             // executing code is the constructor code)
             size := datasize("runtime")
             offset := allocate(size)
-            // This will turn into a memory->memory copy for Ewasm and
+            // This will turn into a memory->memory copy for eWASM and
             // a codecopy for EVM
             datacopy(offset, dataoffset("runtime"), size)
             return(offset, size)

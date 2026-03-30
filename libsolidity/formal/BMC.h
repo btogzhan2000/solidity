@@ -30,7 +30,6 @@
 
 
 #include <libsolidity/formal/EncodingContext.h>
-#include <libsolidity/formal/ModelCheckerSettings.h>
 #include <libsolidity/formal/SMTEncoder.h>
 
 #include <libsolidity/interface/ReadFile.h>
@@ -62,11 +61,10 @@ public:
 		langutil::ErrorReporter& _errorReporter,
 		std::map<h256, std::string> const& _smtlib2Responses,
 		ReadCallback::Callback const& _smtCallback,
-		smtutil::SMTSolverChoice _enabledSolvers,
-		ModelCheckerSettings const& _settings
+		smtutil::SMTSolverChoice _enabledSolvers
 	);
 
-	void analyze(SourceUnit const& _sources, std::map<ASTNode const*, std::set<VerificationTargetType>> _solvedTargets);
+	void analyze(SourceUnit const& _sources, std::map<ASTNode const*, std::set<VerificationTarget::Type>> _solvedTargets);
 
 	/// This is used if the SMT solver is not directly linked into this binary.
 	/// @returns a list of inputs to the SMT solver that were not part of the argument to
@@ -74,7 +72,7 @@ public:
 	std::vector<std::string> unhandledQueries() { return m_interface->unhandledQueries(); }
 
 	/// @returns true if _funCall should be inlined, otherwise false.
-	static bool shouldInlineFunctionCall(FunctionCall const& _funCall, ContractDefinition const* _contract);
+	static bool shouldInlineFunctionCall(FunctionCall const& _funCall);
 
 private:
 	/// AST visitors.
@@ -91,8 +89,6 @@ private:
 	bool visit(ForStatement const& _node) override;
 	void endVisit(UnaryOperation const& _node) override;
 	void endVisit(FunctionCall const& _node) override;
-	void endVisit(Return const& _node) override;
-	bool visit(TryStatement const& _node) override;
 	//@}
 
 	/// Visitor helpers.
@@ -100,7 +96,6 @@ private:
 	void visitAssert(FunctionCall const& _funCall);
 	void visitRequire(FunctionCall const& _funCall);
 	void visitAddMulMod(FunctionCall const& _funCall) override;
-	void assignment(smt::SymbolicVariable& _symVar, smtutil::Expression const& _value) override;
 	/// Visits the FunctionDefinition of the called function
 	/// if available and inlines the return value.
 	void inlineFunctionCall(FunctionCall const& _funCall);
@@ -132,16 +127,16 @@ private:
 		std::pair<std::vector<smtutil::Expression>, std::vector<std::string>> modelExpressions;
 	};
 
-	void checkVerificationTargets();
-	void checkVerificationTarget(BMCVerificationTarget& _target);
+	void checkVerificationTargets(smtutil::Expression const& _constraints);
+	void checkVerificationTarget(BMCVerificationTarget& _target, smtutil::Expression const& _constraints = smtutil::Expression(true));
 	void checkConstantCondition(BMCVerificationTarget& _target);
-	void checkUnderflow(BMCVerificationTarget& _target);
-	void checkOverflow(BMCVerificationTarget& _target);
+	void checkUnderflow(BMCVerificationTarget& _target, smtutil::Expression const& _constraints);
+	void checkOverflow(BMCVerificationTarget& _target, smtutil::Expression const& _constraints);
 	void checkDivByZero(BMCVerificationTarget& _target);
 	void checkBalance(BMCVerificationTarget& _target);
 	void checkAssert(BMCVerificationTarget& _target);
 	void addVerificationTarget(
-		VerificationTargetType _type,
+		VerificationTarget::Type _type,
 		smtutil::Expression const& _value,
 		Expression const* _expression
 	);
@@ -187,9 +182,7 @@ private:
 	std::vector<BMCVerificationTarget> m_verificationTargets;
 
 	/// Targets that were already proven.
-	std::map<ASTNode const*, std::set<VerificationTargetType>> m_solvedTargets;
-
-	ModelCheckerSettings const& m_settings;
+	std::map<ASTNode const*, std::set<VerificationTarget::Type>> m_solvedTargets;
 };
 
 }

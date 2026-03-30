@@ -9,7 +9,7 @@ contract C {
     }
 }
 // ====
-// compileViaYul: also
+// compileViaYul: true
 // EVMVersion: >=petersburg
 // ----
 // pushEmpty(uint256): 128

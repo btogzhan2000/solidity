@@ -1,4 +1,4 @@
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 contract Test {
     function f(uint256[] calldata s) external { s[0] = 4; }
 }

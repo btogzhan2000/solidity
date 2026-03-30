@@ -1,7 +1,7 @@
 contract C {
     uint immutable x = 1;
 
-    function readX() internal pure returns(uint) {
+    function readX() internal view returns(uint) {
         return x + 3;
     }
 }

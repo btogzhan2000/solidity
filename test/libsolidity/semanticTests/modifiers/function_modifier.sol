@@ -8,8 +8,6 @@ contract C {
     }
 }
 
-// ====
-// compileViaYul: also
 // ----
 // getOne() -> 0
 // getOne(), 1 wei -> 1

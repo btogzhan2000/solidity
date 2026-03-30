@@ -105,8 +105,9 @@
           {
             "id": 11,
             "name": "A",
-            "nodeType": "IdentifierPath",
-            "src": "114:1:1"
+            "nodeType": "UserDefinedTypeName",
+            "src": "114:1:1",
+            "typeDescriptions": {}
           },
           "id": 12,
           "nodeType": "InheritanceSpecifier",
@@ -117,8 +118,9 @@
           {
             "id": 13,
             "name": "B",
-            "nodeType": "IdentifierPath",
-            "src": "117:1:1"
+            "nodeType": "UserDefinedTypeName",
+            "src": "117:1:1",
+            "typeDescriptions": {}
           },
           "id": 14,
           "nodeType": "InheritanceSpecifier",
@@ -155,14 +157,16 @@
               {
                 "id": 16,
                 "name": "A",
-                "nodeType": "IdentifierPath",
-                "src": "154:1:1"
+                "nodeType": "UserDefinedTypeName",
+                "src": "154:1:1",
+                "typeDescriptions": {}
               },
               {
                 "id": 17,
                 "name": "B",
-                "nodeType": "IdentifierPath",
-                "src": "157:1:1"
+                "nodeType": "UserDefinedTypeName",
+                "src": "157:1:1",
+                "typeDescriptions": {}
               }
             ],
             "src": "145:14:1"

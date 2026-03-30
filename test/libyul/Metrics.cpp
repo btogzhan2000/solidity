@@ -23,7 +23,7 @@
 #include <test/libyul/Common.h>
 
 #include <libyul/optimiser/Metrics.h>
-#include <libyul/AST.h>
+#include <libyul/AsmData.h>
 
 #include <boost/test/unit_test.hpp>
 

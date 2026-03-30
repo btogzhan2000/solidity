@@ -25,9 +25,6 @@
 using namespace solidity::frontend::test;
 using namespace std;
 
-// Prototype as we can't use the FuzzerInterface.h header.
-extern "C" int LLVMFuzzerTestOneInput(uint8_t const* _data, size_t _size);
-
 extern "C" int LLVMFuzzerTestOneInput(uint8_t const* _data, size_t _size)
 {
 	if (_size <= 600)
@@ -43,12 +40,7 @@ extern "C" int LLVMFuzzerTestOneInput(uint8_t const* _data, size_t _size)
 		{
 			return 0;
 		}
-		FuzzerUtil::testCompiler(
-			sourceCode,
-			/*optimize=*/true,
-			/*rand=*/static_cast<unsigned>(_size),
-			/*forceSMT=*/true
-		);
+		FuzzerUtil::testCompiler(sourceCode, /*optimize=*/true, /*rand=*/_size);
 	}
 	return 0;
 }

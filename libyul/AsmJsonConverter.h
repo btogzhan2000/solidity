@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include <libyul/ASTForward.h>
+#include <libyul/AsmDataForward.h>
 #include <liblangutil/SourceLocation.h>
 #include <json/json.h>
 #include <boost/variant.hpp>

@@ -21,7 +21,8 @@
 
 #include <libyul/optimiser/NameDisplacer.h>
 
-#include <libyul/AST.h>
+#include <libyul/AsmData.h>
+
 
 using namespace std;
 using namespace solidity;

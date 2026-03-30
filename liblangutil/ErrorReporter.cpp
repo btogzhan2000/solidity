@@ -67,7 +67,12 @@ void ErrorReporter::error(ErrorId _errorId, Error::Type _type, SourceLocation co
 	if (checkForExcessiveErrors(_type))
 		return;
 
-	m_errorList.push_back(make_shared<Error>(_errorId, _type, _description, _location));
+	auto err = make_shared<Error>(_errorId, _type);
+	*err <<
+		errinfo_sourceLocation(_location) <<
+		util::errinfo_comment(_description);
+
+	m_errorList.push_back(err);
 }
 
 void ErrorReporter::error(ErrorId _errorId, Error::Type _type, SourceLocation const& _location, SecondarySourceLocation const& _secondaryLocation, string const& _description)
@@ -75,7 +80,13 @@ void ErrorReporter::error(ErrorId _errorId, Error::Type _type, SourceLocation co
 	if (checkForExcessiveErrors(_type))
 		return;
 
-	m_errorList.push_back(make_shared<Error>(_errorId, _type, _description, _location, _secondaryLocation));
+	auto err = make_shared<Error>(_errorId, _type);
+	*err <<
+		errinfo_sourceLocation(_location) <<
+		errinfo_secondarySourceLocation(_secondaryLocation) <<
+		util::errinfo_comment(_description);
+
+	m_errorList.push_back(err);
 }
 
 bool ErrorReporter::hasExcessiveErrors() const
@@ -90,7 +101,11 @@ bool ErrorReporter::checkForExcessiveErrors(Error::Type _type)
 		m_warningCount++;
 
 		if (m_warningCount == c_maxWarningsAllowed)
-			m_errorList.push_back(make_shared<Error>(4591_error, Error::Type::Warning, "There are more than 256 warnings. Ignoring the rest."));
+		{
+			auto err = make_shared<Error>(4591_error, Error::Type::Warning);
+			*err << util::errinfo_comment("There are more than 256 warnings. Ignoring the rest.");
+			m_errorList.push_back(err);
+		}
 
 		if (m_warningCount >= c_maxWarningsAllowed)
 			return true;
@@ -101,7 +116,9 @@ bool ErrorReporter::checkForExcessiveErrors(Error::Type _type)
 
 		if (m_errorCount > c_maxErrorsAllowed)
 		{
-			m_errorList.push_back(make_shared<Error>(4013_error, Error::Type::Warning, "There are more than 256 errors. Aborting."));
+			auto err = make_shared<Error>(4013_error, Error::Type::Warning);
+			*err << util::errinfo_comment("There are more than 256 errors. Aborting.");
+			m_errorList.push_back(err);
 			BOOST_THROW_EXCEPTION(FatalError());
 		}
 	}

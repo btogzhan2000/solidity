@@ -14,10 +14,9 @@ contract C {
     }
 }
 // ====
-// compileViaYul: also
-// compileToEwasm: also
+// compileViaYul: true
 // ----
 // f(bool): true -> true
-// f(bool): false -> FAILURE, hex"4e487b71", 0x01
-// fail() -> FAILURE, hex"4e487b71", 0x01
+// f(bool): false -> FAILURE
+// fail() -> FAILURE
 // succeed() -> true

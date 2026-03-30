@@ -27,7 +27,7 @@
 
 #include <libyul/AsmAnalysis.h>
 #include <libyul/AsmAnalysisInfo.h>
-#include <libyul/AST.h>
+#include <libyul/AsmData.h>
 #include <libyul/backends/evm/EVMDialect.h>
 
 #include <liblangutil/ErrorReporter.h>
@@ -171,16 +171,16 @@ void ReferencesResolver::endVisit(ModifierDefinition const&)
 	m_returnParameters.pop_back();
 }
 
-void ReferencesResolver::endVisit(IdentifierPath const& _path)
+void ReferencesResolver::endVisit(UserDefinedTypeName const& _typeName)
 {
-	Declaration const* declaration = m_resolver.pathFromCurrentScope(_path.path());
+	Declaration const* declaration = m_resolver.pathFromCurrentScope(_typeName.namePath());
 	if (!declaration)
 	{
-		m_errorReporter.fatalDeclarationError(7920_error, _path.location(), "Identifier not found or not unique.");
+		m_errorReporter.fatalDeclarationError(7920_error, _typeName.location(), "Identifier not found or not unique.");
 		return;
 	}
 
-	_path.annotation().referencedDeclaration = declaration;
+	_typeName.annotation().referencedDeclaration = declaration;
 }
 
 bool ReferencesResolver::visit(InlineAssembly const& _inlineAssembly)
@@ -215,21 +215,22 @@ void ReferencesResolver::operator()(yul::FunctionDefinition const& _function)
 
 void ReferencesResolver::operator()(yul::Identifier const& _identifier)
 {
-	static set<string> suffixes{"slot", "offset", "length"};
-	string suffix;
-	for (string const& s: suffixes)
-		if (boost::algorithm::ends_with(_identifier.name.str(), "." + s))
-			suffix = s;
+	bool isSlot = boost::algorithm::ends_with(_identifier.name.str(), ".slot");
+	bool isOffset = boost::algorithm::ends_with(_identifier.name.str(), ".offset");
 
 	// Could also use `pathFromCurrentScope`, split by '.'
 	auto declarations = m_resolver.nameFromCurrentScope(_identifier.name.str());
-	if (!suffix.empty())
+	if (isSlot || isOffset)
 	{
 		// special mode to access storage variables
 		if (!declarations.empty())
 			// the special identifier exists itself, we should not allow that.
 			return;
-		string realName = _identifier.name.str().substr(0, _identifier.name.str().size() - suffix.size() - 1);
+		string realName = _identifier.name.str().substr(0, _identifier.name.str().size() - (
+			isSlot ?
+			string(".slot").size() :
+			string(".offset").size()
+		));
 		solAssert(!realName.empty(), "Empty name.");
 		declarations = m_resolver.nameFromCurrentScope(realName);
 		if (!declarations.empty())
@@ -254,7 +255,7 @@ void ReferencesResolver::operator()(yul::Identifier const& _identifier)
 			m_errorReporter.declarationError(
 				9467_error,
 				_identifier.location,
-				"Identifier not found. Use \".slot\" and \".offset\" to access storage variables."
+				"Identifier not found. Use ``.slot`` and ``.offset`` to access storage variables."
 			);
 		return;
 	}
@@ -269,7 +270,8 @@ void ReferencesResolver::operator()(yul::Identifier const& _identifier)
 			return;
 		}
 
-	m_yulAnnotation->externalReferences[&_identifier].suffix = move(suffix);
+	m_yulAnnotation->externalReferences[&_identifier].isSlot = isSlot;
+	m_yulAnnotation->externalReferences[&_identifier].isOffset = isOffset;
 	m_yulAnnotation->externalReferences[&_identifier].declaration = declarations.front();
 }
 
@@ -379,12 +381,5 @@ void ReferencesResolver::validateYulIdentifierName(yul::YulString _name, SourceL
 			3927_error,
 			_location,
 			"User-defined identifiers in inline assembly cannot contain '.'."
-		);
-
-	if (set<string>{"this", "super", "_"}.count(_name.str()))
-		m_errorReporter.declarationError(
-			4113_error,
-			_location,
-			"The identifier name \"" + _name.str() + "\" is reserved."
 		);
 }

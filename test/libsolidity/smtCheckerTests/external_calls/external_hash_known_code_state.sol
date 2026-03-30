@@ -33,7 +33,5 @@ contract C {
 		assert(owner == address(0) || y != z);
 	}
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
 // Warning 6328: (528-565): CHC: Assertion violation happens here.

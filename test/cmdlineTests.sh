@@ -5,7 +5,7 @@
 #
 # The documentation for solidity is hosted at:
 #
-#     https://docs.soliditylang.org
+#     https://solidity.readthedocs.org
 #
 # ------------------------------------------------------------------------------
 # This file is part of solidity.
@@ -35,12 +35,6 @@ SOLIDITY_BUILD_DIR=${SOLIDITY_BUILD_DIR:-${REPO_ROOT}/build}
 source "${REPO_ROOT}/scripts/common.sh"
 source "${REPO_ROOT}/scripts/common_cmdline.sh"
 
-(( $# <= 1 )) || { printError "Too many arguments"; exit 1; }
-(( $# == 0 )) || [[ $1 == '--update' ]] || { printError "Invalid argument: '$1'"; exit 1; }
-
-AUTOUPDATE=false
-[[ $1 == --update ]] && AUTOUPDATE=true
-
 case "$OSTYPE" in
     msys)
         SOLC="${SOLIDITY_BUILD_DIR}/solc/Release/solc.exe"
@@ -68,39 +62,20 @@ fi
 
 ## FUNCTIONS
 
-function update_expectation {
-    local newExpectation="${1}"
-    local expectationFile="${2}"
-
-    echo "$newExpectation" > "$expectationFile"
-    printLog "File $expectationFile updated to match the expectation."
-}
-
-function ask_expectation_update
+function ask_expectation_update()
 {
-    if [[ $INTERACTIVE != "" ]]
+    if [ $INTERACTIVE ]
     then
         local newExpectation="${1}"
         local expectationFile="${2}"
-
-        if [[ $AUTOUPDATE == true ]]
-        then
-            update_expectation "$newExpectation" "$expectationFile"
-        else
-            local editor="${FCEDIT:-${VISUAL:-${EDITOR:-vi}}}"
-
-            while true
-            do
-                read -N 1 -p "(e)dit/(u)pdate expectations/(s)kip/(q)uit? "
-                echo
-                case $REPLY in
-                    e*) "$editor" "$expectationFile"; break;;
-                    u*) update_expectation "$newExpectation" "$expectationFile"; break;;
-                    s*) return;;
-                    q*) exit 1;;
-                esac
-            done
-        fi
+        while true;
+        do
+            read -p "(u)pdate expectation/(q)uit? "
+            case $REPLY in
+                u* ) echo "$newExpectation" > $expectationFile ; break;;
+                q* ) exit 1;;
+            esac
+        done
     else
         exit 1
     fi
@@ -116,10 +91,9 @@ function test_solc_behaviour()
     [ -z "$solc_stdin"  ] && solc_stdin="/dev/stdin"
     local stdout_expected="${4}"
     local exit_code_expected="${5}"
-    local exit_code_expectation_file="${6}"
-    local stderr_expected="${7}"
-    local stdout_expectation_file="${8}" # the file to write to when user chooses to update stdout expectation
-    local stderr_expectation_file="${9}" # the file to write to when user chooses to update stderr expectation
+    local stderr_expected="${6}"
+    local stdout_expectation_file="${7}" # the file to write to when user chooses to update stdout expectation
+    local stderr_expectation_file="${8}" # the file to write to when user chooses to update stderr expectation
     local stdout_path=`mktemp`
     local stderr_path=`mktemp`
 
@@ -138,34 +112,20 @@ function test_solc_behaviour()
         sed -i.bak -e 's/{[^{]*Warning: This is a pre-release compiler version[^}]*},\{0,1\}//' "$stdout_path"
         sed -i.bak -E -e 's/ Consider adding \\"pragma solidity \^[0-9.]*;\\"//g' "$stdout_path"
         sed -i.bak -e 's/"errors":\[\],\{0,1\}//' "$stdout_path"
-        sed -i.bak -E -e 's/\"opcodes\":\"[^"]+\"/\"opcodes\":\"<OPCODES REMOVED>\"/g' "$stdout_path"
-        sed -i.bak -E -e 's/\"sourceMap\":\"[0-9:;-]+\"/\"sourceMap\":\"<SOURCEMAP REMOVED>\"/g' "$stdout_path"
-
-        # Remove bytecode (but not linker references).
-        sed -i.bak -E -e 's/(\"object\":\")[0-9a-f]+([^"]*\")/\1<BYTECODE REMOVED>\2/g' "$stdout_path"
-        sed -i.bak -E -e 's/(\"object\":\"[^"]+\$__)[0-9a-f]+(\")/\1<BYTECODE REMOVED>\2/g' "$stdout_path"
-        sed -i.bak -E -e 's/([0-9a-f]{34}\$__)[0-9a-f]+(__\$[0-9a-f]{17})/\1<BYTECODE REMOVED>\2/g' "$stdout_path"
-
+        # Remove explicit bytecode and references to bytecode offsets
+        sed -i.bak -E -e 's/\"object\":\"[a-f0-9]+\"/\"object\":\"bytecode removed\"/g' "$stdout_path"
+        sed -i.bak -E -e 's/\"opcodes\":\"[^"]+\"/\"opcodes\":\"opcodes removed\"/g' "$stdout_path"
+        sed -i.bak -E -e 's/\"sourceMap\":\"[0-9:;-]+\"/\"sourceMap\":\"sourceMap removed\"/g' "$stdout_path"
         # Replace escaped newlines by actual newlines for readability
         sed -i.bak -E -e 's/\\n/\'$'\n/g' "$stdout_path"
         rm "$stdout_path.bak"
     else
         sed -i.bak -e '/^Warning: This is a pre-release compiler version, please do not use it in production./d' "$stderr_path"
         sed -i.bak -e '/^Warning (3805): This is a pre-release compiler version, please do not use it in production./d' "$stderr_path"
-        sed -i.bak -e 's/\(^[ ]*auxdata: \)0x[0-9a-f]*$/\1<AUXDATA REMOVED>/' "$stdout_path"
+        sed -i.bak -e 's/\(^[ ]*auxdata: \)0x[0-9a-f]*$/\1AUXDATA REMOVED/' "$stdout_path"
         sed -i.bak -e 's/ Consider adding "pragma .*$//' "$stderr_path"
-        sed -i.bak -e 's/\(Unimplemented feature error.* in \).*$/\1<FILENAME REMOVED>/' "$stderr_path"
-        sed -i.bak -e 's/"version": "[^"]*"/"version": "<VERSION REMOVED>"/' "$stdout_path"
-
-        # Remove bytecode (but not linker references). Since non-JSON output is unstructured,
-        # use metadata markers for detection to have some confidence that it's actually bytecode
-        # and not some random word.
-        # 64697066735822 = hex encoding of 0x64 'i' 'p' 'f' 's' 0x58 0x22
-        # 64736f6c63     = hex encoding of 0x64 's' 'o' 'l' 'c'
-        sed -i.bak -E -e 's/[0-9a-f]*64697066735822[0-9a-f]+64736f6c63[0-9a-f]+/<BYTECODE REMOVED>/g' "$stdout_path"
-        sed -i.bak -E -e 's/([0-9a-f]{17}\$__)[0-9a-f]+(__\$[0-9a-f]{17})/\1<BYTECODE REMOVED>\2/g' "$stdout_path"
-        sed -i.bak -E -e 's/[0-9a-f]+((__\$[0-9a-f]{34}\$__)*<BYTECODE REMOVED>)/<BYTECODE REMOVED>\1/g' "$stdout_path"
-
+        sed -i.bak -e 's/\(Unimplemented feature error: .* in \).*$/\1FILENAME REMOVED/' "$stderr_path"
+        sed -i.bak -e 's/"version": "[^"]*"/"version": "VERSION REMOVED"/' "$stdout_path"
         # Remove trailing empty lines. Needs a line break to make OSX sed happy.
         sed -i.bak -e '1{/^$/d
 }' "$stderr_path"
@@ -180,9 +140,7 @@ function test_solc_behaviour()
     if [[ $exitCode -ne "$exit_code_expected" ]]
     then
         printError "Incorrect exit code. Expected $exit_code_expected but got $exitCode."
-
-        [[ $exit_code_expectation_file != "" ]] && ask_expectation_update "$exit_code_expected" "$exit_code_expectation_file"
-        [[ $exit_code_expectation_file == "" ]] && exit 1
+        exit 1
     fi
 
     if [[ "$(cat $stdout_path)" != "${stdout_expected}" ]]
@@ -195,8 +153,12 @@ function test_solc_behaviour()
 
         printError "When running $solc_command"
 
-        [[ $stdout_expectation_file != "" ]] && ask_expectation_update "$(cat "$stdout_path")" "$stdout_expectation_file"
-        [[ $stdout_expectation_file == "" ]] && exit 1
+        if [ -n "$stdout_expectation_file" ]
+        then
+            ask_expectation_update "$(cat $stdout_path)" "$stdout_expectation_file"
+        else
+            exit 1
+        fi
     fi
 
     if [[ "$(cat $stderr_path)" != "${stderr_expected}" ]]
@@ -209,8 +171,12 @@ function test_solc_behaviour()
 
         printError "When running $solc_command"
 
-        [[ $stderr_expectation_file != "" ]] && ask_expectation_update "$(cat "$stderr_path")" "$stderr_expectation_file"
-        [[ $stderr_expectation_file == "" ]] && exit 1
+        if [ -n "$stderr_expectation_file" ]
+        then
+            ask_expectation_update "$(cat $stderr_path)" "$stderr_expectation_file"
+        else
+            exit 1
+        fi
     fi
 
     rm -f "$stdout_path" "$stderr_path"
@@ -226,7 +192,7 @@ function test_solc_assembly_output()
     local expected_object="object \"object\" { code "${expected}" }"
 
     output=$(echo "${input}" | "$SOLC" - ${solc_args} 2>/dev/null)
-    empty=$(echo "$output" | tr '\n' ' ' | tr -s ' ' | sed -ne "/${expected_object}/p")
+    empty=$(echo $output | sed -ne '/'"${expected_object}"'/p')
     if [ -z "$empty" ]
     then
         printError "Incorrect assembly output. Expected: "
@@ -260,65 +226,54 @@ printTask "Testing unknown options..."
 
 
 printTask "Testing passing files that are not found..."
-test_solc_behaviour "file_not_found.sol" "" "" "" 1 "" "\"file_not_found.sol\" is not found." "" ""
+test_solc_behaviour "file_not_found.sol" "" "" "" 1 "\"file_not_found.sol\" is not found." "" ""
 
 printTask "Testing passing files that are not files..."
-test_solc_behaviour "." "" "" "" 1 "" "\".\" is not a valid file." "" ""
+test_solc_behaviour "." "" "" "" 1 "\".\" is not a valid file." "" ""
 
 printTask "Testing passing empty remappings..."
-test_solc_behaviour "${0}" "=/some/remapping/target" "" "" 1 "" "Invalid remapping: \"=/some/remapping/target\"." "" ""
-test_solc_behaviour "${0}" "ctx:=/some/remapping/target" "" "" 1 "" "Invalid remapping: \"ctx:=/some/remapping/target\"." "" ""
+test_solc_behaviour "${0}" "=/some/remapping/target" "" "" 1 "Invalid remapping: \"=/some/remapping/target\"." "" ""
+test_solc_behaviour "${0}" "ctx:=/some/remapping/target" "" "" 1 "Invalid remapping: \"ctx:=/some/remapping/target\"." "" ""
 
 printTask "Running general commandline tests..."
 (
     cd "$REPO_ROOT"/test/cmdlineTests/
     for tdir in */
     do
-        printTask " - ${tdir}"
-
-        # Strip trailing slash from $tdir.
-        tdir=$(basename "${tdir}")
-
-        inputFiles="$(ls -1 ${tdir}/input.* 2> /dev/null || true)"
-        inputCount="$(echo ${inputFiles} | wc -w)"
-        if (( ${inputCount} > 1 ))
+        if [ -e "${tdir}/input.json" ]
         then
-            printError "Ambiguous input. Found input files in multiple formats:"
-            echo -e "${inputFiles}"
-            exit 1
-        fi
-
-        # Use printf to get rid of the trailing newline
-        inputFile=$(printf "%s" "${inputFiles}")
-
-        # If no files specified, assume input.sol as the default
-        if [ -z "${inputFile}" ]; then
-            inputFile="${tdir}/input.sol"
-        fi
-
-        if [ "${inputFile}" = "${tdir}/input.json" ]
-        then
-            stdin="${inputFile}"
             inputFile=""
+            stdin="${tdir}/input.json"
             stdout="$(cat ${tdir}/output.json 2>/dev/null || true)"
             stdoutExpectationFile="${tdir}/output.json"
             args="--standard-json "$(cat ${tdir}/args 2>/dev/null || true)
         else
+            if [[ -e "${tdir}input.yul" && -e "${tdir}input.sol" ]]
+            then
+                printError "Ambiguous input. Found both input.sol and input.yul."
+                exit 1
+            fi
+
+            if [ -e "${tdir}input.yul" ]
+            then
+                inputFile="${tdir}input.yul"
+            else
+                inputFile="${tdir}input.sol"
+            fi
             stdin=""
             stdout="$(cat ${tdir}/output 2>/dev/null || true)"
             stdoutExpectationFile="${tdir}/output"
             args=$(cat ${tdir}/args 2>/dev/null || true)
         fi
-        exitCodeExpectationFile="${tdir}/exit"
-        exitCode=$(cat "$exitCodeExpectationFile" 2>/dev/null || true)
+        exitCode=$(cat ${tdir}/exit 2>/dev/null || true)
         err="$(cat ${tdir}/err 2>/dev/null || true)"
         stderrExpectationFile="${tdir}/err"
+        printTask " - ${tdir}"
         test_solc_behaviour "$inputFile" \
                             "$args" \
                             "$stdin" \
                             "$stdout" \
                             "$exitCode" \
-                            "$exitCodeExpectationFile" \
                             "$err" \
                             "$stdoutExpectationFile" \
                             "$stderrExpectationFile"
@@ -376,11 +331,11 @@ rm -rf "$SOLTMPDIR"
 echo "Done."
 
 printTask "Testing library checksum..."
-echo '' | "$SOLC" - --link --libraries a=0x90f20564390eAe531E810af625A22f51385Cd222 >/dev/null
-! echo '' | "$SOLC" - --link --libraries a=0x80f20564390eAe531E810af625A22f51385Cd222 &>/dev/null
+echo '' | "$SOLC" - --link --libraries a:0x90f20564390eAe531E810af625A22f51385Cd222 >/dev/null
+! echo '' | "$SOLC" - --link --libraries a:0x80f20564390eAe531E810af625A22f51385Cd222 &>/dev/null
 
 printTask "Testing long library names..."
-echo '' | "$SOLC" - --link --libraries aveeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeerylonglibraryname=0x90f20564390eAe531E810af625A22f51385Cd222 >/dev/null
+echo '' | "$SOLC" - --link --libraries aveeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeerylonglibraryname:0x90f20564390eAe531E810af625A22f51385Cd222 >/dev/null
 
 printTask "Testing linking itself..."
 SOLTMPDIR=$(mktemp -d)
@@ -394,7 +349,7 @@ SOLTMPDIR=$(mktemp -d)
     # But not in library file.
     grep -q -v '[/_]' L.bin
     # Now link
-    "$SOLC" --link --libraries x.sol:L=0x90f20564390eAe531E810af625A22f51385Cd222 C.bin
+    "$SOLC" --link --libraries x.sol:L:0x90f20564390eAe531E810af625A22f51385Cd222 C.bin
     # Now the placeholder and explanation should be gone.
     grep -q -v '[/_]' C.bin
 )
@@ -458,18 +413,15 @@ SOLTMPDIR=$(mktemp -d)
     # The contract should be compiled
     if [[ "$result" != 0 ]]
     then
-        printError "Failed to compile a simple contract from standard input"
         exit 1
     fi
 
     # This should not fail
     set +e
-    output=$(echo '' | "$SOLC" --ast-json - 2>/dev/null)
-    result=$?
+    output=$(echo '' | "$SOLC" --ast - 2>/dev/null)
     set -e
-    if [[ $result != 0 ]]
+    if [[ $? != 0 ]]
     then
-        printError "Incorrect response to --ast-json option with empty stdin"
         exit 1
     fi
 )

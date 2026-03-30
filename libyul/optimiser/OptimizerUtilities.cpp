@@ -22,7 +22,7 @@
 #include <libyul/optimiser/OptimizerUtilities.h>
 
 #include <libyul/Dialect.h>
-#include <libyul/AST.h>
+#include <libyul/AsmData.h>
 
 #include <liblangutil/Token.h>
 #include <libsolutil/CommonData.h>
@@ -45,5 +45,5 @@ void yul::removeEmptyBlocks(Block& _block)
 
 bool yul::isRestrictedIdentifier(Dialect const& _dialect, YulString const& _identifier)
 {
-	return _identifier.empty() || TokenTraits::isYulKeyword(_identifier.str()) || _dialect.reservedIdentifier(_identifier);
+	return _identifier.empty() || TokenTraits::isYulKeyword(_identifier.str()) || _dialect.builtin(_identifier);
 }

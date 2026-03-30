@@ -13,8 +13,6 @@ contract C
 		assert(a.balance > b.balance);
 	}
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
 // Warning 6328: (295-324): CHC: Assertion violation happens here.
 // Warning 1236: (217-232): BMC: Insufficient funds happens here.

@@ -14,11 +14,11 @@ contract LoopFor2 {
 			c[i] = b[i];
 			++i;
 		}
-		//assert(b[0] == c[0]); // Removed because of Spacer's nondeterminism
+		assert(b[0] == c[0]);
 		assert(a[0] == 900);
 		assert(b[0] == 900);
 	}
 }
 // ----
-// Warning 6328: (338-357): CHC: Assertion violation happens here.\nCounterexample:\nb = [], c = []\nn = 1\n\nTransaction trace:\nLoopFor2.constructor()\nState: b = [], c = []\nLoopFor2.testUnboundedForLoop(1)
-// Warning 6328: (361-380): CHC: Assertion violation happens here.\nCounterexample:\nb = [], c = []\nn = 1\n\nTransaction trace:\nLoopFor2.constructor()\nState: b = [], c = []\nLoopFor2.testUnboundedForLoop(1)
+// Warning 6328: (290-309): CHC: Assertion violation happens here.
+// Warning 6328: (313-332): CHC: Assertion violation happens here.

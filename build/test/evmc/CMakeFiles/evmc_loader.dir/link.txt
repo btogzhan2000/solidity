@@ -1,0 +1,2 @@
+/usr/bin/ar qc libevmc_loader.a CMakeFiles/evmc_loader.dir/loader.c.o
+/usr/bin/ranlib libevmc_loader.a

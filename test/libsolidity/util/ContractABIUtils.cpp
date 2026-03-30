@@ -41,6 +41,7 @@ using namespace solidity::util;
 using namespace solidity::langutil;
 using namespace solidity::frontend::test;
 using namespace std;
+using namespace soltest;
 
 namespace
 {

@@ -16,8 +16,6 @@ contract C {
 		assert(gleft == gasleft());
 	}
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
 // Warning 6328: (124-150): CHC: Assertion violation happens here.
 // Warning 6328: (219-245): CHC: Assertion violation happens here.

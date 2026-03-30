@@ -9,12 +9,11 @@ library D {
 
 contract C {
     using D for bytes;
-    function f(bytes calldata _x) public pure returns (bytes1, bytes1) {
+    function f(bytes calldata _x) public pure returns (byte, byte) {
         return (_x.f()[0], _x.g()[0]);
     }
 }
 // ====
-// compileViaYul: also
 // EVMVersion: >homestead
 // ----
 // library: D

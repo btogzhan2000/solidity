@@ -19,7 +19,6 @@
 
 #include <libyul/optimiser/ASTWalker.h>
 #include <libyul/optimiser/OptimiserStep.h>
-#include <libyul/ASTForward.h>
 #include <libyul/Dialect.h>
 #include <libsolutil/Common.h>
 

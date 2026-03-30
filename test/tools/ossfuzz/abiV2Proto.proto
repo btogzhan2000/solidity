@@ -32,8 +32,10 @@ message FixedByteType {
     required uint32 width = 1;
 }
 
-// address
-message AddressType {}
+// address, address payable
+message AddressType {
+    required bool payable = 1;
+}
 
 message ValueType {
     oneof value_type_oneof {
@@ -44,8 +46,14 @@ message ValueType {
     }
 }
 
-// bytes
-message DynamicByteArrayType {}
+// bytes/string
+message DynamicByteArrayType {
+    enum DType {
+        BYTES = 0;
+        STRING = 1;
+    }
+    required DType type = 1;
+}
 
 message ArrayType {
     required Type t = 1;

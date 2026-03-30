@@ -1,5 +1,5 @@
 
-======= yul_stack_opt_disabled/input.yul (EVM) =======
+======= yul_stack_opt_disabled/input.sol (EVM) =======
 
 Pretty printed source:
 object "object" {

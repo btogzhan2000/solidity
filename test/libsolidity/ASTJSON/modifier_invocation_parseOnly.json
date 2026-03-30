@@ -96,8 +96,10 @@
               {
                 "id": 8,
                 "name": "M",
-                "nodeType": "IdentifierPath",
-                "src": "52:1:1"
+                "nodeType": "Identifier",
+                "overloadedDeclarations": [],
+                "src": "52:1:1",
+                "typeDescriptions": {}
               },
               "nodeType": "ModifierInvocation",
               "src": "52:4:1"

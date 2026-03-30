@@ -1,5 +1,5 @@
 ==== Source: A ====
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 struct Data {
     uint value;
@@ -34,7 +34,5 @@ contract C is B {
         return (x, y);
     }
 }
-// ====
-// compileViaYul: also
 // ----
 // test() -> 5, 10

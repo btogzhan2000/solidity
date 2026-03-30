@@ -21,7 +21,6 @@
 
 #include <libyul/backends/evm/NoOutputAssembly.h>
 
-#include <libyul/AST.h>
 #include <libyul/Exceptions.h>
 
 #include <libevmasm/Instruction.h>

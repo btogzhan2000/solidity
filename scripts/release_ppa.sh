@@ -57,7 +57,7 @@ packagename=solc
 
 static_build_distribution=focal
 
-DISTRIBUTIONS="focal groovy"
+DISTRIBUTIONS="bionic focal groovy"
 
 if is_release
 then
@@ -75,7 +75,7 @@ if [ $distribution = STATIC ]
 then
     pparepo=ethereum-static
     SMTDEPENDENCY=""
-    CMAKE_OPTIONS="-DSOLC_LINK_STATIC=On -DCMAKE_EXE_LINKER_FLAGS=-static"
+    CMAKE_OPTIONS="-DSOLC_LINK_STATIC=On"
 else
     if is_release
     then
@@ -108,12 +108,12 @@ mv solidity solc
 # Fetch jsoncpp dependency
 mkdir -p ./solc/deps/downloads/ 2>/dev/null || true
 wget -O ./solc/deps/downloads/jsoncpp-1.9.3.tar.gz https://github.com/open-source-parsers/jsoncpp/archive/1.9.3.tar.gz
-wget -O ./solc/deps/downloads/range-v3-0.11.0.tar.gz https://github.com/ericniebler/range-v3/archive/0.11.0.tar.gz
 
 # Determine version
 cd solc
 version=$($(dirname "$0")/get_version.sh)
 commithash=$(git rev-parse --short=8 HEAD)
+committimestamp=$(git show --format=%ci HEAD | head -n 1)
 commitdate=$(git show --format=%ci HEAD | head -n 1 | cut - -b1-10 | sed -e 's/-0?/./' | sed -e 's/-0?/./')
 
 echo "$commithash" > commit_hash.txt

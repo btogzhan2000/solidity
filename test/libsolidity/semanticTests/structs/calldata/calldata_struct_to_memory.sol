@@ -1,4 +1,4 @@
-pragma abicoder v2;
+pragma experimental ABIEncoderV2;
 
 contract C {
     struct S {
@@ -7,7 +7,7 @@ contract C {
         bytes2 c;
     }
 
-    function f(S calldata s) external pure returns (uint256, uint256, bytes1) {
+    function f(S calldata s) external pure returns (uint256, uint256, byte) {
         S memory m = s;
         return (m.a, m.b, m.c[1]);
     }
@@ -15,6 +15,5 @@ contract C {
 
 // ====
 // compileViaYul: also
-// compileToEwasm: also
 // ----
-// f((uint256,uint256,bytes2)): 42, 23, "ab" -> 42, 23, "b"
+// f((uint256,uint256, bytes2)): 42, 23, "ab" -> 42, 23, "b"

@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/Users/togzhan/Documents/Github/solidity/build/CMakeFiles/jsoncpp-project"
+		},
+		{
+			"file" : "/Users/togzhan/Documents/Github/solidity/build/CMakeFiles/jsoncpp-project.rule"
+		},
+		{
+			"file" : "/Users/togzhan/Documents/Github/solidity/build/CMakeFiles/jsoncpp-project-complete.rule"
+		},
+		{
+			"file" : "/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/jsoncpp-project-build.rule"
+		},
+		{
+			"file" : "/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/jsoncpp-project-configure.rule"
+		},
+		{
+			"file" : "/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/jsoncpp-project-download.rule"
+		},
+		{
+			"file" : "/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/jsoncpp-project-install.rule"
+		},
+		{
+			"file" : "/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/jsoncpp-project-mkdir.rule"
+		},
+		{
+			"file" : "/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/jsoncpp-project-patch.rule"
+		},
+		{
+			"file" : "/Users/togzhan/Documents/Github/solidity/build/deps/src/jsoncpp-project-stamp/jsoncpp-project-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"jsoncpp-project"
+		],
+		"name" : "jsoncpp-project"
+	}
+}

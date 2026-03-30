@@ -1,4 +1,4 @@
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 contract C {
     struct S {
@@ -19,7 +19,5 @@ contract C {
         return (a, b);
     }
 }
-// ====
-// compileViaYul: also
 // ----
 // g() -> 5, 6

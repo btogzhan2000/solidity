@@ -1,20 +1,19 @@
 library D {
-    function f(bytes calldata _x) public pure returns (bytes1) {
+    function f(bytes calldata _x) public pure returns (byte) {
         return _x[0];
     }
-    function g(bytes memory _x) public pure returns (bytes1) {
+    function g(bytes memory _x) public pure returns (byte) {
         return _x[0];
     }
 }
 
 contract C {
     using D for bytes;
-    function f(bytes calldata _x) public pure returns (bytes1, bytes1) {
+    function f(bytes calldata _x) public pure returns (byte, byte) {
         return (_x.f(), _x.g());
     }
 }
 // ====
-// compileViaYul: also
 // EVMVersion: >homestead
 // ----
 // library: D

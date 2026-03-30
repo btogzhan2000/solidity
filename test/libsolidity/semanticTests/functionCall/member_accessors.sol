@@ -13,9 +13,8 @@ contract test {
     uint256 super_secret_data;
 }
 // ====
-// compileViaYul: also
-// compileToEwasm: also
 // allowNonExistingFunctions: true
+// compileViaYul: also
 // ----
 // data() -> 8
 // name() -> "Celina"

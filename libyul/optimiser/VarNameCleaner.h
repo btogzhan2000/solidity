@@ -19,7 +19,7 @@
 #pragma once
 
 
-#include <libyul/ASTForward.h>
+#include <libyul/AsmDataForward.h>
 #include <libyul/optimiser/ASTWalker.h>
 #include <libyul/YulString.h>
 #include <libyul/optimiser/OptimiserStep.h>

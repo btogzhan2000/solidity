@@ -32,8 +32,5 @@ contract test {
     }
 }
 
-// ====
-// compileViaYul: also
-// compileToEwasm: also
 // ----
 // assign() -> 2, 2, 3, 3

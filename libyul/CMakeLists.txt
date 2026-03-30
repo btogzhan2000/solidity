@@ -1,35 +1,19 @@
-# This will re-generate the polyfill headers, if any file within libyul/backends/wasm/polyfill/ was modified.
-set_directory_properties(PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/libyul/backends/wasm/polyfill/)
-
-set(POLYFILLS Arithmetic Bitwise Comparison Conversion Interface Keccak Logical Memory)
-set(GENERATED_POLYFILL_HEADERS)
-foreach(polyfill IN LISTS POLYFILLS)
-	set(POLYFILL_FILE ${CMAKE_SOURCE_DIR}/libyul/backends/wasm/polyfill/${polyfill}.yul)
-	file(READ ${POLYFILL_FILE} EWASM_POLYFILL_CONTENT HEX)
-	string(REGEX MATCHALL ".." EWASM_POLYFILL_CONTENT "${EWASM_POLYFILL_CONTENT}")
-	string(REGEX REPLACE ";" ",\n\t0x" EWASM_POLYFILL_CONTENT "${EWASM_POLYFILL_CONTENT}")
-	set(EWASM_POLYFILL_CONTENT "0x${EWASM_POLYFILL_CONTENT}")
-	set(EWASM_POLYFILL_NAME ${polyfill})
-	configure_file("${CMAKE_SOURCE_DIR}/cmake/templates/ewasm_polyfill.in" ${CMAKE_BINARY_DIR}/include/ewasmPolyfills/${polyfill}.h @ONLY)
-	list(APPEND GENERATED_POLYFILL_HEADERS ${CMAKE_BINARY_DIR}/include/ewasmPolyfills/${polyfill}.h)
-endforeach()
-
 add_library(yul
-	${GENERATED_POLYFILL_HEADERS}
-
 	AsmAnalysis.cpp
 	AsmAnalysis.h
 	AsmAnalysisInfo.h
-	AST.h
-	ASTForward.h
+	AsmData.h
+	AsmDataForward.h
 	AsmJsonConverter.h
 	AsmJsonConverter.cpp
-	AsmJsonImporter.h
-	AsmJsonImporter.cpp
 	AsmParser.cpp
 	AsmParser.h
 	AsmPrinter.cpp
 	AsmPrinter.h
+	AsmScope.cpp
+	AsmScope.h
+	AsmScopeFiller.cpp
+	AsmScopeFiller.h
 	AssemblyStack.h
 	AssemblyStack.cpp
 	CompilabilityChecker.cpp
@@ -41,10 +25,6 @@ add_library(yul
 	Object.h
 	ObjectParser.cpp
 	ObjectParser.h
-	Scope.cpp
-	Scope.h
-	ScopeFiller.cpp
-	ScopeFiller.h
 	Utilities.cpp
 	Utilities.h
 	YulString.h
@@ -189,7 +169,6 @@ add_library(yul
 	optimiser/UnusedFunctionParameterPruner.cpp
 	optimiser/UnusedFunctionParameterPruner.h
 	optimiser/UnusedFunctionsCommon.h
-	optimiser/UnusedFunctionsCommon.cpp
 	optimiser/UnusedPruner.cpp
 	optimiser/UnusedPruner.h
 	optimiser/VarDeclInitializer.cpp

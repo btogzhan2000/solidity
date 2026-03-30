@@ -49,13 +49,10 @@ struct IRNames
 {
 	static std::string function(FunctionDefinition const& _function);
 	static std::string function(VariableDeclaration const& _varDecl);
-	static std::string modifierInvocation(ModifierInvocation const& _modifierInvocation);
-	static std::string functionWithModifierInner(FunctionDefinition const& _function);
 	static std::string creationObject(ContractDefinition const& _contract);
 	static std::string runtimeObject(ContractDefinition const& _contract);
 	static std::string internalDispatch(YulArity const& _arity);
 	static std::string implicitConstructor(ContractDefinition const& _contract);
-	static std::string libraryAddressImmutable();
 	static std::string constantValueFunction(VariableDeclaration const& _constant);
 	static std::string localVariable(VariableDeclaration const& _declaration);
 	static std::string localVariable(Expression const& _expression);

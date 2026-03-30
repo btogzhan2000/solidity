@@ -49,6 +49,7 @@ function compileFull()
     fi
 
     local files="$*"
+    local output
 
     local stderr_path=$(mktemp)
 
@@ -70,7 +71,7 @@ function compileFull()
         printError "Was failure: $exit_code"
         echo "$errors"
         printError "While calling:"
-        echo "\"$SOLC\" $args $files"
+        echo "\"$SOLC\" $ARGS $files"
         printError "Inside directory:"
         pwd
         false

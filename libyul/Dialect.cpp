@@ -20,7 +20,7 @@
  */
 
 #include <libyul/Dialect.h>
-#include <libyul/AST.h>
+#include <libyul/AsmData.h>
 
 using namespace solidity::yul;
 using namespace std;

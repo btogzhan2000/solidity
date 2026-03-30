@@ -1,5 +1,5 @@
 ==== Source: A.sol ====
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 contract A
 {
@@ -8,12 +8,12 @@ contract A
     function f(S memory _s) public returns (S memory,S memory) { }
 }
 ==== Source: B.sol ====
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 import "./A.sol";
 contract B is A { }
 ==== Source: C.sol ====
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 import "./B.sol";
 contract C is B { }

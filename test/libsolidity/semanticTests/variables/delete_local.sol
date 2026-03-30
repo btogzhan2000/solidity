@@ -7,6 +7,5 @@ contract test {
 }
 // ====
 // compileViaYul: also
-// compileToEwasm: also
 // ----
 // delLocal() -> 0

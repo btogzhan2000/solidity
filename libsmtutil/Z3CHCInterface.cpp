@@ -27,26 +27,14 @@ using namespace std;
 using namespace solidity;
 using namespace solidity::smtutil;
 
-Z3CHCInterface::Z3CHCInterface(optional<unsigned> _queryTimeout):
-	CHCSolverInterface(_queryTimeout),
-	m_z3Interface(make_unique<Z3Interface>(m_queryTimeout)),
+Z3CHCInterface::Z3CHCInterface():
+	m_z3Interface(make_unique<Z3Interface>()),
 	m_context(m_z3Interface->context()),
 	m_solver(*m_context)
 {
-	Z3_get_version(
-		&get<0>(m_version),
-		&get<1>(m_version),
-		&get<2>(m_version),
-		&get<3>(m_version)
-	);
-
 	// These need to be set globally.
 	z3::set_param("rewriter.pull_cheap_ite", true);
-
-	if (m_queryTimeout)
-		m_context->set("timeout", int(*m_queryTimeout));
-	else
-		z3::set_param("rlimit", Z3Interface::resourceLimit);
+	z3::set_param("rlimit", Z3Interface::resourceLimit);
 
 	setSpacerOptions();
 }
@@ -80,6 +68,7 @@ void Z3CHCInterface::addRule(Expression const& _expr, string const& _name)
 pair<CheckResult, CHCSolverInterface::CexGraph> Z3CHCInterface::query(Expression const& _expr)
 {
 	CheckResult result;
+	CHCSolverInterface::CexGraph cex;
 	try
 	{
 		z3::expr z3Expr = m_z3Interface->toZ3Expr(_expr);
@@ -88,14 +77,9 @@ pair<CheckResult, CHCSolverInterface::CexGraph> Z3CHCInterface::query(Expression
 		case z3::check_result::sat:
 		{
 			result = CheckResult::SATISFIABLE;
-			// z3 version 4.8.8 modified Spacer to also return
-			// proofs containing nonlinear clauses.
-			if (m_version >= tuple(4, 8, 8, 0))
-			{
-				auto proof = m_solver.get_answer();
-				return {result, cexGraph(proof)};
-			}
-			break;
+			auto proof = m_solver.get_answer();
+			auto cex = cexGraph(proof);
+			return {result, cex};
 		}
 		case z3::check_result::unsat:
 		{
@@ -113,19 +97,14 @@ pair<CheckResult, CHCSolverInterface::CexGraph> Z3CHCInterface::query(Expression
 	}
 	catch (z3::exception const& _err)
 	{
-		set<string> msgs{
-			/// Resource limit (rlimit) exhausted.
-			"max. resource limit exceeded",
-			/// User given timeout exhausted.
-			"canceled"
-		};
-		if (msgs.count(_err.msg()))
+		if (_err.msg() == string("max. resource limit exceeded"))
 			result = CheckResult::UNKNOWN;
 		else
 			result = CheckResult::ERROR;
+		cex = {};
 	}
 
-	return {result, {}};
+	return {result, cex};
 }
 
 void Z3CHCInterface::setSpacerOptions(bool _preProcessing)
@@ -182,7 +161,7 @@ CHCSolverInterface::CexGraph Z3CHCInterface::cexGraph(z3::expr const& _proof)
 	proofStack.push(_proof.arg(0));
 
 	auto const& root = proofStack.top();
-	graph.nodes.emplace(root.id(), m_z3Interface->fromZ3Expr(fact(root)));
+	graph.nodes[root.id()] = {name(fact(root)), arguments(fact(root))};
 
 	set<unsigned> visited;
 	visited.insert(root.id());
@@ -207,7 +186,7 @@ CHCSolverInterface::CexGraph Z3CHCInterface::cexGraph(z3::expr const& _proof)
 
 				if (!graph.nodes.count(child.id()))
 				{
-					graph.nodes.emplace(child.id(), m_z3Interface->fromZ3Expr(fact(child)));
+					graph.nodes[child.id()] = {name(fact(child)), arguments(fact(child))};
 					graph.edges[child.id()] = {};
 				}
 

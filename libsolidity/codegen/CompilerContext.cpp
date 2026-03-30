@@ -32,7 +32,6 @@
 #include <libyul/AsmPrinter.h>
 #include <libyul/AsmAnalysis.h>
 #include <libyul/AsmAnalysisInfo.h>
-#include <libyul/AST.h>
 #include <libyul/backends/evm/AsmCodeGen.h>
 #include <libyul/backends/evm/EVMDialect.h>
 #include <libyul/backends/evm/EVMMetrics.h>
@@ -42,7 +41,6 @@
 #include <libyul/Utilities.h>
 
 #include <libsolutil/Whiskers.h>
-#include <libsolutil/FunctionSelector.h>
 
 #include <liblangutil/ErrorReporter.h>
 #include <liblangutil/Scanner.h>
@@ -249,7 +247,7 @@ void CompilerContext::removeVariablesAboveStackHeight(unsigned _stackHeight)
 
 unsigned CompilerContext::numberOfLocalVariables() const
 {
-	return static_cast<unsigned>(m_localVariables.size());
+	return m_localVariables.size();
 }
 
 shared_ptr<evmasm::Assembly> CompilerContext::compiledContract(ContractDefinition const& _contract) const
@@ -332,24 +330,16 @@ CompilerContext& CompilerContext::appendJump(evmasm::AssemblyItem::JumpType _jum
 	return *this << item;
 }
 
-CompilerContext& CompilerContext::appendPanic(util::PanicCode _code)
+CompilerContext& CompilerContext::appendInvalid()
 {
-	Whiskers templ(R"({
-		mstore(0, <selector>)
-		mstore(4, <code>)
-		revert(0, 0x24)
-	})");
-	templ("selector", util::selectorFromSignature("Panic(uint256)").str());
-	templ("code", u256(_code).str());
-	appendInlineAssembly(templ.render());
-	return *this;
+	return *this << Instruction::INVALID;
 }
 
-CompilerContext& CompilerContext::appendConditionalPanic(util::PanicCode _code)
+CompilerContext& CompilerContext::appendConditionalInvalid()
 {
 	*this << Instruction::ISZERO;
 	evmasm::AssemblyItem afterTag = appendConditionalJump();
-	appendPanic(_code);
+	*this << Instruction::INVALID;
 	*this << afterTag;
 	return *this;
 }
@@ -430,10 +420,10 @@ void CompilerContext::appendInlineAssembly(
 				util::errinfo_comment("Stack too deep (" + to_string(stackDiff) + "), try removing local variables.")
 			);
 		if (_context == yul::IdentifierContext::RValue)
-			_assembly.appendInstruction(dupInstruction(static_cast<unsigned>(stackDiff)));
+			_assembly.appendInstruction(dupInstruction(stackDiff));
 		else
 		{
-			_assembly.appendInstruction(swapInstruction(static_cast<unsigned>(stackDiff)));
+			_assembly.appendInstruction(swapInstruction(stackDiff));
 			_assembly.appendInstruction(Instruction::POP);
 		}
 	};
@@ -555,6 +545,13 @@ void CompilerContext::optimizeYul(yul::Object& _object, yul::EVMDialect const& _
 	cout << "After optimizer:" << endl;
 	cout << yul::AsmPrinter(*dialect)(*object.code) << endl;
 #endif
+}
+
+LinkerObject const& CompilerContext::assembledObject() const
+{
+	LinkerObject const& object = m_asm->assemble();
+	solAssert(object.immutableReferences.empty(), "Leftover immutables.");
+	return object;
 }
 
 string CompilerContext::revertReasonIfDebug(string const& _message)

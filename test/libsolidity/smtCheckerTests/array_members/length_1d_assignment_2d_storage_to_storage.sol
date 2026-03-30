@@ -1,5 +1,5 @@
 pragma experimental SMTChecker;
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 contract C {
 	uint[][] arr;

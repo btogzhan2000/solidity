@@ -39,10 +39,8 @@ using namespace solidity::smtutil;
 
 SMTLib2Interface::SMTLib2Interface(
 	map<h256, string> _queryResponses,
-	ReadCallback::Callback _smtCallback,
-	optional<unsigned> _queryTimeout
+	ReadCallback::Callback _smtCallback
 ):
-	SolverInterface(_queryTimeout),
 	m_queryResponses(move(_queryResponses)),
 	m_smtCallback(move(_smtCallback))
 {
@@ -56,8 +54,6 @@ void SMTLib2Interface::reset()
 	m_variables.clear();
 	m_userSorts.clear();
 	write("(set-option :produce-models true)");
-	if (m_queryTimeout)
-		write("(set-option :timeout " + to_string(*m_queryTimeout) + ")");
 	write("(set-logic ALL)");
 }
 

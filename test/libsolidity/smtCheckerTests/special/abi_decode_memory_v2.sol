@@ -1,5 +1,5 @@
 pragma experimental SMTChecker;
-pragma abicoder v2;
+pragma experimental "ABIEncoderV2";
 
 contract C {
 	struct S { uint x; uint[] b; }
@@ -8,9 +8,7 @@ contract C {
 	}
 }
 // ----
-// Warning 8364: (215-221): Assertion checker does not yet implement type type(uint256[] memory)
-// Warning 8364: (215-224): Assertion checker does not yet implement type type(uint256[] memory[2] memory)
-// Warning 8364: (205-206): Assertion checker does not yet implement type type(struct C.S storage pointer)
-// Warning 8364: (215-221): Assertion checker does not yet implement type type(uint256[] memory)
-// Warning 8364: (215-224): Assertion checker does not yet implement type type(uint256[] memory[2] memory)
-// Warning 8364: (205-206): Assertion checker does not yet implement type type(struct C.S storage pointer)
+// Warning 8364: (221-222): Assertion checker does not yet implement type type(struct C.S storage pointer)
+// Warning 8364: (231-237): Assertion checker does not yet implement type type(uint256[] memory)
+// Warning 8364: (231-240): Assertion checker does not yet implement type type(uint256[] memory[2] memory)
+// Warning 4588: (202-242): Assertion checker does not yet implement this type of function call.

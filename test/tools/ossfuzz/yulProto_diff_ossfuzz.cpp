@@ -21,9 +21,6 @@
 #include <test/tools/ossfuzz/yulProto.pb.h>
 #include <test/tools/fuzzer_common.h>
 #include <test/tools/ossfuzz/protoToYul.h>
-
-#include <test/libyul/YulOptimizerTestCommon.h>
-
 #include <src/libfuzzer/libfuzzer_macro.h>
 
 #include <libyul/AssemblyStack.h>
@@ -47,7 +44,7 @@ namespace
 {
 void printErrors(ostream& _stream, ErrorList const& _errors)
 {
-	SourceReferenceFormatter formatter(_stream, false, false);
+	SourceReferenceFormatter formatter(_stream);
 
 	for (auto const& error: _errors)
 		formatter.printExceptionInformation(
@@ -102,29 +99,16 @@ DEFINE_PROTO_FUZZER(Program const& _input)
 
 	if (
 		termReason == yulFuzzerUtil::TerminationReason::StepLimitReached ||
-		termReason == yulFuzzerUtil::TerminationReason::TraceLimitReached ||
-		termReason == yulFuzzerUtil::TerminationReason::ExpresionNestingLimitReached
+		termReason == yulFuzzerUtil::TerminationReason::TraceLimitReached
 	)
 		return;
 
-	YulOptimizerTestCommon optimizerTest(
-		stack.parserResult(),
-		EVMDialect::strictAssemblyForEVMObjects(version)
-	);
-	optimizerTest.setStep(optimizerTest.randomOptimiserStep(_input.step()));
-	shared_ptr<solidity::yul::Block> astBlock = optimizerTest.run();
-	yulAssert(astBlock != nullptr, "Optimiser error.");
-	termReason = yulFuzzerUtil::interpret(
+	stack.optimize();
+	yulFuzzerUtil::interpret(
 		os2,
-		astBlock,
+		stack.parserResult()->code,
 		EVMDialect::strictAssemblyForEVMObjects(version)
 	);
-	if (
-		termReason == yulFuzzerUtil::TerminationReason::StepLimitReached ||
-		termReason == yulFuzzerUtil::TerminationReason::TraceLimitReached ||
-		termReason == yulFuzzerUtil::TerminationReason::ExpresionNestingLimitReached
-	)
-		return;
 
 	bool isTraceEq = (os1.str() == os2.str());
 	yulAssert(isTraceEq, "Interpreted traces for optimized and unoptimized code differ.");

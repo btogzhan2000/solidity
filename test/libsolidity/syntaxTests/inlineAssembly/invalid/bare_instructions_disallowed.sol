@@ -7,4 +7,4 @@ contract C {
     }
 }
 // ----
-// ParserError 6913: (95-98): Call or assignment expected.
+// ParserError 2314: (95-98): Expected '(' but got identifier

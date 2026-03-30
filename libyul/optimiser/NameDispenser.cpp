@@ -23,7 +23,7 @@
 
 #include <libyul/optimiser/NameCollector.h>
 #include <libyul/optimiser/OptimizerUtilities.h>
-#include <libyul/AST.h>
+#include <libyul/AsmData.h>
 #include <libyul/Dialect.h>
 #include <libyul/YulString.h>
 
@@ -35,9 +35,8 @@ using namespace solidity::yul;
 using namespace solidity::util;
 
 NameDispenser::NameDispenser(Dialect const& _dialect, Block const& _ast, set<YulString> _reservedNames):
-	NameDispenser(_dialect, NameCollector(_ast).names() + _reservedNames)
+	NameDispenser(_dialect, NameCollector(_ast).names() + std::move(_reservedNames))
 {
-	m_reservedNames = move(_reservedNames);
 }
 
 NameDispenser::NameDispenser(Dialect const& _dialect, set<YulString> _usedNames):
@@ -61,10 +60,4 @@ YulString NameDispenser::newName(YulString _nameHint)
 bool NameDispenser::illegalName(YulString _name)
 {
 	return isRestrictedIdentifier(m_dialect, _name) || m_usedNames.count(_name);
-}
-
-void NameDispenser::reset(Block const& _ast)
-{
-	m_usedNames = NameCollector(_ast).names() + m_reservedNames;
-	m_counter = 0;
 }

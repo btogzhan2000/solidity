@@ -25,7 +25,8 @@ to receive their money - contracts cannot activate themselves.
 ::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.7.0 <0.9.0;
+    pragma solidity ^0.7.0;
+
     contract SimpleAuction {
         // Parameters of the auction. Times are either
         // absolute unix timestamps (seconds since 1970-01-01)
@@ -114,7 +115,7 @@ to receive their money - contracts cannot activate themselves.
                 // before `send` returns.
                 pendingReturns[msg.sender] = 0;
 
-                if (!payable(msg.sender).send(amount)) {
+                if (!msg.sender.send(amount)) {
                     // No need to call throw here, just reset the amount owing
                     pendingReturns[msg.sender] = amount;
                     return false;
@@ -185,7 +186,8 @@ invalid bids.
 ::
 
     // SPDX-License-Identifier: GPL-3.0
-    pragma solidity >=0.7.0 <0.9.0;
+    pragma solidity ^0.7.0;
+
     contract BlindAuction {
         struct Bid {
             bytes32 blindedBid;
@@ -280,7 +282,7 @@ invalid bids.
                 // the same deposit.
                 bidToCheck.blindedBid = bytes32(0);
             }
-            payable(msg.sender).transfer(refund);
+            msg.sender.transfer(refund);
         }
 
         /// Withdraw a bid that was overbid.
@@ -293,7 +295,7 @@ invalid bids.
                 // conditions -> effects -> interaction).
                 pendingReturns[msg.sender] = 0;
 
-                payable(msg.sender).transfer(amount);
+                msg.sender.transfer(amount);
             }
         }
 

@@ -37,7 +37,7 @@ REM for those packages.
 REM
 REM The documentation for solidity is hosted at:
 REM
-REM https://docs.soliditylang.org
+REM http://solidity.readthedocs.org
 REM
 REM ---------------------------------------------------------------------------
 REM This file is part of solidity.

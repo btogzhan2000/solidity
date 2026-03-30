@@ -37,7 +37,7 @@ contract C {
     }
 }
 // ====
-// compileViaYul: also
+// compileViaYul: true
 // ----
 // f(address): 0x1234 -> false
 // f(address): 0x00 -> true

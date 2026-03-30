@@ -11,7 +11,5 @@ contract C
 		assert(map[p] < 90);
 	}
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
 // Warning 6328: (197-216): CHC: Assertion violation happens here.

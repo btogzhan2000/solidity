@@ -4,12 +4,8 @@ contract C {
         // right before the exp
         uint16 e = 0x100;
         uint8 b = 0x2;
-        unchecked {
-            return b**e;
-        }
+        return b**e;
     }
 }
-// ====
-// compileViaYul: also
 // ----
 // f() -> 0x00

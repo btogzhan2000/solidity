@@ -11,8 +11,6 @@ contract C
 		return x;
 	}
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
 // Warning 6328: (96-110): CHC: Assertion violation happens here.
 // Warning 6328: (114-130): CHC: Assertion violation happens here.

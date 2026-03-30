@@ -147,12 +147,9 @@ bool SemVerMatchExpression::matches(SemVerVersion const& _version) const
 	return false;
 }
 
-optional<SemVerMatchExpression> SemVerMatchExpressionParser::parse()
+SemVerMatchExpression SemVerMatchExpressionParser::parse()
 {
 	reset();
-
-	if (m_tokens.empty())
-		return nullopt;
 
 	try
 	{
@@ -169,7 +166,6 @@ optional<SemVerMatchExpression> SemVerMatchExpressionParser::parse()
 	catch (SemVerError const&)
 	{
 		reset();
-		return nullopt;
 	}
 
 	return m_expression;

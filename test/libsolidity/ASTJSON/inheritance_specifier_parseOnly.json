@@ -24,8 +24,9 @@
           {
             "id": 2,
             "name": "C1",
-            "nodeType": "IdentifierPath",
-            "src": "30:2:1"
+            "nodeType": "UserDefinedTypeName",
+            "src": "30:2:1",
+            "typeDescriptions": {}
           },
           "id": 3,
           "nodeType": "InheritanceSpecifier",

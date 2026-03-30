@@ -1,4 +1,4 @@
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 struct S { uint a; }
 contract C {
     function f(S calldata s) external view {}

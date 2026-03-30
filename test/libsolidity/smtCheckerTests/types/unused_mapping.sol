@@ -12,7 +12,6 @@ contract C {
 		if(x == 0) x = 0; // noop state var read
 		x++;
 		y++;
-		// Commented out because of nondeterminism in Spacer in Z3 4.8.9
-		//assert(y == x);
+		assert(y == x);
 	}
 }

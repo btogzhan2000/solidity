@@ -25,7 +25,6 @@
 
 
 #include <libsolidity/formal/EncodingContext.h>
-#include <libsolidity/formal/ModelCheckerSettings.h>
 #include <libsolidity/formal/SymbolicVariables.h>
 #include <libsolidity/formal/VariableUsage.h>
 
@@ -53,16 +52,8 @@ class SMTEncoder: public ASTConstVisitor
 public:
 	SMTEncoder(smt::EncodingContext& _context);
 
-	/// @returns true if engine should proceed with analysis.
-	bool analyze(SourceUnit const& _sources);
-
 	/// @returns the leftmost identifier in a multi-d IndexAccess.
 	static Expression const* leftmostBase(IndexAccess const& _indexAccess);
-
-	/// @returns the key type in _type.
-	/// _type must allow IndexAccess, that is,
-	/// it must be either ArrayType or MappingType
-	static TypePointer keyType(TypePointer _type);
 
 	/// @returns the innermost element in a chain of 1-tuples if applicable,
 	/// otherwise _expr.
@@ -70,29 +61,13 @@ public:
 
 	/// @returns the FunctionDefinition of a FunctionCall
 	/// if possible or nullptr.
-	static std::pair<FunctionDefinition const*, ContractDefinition const*> functionCallToDefinition(FunctionCall const& _funCall, ContractDefinition const* _contract = nullptr);
+	static FunctionDefinition const* functionCallToDefinition(FunctionCall const& _funCall);
 
 	static std::vector<VariableDeclaration const*> stateVariablesIncludingInheritedAndPrivate(ContractDefinition const& _contract);
 	static std::vector<VariableDeclaration const*> stateVariablesIncludingInheritedAndPrivate(FunctionDefinition const& _function);
 
-	static std::vector<VariableDeclaration const*> localVariablesIncludingModifiers(FunctionDefinition const& _function, ContractDefinition const* _contract);
-	static std::vector<VariableDeclaration const*> modifiersVariables(FunctionDefinition const& _function, ContractDefinition const* _contract);
-	static std::vector<VariableDeclaration const*> tryCatchVariables(FunctionDefinition const& _function);
-
-	/// @returns the ModifierDefinition of a ModifierInvocation if possible, or nullptr.
-	static ModifierDefinition const* resolveModifierInvocation(ModifierInvocation const& _invocation, ContractDefinition const* _contract);
-
 	/// @returns the SourceUnit that contains _scopable.
 	static SourceUnit const* sourceUnitContaining(Scopable const& _scopable);
-
-	/// @returns the arguments for each base constructor call in the hierarchy of @a _contract.
-	std::map<ContractDefinition const*, std::vector<ASTPointer<frontend::Expression>>> baseArguments(ContractDefinition const& _contract);
-
-	/// @returns a valid RationalNumberType pointer if _expr has type
-	/// RationalNumberType or can be const evaluated, and nullptr otherwise.
-	static RationalNumberType const* isConstant(Expression const& _expr);
-
-	static std::set<FunctionCall const*> collectABICalls(ASTNode const* _node);
 
 protected:
 	// TODO: Check that we do not have concurrent reads and writes to a variable,
@@ -105,14 +80,11 @@ protected:
 	bool visit(ModifierDefinition const& _node) override;
 	bool visit(FunctionDefinition const& _node) override;
 	void endVisit(FunctionDefinition const& _node) override;
-	bool visit(Block const& _node) override;
-	void endVisit(Block const& _node) override;
 	bool visit(PlaceholderStatement const& _node) override;
-	bool visit(IfStatement const&) override { return false; }
+	bool visit(IfStatement const& _node) override;
 	bool visit(WhileStatement const&) override { return false; }
 	bool visit(ForStatement const&) override { return false; }
 	void endVisit(VariableDeclarationStatement const& _node) override;
-	bool visit(Assignment const& _node) override;
 	void endVisit(Assignment const& _node) override;
 	void endVisit(TupleExpression const& _node) override;
 	bool visit(UnaryOperation const& _node) override;
@@ -132,10 +104,7 @@ protected:
 	bool visit(InlineAssembly const& _node) override;
 	void endVisit(Break const&) override {}
 	void endVisit(Continue const&) override {}
-	bool visit(TryStatement const&) override { return false; }
-
-	virtual void pushInlineFrame(CallableDeclaration const&);
-	virtual void popInlineFrame(CallableDeclaration const&);
+	bool visit(TryCatchClause const& _node) override;
 
 	/// Do not visit subtree if node is a RationalNumber.
 	/// Symbolic _expr is the rational literal.
@@ -168,17 +137,12 @@ protected:
 	void initFunction(FunctionDefinition const& _function);
 	void visitAssert(FunctionCall const& _funCall);
 	void visitRequire(FunctionCall const& _funCall);
-	void visitABIFunction(FunctionCall const& _funCall);
 	void visitCryptoFunction(FunctionCall const& _funCall);
 	void visitGasLeft(FunctionCall const& _funCall);
 	virtual void visitAddMulMod(FunctionCall const& _funCall);
 	void visitObjectCreation(FunctionCall const& _funCall);
 	void visitTypeConversion(FunctionCall const& _funCall);
-	void visitStructConstructorCall(FunctionCall const& _funCall);
 	void visitFunctionIdentifier(Identifier const& _identifier);
-	void visitPublicGetter(FunctionCall const& _funCall);
-
-	bool isPublicGetter(Expression const& _expr);
 
 	/// Encodes a modifier or function body according to the modifier
 	/// visit depth.
@@ -221,10 +185,6 @@ protected:
 		IntegerType const& _type
 	);
 
-	/// Handles the actual assertion of the new value to the encoding context.
-	/// Other assignment methods should use this one in the end.
-	virtual void assignment(smt::SymbolicVariable& _symVar, smtutil::Expression const& _value);
-
 	void assignment(VariableDeclaration const& _variable, Expression const& _value);
 	/// Handles assignments to variables of different types.
 	void assignment(VariableDeclaration const& _variable, smtutil::Expression const& _value);
@@ -239,18 +199,15 @@ protected:
 	void tupleAssignment(Expression const& _left, Expression const& _right);
 	/// Computes the right hand side of a compound assignment.
 	smtutil::Expression compoundAssignment(Assignment const& _assignment);
-	/// Handles assignment of an expression to a tuple of variables.
-	void expressionToTupleAssignment(std::vector<std::shared_ptr<VariableDeclaration>> const& _variables, Expression const& _rhs);
 
 	/// Maps a variable to an SSA index.
 	using VariableIndices = std::unordered_map<VariableDeclaration const*, int>;
 
 	/// Visits the branch given by the statement, pushes and pops the current path conditions.
 	/// @param _condition if present, asserts that this condition is true within the branch.
-	/// @returns the variable indices after visiting the branch and the expression representing
-	/// the path condition at the end of the branch.
-	std::pair<VariableIndices, smtutil::Expression> visitBranch(ASTNode const* _statement, smtutil::Expression const* _condition = nullptr);
-	std::pair<VariableIndices, smtutil::Expression> visitBranch(ASTNode const* _statement, smtutil::Expression _condition);
+	/// @returns the variable indices after visiting the branch.
+	VariableIndices visitBranch(ASTNode const* _statement, smtutil::Expression const* _condition = nullptr);
+	VariableIndices visitBranch(ASTNode const* _statement, smtutil::Expression _condition);
 
 	using CallStackEntry = std::pair<CallableDeclaration const*, ASTNode const*>;
 
@@ -260,8 +217,6 @@ protected:
 	void initializeLocalVariables(FunctionDefinition const& _function);
 	void initializeFunctionCallParameters(CallableDeclaration const& _function, std::vector<smtutil::Expression> const& _callArgs);
 	void resetStateVariables();
-	void resetStorageVariables();
-	void resetMemoryVariables();
 	/// Resets all references/pointers that have the same type or have
 	/// a subexpression of the same type as _varDecl.
 	void resetReferences(VariableDeclaration const& _varDecl);
@@ -294,8 +249,6 @@ protected:
 	/// Creates the expression and sets its value.
 	void defineExpr(Expression const& _e, smtutil::Expression _value);
 
-	/// Overwrites the current path condition
-	void setPathCondition(smtutil::Expression const& _e);
 	/// Adds a new path condition
 	void pushPathCondition(smtutil::Expression const& _e);
 	/// Remove the last path condition
@@ -322,36 +275,24 @@ protected:
 	/// @returns variables that are touched in _node's subtree.
 	std::set<VariableDeclaration const*> touchedVariables(ASTNode const& _node);
 
-	/// @returns the declaration referenced by _expr, if any,
-	/// and nullptr otherwise.
-	Declaration const* expressionToDeclaration(Expression const& _expr) const;
-
-	/// @returns the VariableDeclaration referenced by an Expression or nullptr.
-	VariableDeclaration const* identifierToVariable(Expression const& _expr) const;
-
-	/// @returns the MemberAccess <expression>.push if _expr is an empty array push call,
-	/// otherwise nullptr.
-	MemberAccess const* isEmptyPush(Expression const& _expr) const;
-
-	/// @returns true if the given identifier is a contract which is known and trusted.
-	/// This means we don't have to abstract away effects of external function calls to this contract.
-	static bool isTrustedExternalCall(Expression const* _expr);
+	/// @returns the VariableDeclaration referenced by an Identifier or nullptr.
+	VariableDeclaration const* identifierToVariable(Expression const& _expr);
 
 	/// Creates symbolic expressions for the returned values
 	/// and set them as the components of the symbolic tuple.
-	void createReturnedExpressions(FunctionCall const& _funCall, ContractDefinition const* _contract);
+	void createReturnedExpressions(FunctionCall const& _funCall);
 
 	/// @returns the symbolic arguments for a function call,
 	/// taking into account bound functions and
 	/// type conversion.
-	std::vector<smtutil::Expression> symbolicArguments(FunctionCall const& _funCall, ContractDefinition const* _contract);
+	std::vector<smtutil::Expression> symbolicArguments(FunctionCall const& _funCall);
 
 	/// @returns a note to be added to warnings.
 	std::string extraComment();
 
 	struct VerificationTarget
 	{
-		VerificationTargetType type;
+		enum class Type { ConstantCondition, Underflow, Overflow, UnderOverflow, DivByZero, Balance, Assert, PopEmptyArray } type;
 		smtutil::Expression value;
 		smtutil::Expression constraints;
 	};
@@ -366,11 +307,6 @@ protected:
 	/// Used to retrieve models.
 	std::set<Expression const*> m_uninterpretedTerms;
 	std::vector<smtutil::Expression> m_pathConditions;
-
-	/// Whether the currently visited block uses checked
-	/// or unchecked arithmetic.
-	bool m_checked = true;
-
 	/// Local SMTEncoder ErrorReporter.
 	/// This is necessary to show the "No SMT solver available"
 	/// warning before the others in case it's needed.
@@ -384,12 +320,6 @@ protected:
 	bool isRootFunction();
 	/// Returns true if _funDef was already visited.
 	bool visitedFunction(FunctionDefinition const* _funDef);
-
-	/// @returns FunctionDefinitions of the given contract (including its constructor and inherited methods),
-	/// taking into account overriding of the virtual functions.
-	std::vector<FunctionDefinition const*> const& contractFunctions(ContractDefinition const& _contract);
-	/// Cache for the method contractFunctions.
-	std::map<ContractDefinition const*, std::vector<FunctionDefinition const*>> m_contractFunctions;
 
 	/// Depth of visit to modifiers.
 	/// When m_modifierDepth == #modifiers the function can be visited

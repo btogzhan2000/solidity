@@ -23,7 +23,7 @@
 
 #pragma once
 
-#include <libyul/ASTForward.h>
+#include <libyul/AsmData.h>
 #include <libyul/Dialect.h>
 
 #include <liblangutil/SourceLocation.h>
@@ -61,6 +61,8 @@ public:
 	std::unique_ptr<Block> parse(std::shared_ptr<langutil::Scanner> const& _scanner, bool _reuseScanner);
 
 protected:
+	using ElementaryOperation = std::variant<Literal, Identifier, FunctionCall>;
+
 	langutil::SourceLocation currentLocation() const override
 	{
 		return m_locationOverride ? *m_locationOverride : ParserBase::currentLocation();
@@ -82,10 +84,10 @@ protected:
 	Expression parseExpression();
 	/// Parses an elementary operation, i.e. a literal, identifier, instruction or
 	/// builtin functian call (only the name).
-	std::variant<Literal, Identifier> parseLiteralOrIdentifier();
+	ElementaryOperation parseElementaryOperation();
 	VariableDeclaration parseVariableDeclaration();
 	FunctionDefinition parseFunctionDefinition();
-	FunctionCall parseCall(std::variant<Literal, Identifier>&& _initialOp);
+	Expression parseCall(ElementaryOperation&& _initialOp);
 	TypedName parseTypedName();
 	YulString expectAsmIdentifier();
 

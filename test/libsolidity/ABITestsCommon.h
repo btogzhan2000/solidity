@@ -21,25 +21,17 @@
 namespace solidity::frontend::test
 {
 
+static std::string const NewEncoderPragma = "pragma experimental ABIEncoderV2;\n";
+
 #define NEW_ENCODER(CODE) \
 { \
-	string sourceCodeTmp = sourceCode; \
-	sourceCode = "pragma abicoder v2;\n" + sourceCode; \
+	sourceCode = NewEncoderPragma + sourceCode; \
 	{ CODE } \
-	sourceCode = sourceCodeTmp; \
-}
-
-#define OLD_ENCODER(CODE) \
-{ \
-	string sourceCodeTmp = sourceCode; \
-	sourceCode = "pragma abicoder v1;\n" + sourceCode; \
-	{ CODE } \
-	sourceCode = sourceCodeTmp; \
 }
 
 #define BOTH_ENCODERS(CODE) \
 { \
-	OLD_ENCODER(CODE) \
+	{ CODE } \
 	NEW_ENCODER(CODE) \
 }
 

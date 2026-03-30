@@ -225,14 +225,12 @@ public:
 		EncodingContext& _context
 	);
 
-	smtutil::Expression currentValue(frontend::TypePointer const& _targetType = TypePointer{}) const override;
-
-	std::vector<smtutil::SortPointer> const& components() const;
+	std::vector<smtutil::SortPointer> const& components();
 	smtutil::Expression component(
 		size_t _index,
 		TypePointer _fromType = nullptr,
 		TypePointer _toType = nullptr
-	) const;
+	);
 };
 
 /**
@@ -260,8 +258,8 @@ public:
 	smtutil::Expression resetIndex() override { SymbolicVariable::resetIndex(); return m_pair.resetIndex(); }
 	smtutil::Expression setIndex(unsigned _index) override { SymbolicVariable::setIndex(_index); return m_pair.setIndex(_index); }
 	smtutil::Expression increaseIndex() override { SymbolicVariable::increaseIndex(); return m_pair.increaseIndex(); }
-	smtutil::Expression elements() const;
-	smtutil::Expression length() const;
+	smtutil::Expression elements();
+	smtutil::Expression length();
 
 	smtutil::SortPointer tupleSort() { return m_pair.sort(); }
 
@@ -282,15 +280,11 @@ public:
 	);
 
 	/// @returns the symbolic expression representing _member.
-	smtutil::Expression member(std::string const& _member) const;
+	smtutil::Expression member(std::string const& _member);
 
 	/// @returns the symbolic expression representing this struct
 	/// with field _member updated.
 	smtutil::Expression assignMember(std::string const& _member, smtutil::Expression const& _memberValue);
-
-	/// @returns the symbolic expression representing this struct
-	/// with all fields updated with the given values.
-	smtutil::Expression assignAllMembers(std::vector<smtutil::Expression> const& _memberValues);
 
 private:
 	std::map<std::string, unsigned> m_memberIndices;

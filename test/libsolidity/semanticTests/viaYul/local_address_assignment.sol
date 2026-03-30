@@ -5,7 +5,6 @@ contract C {
     }
 }
 // ====
-// compileViaYul: also
-// compileToEwasm: also
+// compileViaYul: true
 // ----
 // f(address): 0x1234 -> 0x1234

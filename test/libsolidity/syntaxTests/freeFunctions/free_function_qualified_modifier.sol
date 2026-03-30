@@ -6,4 +6,4 @@ function fun() C.someModifier {
 
 }
 // ----
-// SyntaxError 5811: (49-83): Free functions cannot have modifiers.
+// ParserError 2314: (65-66): Expected '{' but got '.'

@@ -1,5 +1,5 @@
 ==== Source: A ====
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 struct Data {
     bool flag;
@@ -11,15 +11,14 @@ contract A {
 
 contract B {
     constructor() {
-        A(address(0x00)).get();
+        A(0x00).get();
     }
 
     function foo() public view {
-        A(address(0x00)).get();
+        A(0x00).get();
     }
 }
 ==== Source: B ====
-pragma abicoder v1;
 import "A";
 
 contract C is B {}

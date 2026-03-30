@@ -22,8 +22,6 @@ contract C {
         x = 3;
     }
 }
-// ====
-// SMTIgnoreCex: yes
 // ----
 // Warning 2072: (282-288): Unused local variable.
 // Warning 6328: (304-328): CHC: Assertion violation happens here.

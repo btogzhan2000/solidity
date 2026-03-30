@@ -37,7 +37,7 @@ struct SolRandomNumGenerator
 	/// @returns a pseudo random unsigned integer
 	unsigned operator()()
 	{
-		return static_cast<unsigned>(m_random());
+		return m_random();
 	}
 
 	RandomEngine m_random;

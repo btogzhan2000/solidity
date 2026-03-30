@@ -53,9 +53,14 @@
           {
             "id": 2,
             "name": "L",
-            "nodeType": "IdentifierPath",
+            "nodeType": "UserDefinedTypeName",
             "referencedDeclaration": 1,
-            "src": "32:1:1"
+            "src": "32:1:1",
+            "typeDescriptions":
+            {
+              "typeIdentifier": "t_contract$_L_$1",
+              "typeString": "library L"
+            }
           },
           "nodeType": "UsingForDirective",
           "src": "26:17:1",

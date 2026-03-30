@@ -1,0 +1,21 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/togzhan/Documents/Github/solidity/build/cmake_install.cmake",
+		"/Users/togzhan/Documents/Github/solidity/build/libsolutil/cmake_install.cmake",
+		"/Users/togzhan/Documents/Github/solidity/build/liblangutil/cmake_install.cmake",
+		"/Users/togzhan/Documents/Github/solidity/build/libsmtutil/cmake_install.cmake",
+		"/Users/togzhan/Documents/Github/solidity/build/libevmasm/cmake_install.cmake",
+		"/Users/togzhan/Documents/Github/solidity/build/libyul/cmake_install.cmake",
+		"/Users/togzhan/Documents/Github/solidity/build/libsolidity/cmake_install.cmake",
+		"/Users/togzhan/Documents/Github/solidity/build/libsolc/cmake_install.cmake",
+		"/Users/togzhan/Documents/Github/solidity/build/tools/cmake_install.cmake",
+		"/Users/togzhan/Documents/Github/solidity/build/solc/cmake_install.cmake",
+		"/Users/togzhan/Documents/Github/solidity/build/test/cmake_install.cmake",
+		"/Users/togzhan/Documents/Github/solidity/build/test/tools/cmake_install.cmake",
+		"/Users/togzhan/Documents/Github/solidity/build/test/tools/ossfuzz/cmake_install.cmake",
+		"/Users/togzhan/Documents/Github/solidity/build/test/tools/yulInterpreter/cmake_install.cmake",
+		"/Users/togzhan/Documents/Github/solidity/build/test/evmc/cmake_install.cmake"
+	],
+	"Parallel" : false
+}

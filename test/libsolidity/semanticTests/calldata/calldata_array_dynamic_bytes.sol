@@ -1,4 +1,4 @@
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 
 
 contract C {
@@ -63,7 +63,8 @@ contract C {
     }
 }
 
-// via yul disabled because of stack issues.
+// found expectation comments:
+// same offset for both arrays @ ABI_CHECK(
 
 // ====
 // compileViaYul: false

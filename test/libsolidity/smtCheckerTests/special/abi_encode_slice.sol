@@ -5,3 +5,4 @@ contract C {
 	}
 }
 // ----
+// Warning 4588: (126-154): Assertion checker does not yet implement this type of function call.

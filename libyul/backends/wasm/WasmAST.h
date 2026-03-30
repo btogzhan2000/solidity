@@ -21,8 +21,6 @@
 
 #pragma once
 
-#include <libsolutil/Common.h>
-
 #include <variant>
 #include <string>
 #include <vector>
@@ -63,7 +61,6 @@ using Expression = std::variant<
 >;
 
 struct Literal { std::variant<uint32_t, uint64_t> value; };
-// This is a special AST element used for certain builtins. It is not mapped to actual WebAssembly.
 struct StringLiteral { std::string value; };
 struct LocalVariable { std::string name; };
 struct GlobalVariable { std::string name; };
@@ -111,7 +108,6 @@ struct Module
 	std::vector<FunctionImport> imports;
 	std::vector<FunctionDefinition> functions;
 	std::map<std::string, Module> subModules;
-	std::map<std::string, bytes> customSections;
 };
 
 }

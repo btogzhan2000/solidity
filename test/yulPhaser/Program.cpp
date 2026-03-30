@@ -24,6 +24,7 @@
 #include <libyul/optimiser/BlockFlattener.h>
 #include <libyul/optimiser/Metrics.h>
 #include <libyul/optimiser/StructuralSimplifier.h>
+#include <libyul/AsmData.h>
 
 #include <libsolutil/CommonIO.h>
 #include <libsolutil/JSON.h>

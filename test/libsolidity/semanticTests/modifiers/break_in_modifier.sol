@@ -3,8 +3,7 @@ contract C {
     modifier run() {
         for (uint256 i = 0; i < 10; i++) {
             _;
-            if (i == 1)
-                break;
+            break;
         }
     }
 
@@ -19,4 +18,4 @@ contract C {
 // ----
 // x() -> 0
 // f() ->
-// x() -> 2
+// x() -> 1

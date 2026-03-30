@@ -25,8 +25,8 @@
 
 #include <libyul/backends/evm/EVMDialect.h>
 #include <libyul/optimiser/ASTWalker.h>
-#include <libyul/ASTForward.h>
-#include <libyul/Scope.h>
+#include <libyul/AsmDataForward.h>
+#include <libyul/AsmScope.h>
 
 #include <optional>
 #include <stack>
@@ -43,16 +43,10 @@ class EVMAssembly;
 
 struct StackTooDeepError: virtual YulException
 {
-	StackTooDeepError(YulString _variable, int _depth, std::string const& _message):
-		variable(_variable), depth(_depth)
-	{
-		*this << util::errinfo_comment(_message);
-	}
-	StackTooDeepError(YulString _functionName, YulString _variable, int _depth, std::string const& _message):
+	StackTooDeepError(YulString _variable, int _depth): variable(_variable), depth(_depth) {}
+	StackTooDeepError(YulString _functionName, YulString _variable, int _depth):
 		functionName(_functionName), variable(_variable), depth(_depth)
-	{
-		*this << util::errinfo_comment(_message);
-	}
+	{}
 	YulString functionName;
 	YulString variable;
 	int depth;

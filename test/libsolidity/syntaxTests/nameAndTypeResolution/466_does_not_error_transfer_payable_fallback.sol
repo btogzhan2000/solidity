@@ -9,7 +9,7 @@ contract B {
     A a;
 
     fallback() external {
-        payable(a).transfer(100);
+        address(a).transfer(100);
     }
 }
 // ----

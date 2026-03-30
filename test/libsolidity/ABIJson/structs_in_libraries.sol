@@ -1,4 +1,4 @@
-pragma abicoder               v2;
+pragma experimental ABIEncoderV2;
 library L {
     struct S { uint a; T[] sub; bytes b; }
     struct T { uint[2] x; }
